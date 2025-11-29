@@ -1,5 +1,5 @@
-import { extractWithRakePos } from 'rake-pos';
 import type { TranscriptMessage, TranscriptInput } from '../core/types.js';
+import { extractKeywordsFromText } from './markdown.js';
 
 /**
  * Parse transcript input from JSON string
@@ -97,7 +97,7 @@ export function analyzeForMemories(
         if (fileContext.length > 30) {
           memories.push({
             subject: `Note about ${filePath}`,
-            keywords: extractKeywordsFromPath(filePath),
+            keywords: generateKeywordsForFile(filePath, fileContext),
             applies_to: `file:${filePath}`,
             content: fileContext,
           });
@@ -141,37 +141,26 @@ function generateSubject(category: string, content: string): string {
 }
 
 /**
- * Generate keywords from category and content using RAKE algorithm with POS tagging
+ * Generate keywords from category and content
+ * Uses extractKeywordsFromText from markdown.ts for consistent RAKE-based extraction
  */
 function generateKeywords(category: string, content: string): string[] {
+  // Start with the category as the first keyword
   const keywords = [category];
   const seen = new Set(keywords);
 
-  try {
-    // Use RAKE algorithm with POS tagging for intelligent keyword extraction
-    const rakeKeywords = extractWithRakePos({ text: content });
+  // Extract keywords from content using RAKE algorithm (via markdown.ts)
+  const extractedKeywords = extractKeywordsFromText(content, {
+    maxKeywords: 10,
+    minLength: 3,
+  });
 
-    // Add extracted keywords (up to 4 more, for a total of 5)
-    for (const keyword of rakeKeywords) {
-      const normalizedKeyword = keyword.toLowerCase();
-      if (!seen.has(normalizedKeyword) && keyword.length > 2 && keywords.length < 5) {
-        keywords.push(normalizedKeyword);
-        seen.add(normalizedKeyword);
-      }
-    }
-  } catch {
-    // Fallback to simple extraction if rake-pos fails
-    const words = content
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, ' ')
-      .split(/\s+/)
-      .filter((w) => w.length > 3);
-
-    for (const word of words) {
-      if (!seen.has(word) && keywords.length < 5) {
-        keywords.push(word);
-        seen.add(word);
-      }
+  // Add extracted keywords (up to 4 more, for a total of 5)
+  for (const keyword of extractedKeywords) {
+    const normalizedKeyword = keyword.toLowerCase();
+    if (!seen.has(normalizedKeyword) && keywords.length < 5) {
+      keywords.push(normalizedKeyword);
+      seen.add(normalizedKeyword);
     }
   }
 
@@ -179,18 +168,45 @@ function generateKeywords(category: string, content: string): string[] {
 }
 
 /**
- * Extract keywords from a file path
+ * Generate keywords for a file-specific memory
+ * Combines path-based keywords with content-based keywords
  */
-function extractKeywordsFromPath(filePath: string): string[] {
-  const parts = filePath.split(/[\/\\.]/).filter(Boolean);
-  const keywords = parts
-    .filter((p) => p.length > 2)
-    .slice(-3); // Last 3 meaningful parts
+function generateKeywordsForFile(filePath: string, content: string): string[] {
+  const keywords: string[] = [];
+  const seen = new Set<string>();
 
-  // Add the file extension without dot
+  // Extract keywords from the file path
+  const pathParts = filePath.split(/[\/\\.]/).filter(Boolean);
+  const pathKeywords = pathParts.filter((p) => p.length > 2).slice(-3);
+
+  for (const keyword of pathKeywords) {
+    const normalized = keyword.toLowerCase();
+    if (!seen.has(normalized)) {
+      keywords.push(normalized);
+      seen.add(normalized);
+    }
+  }
+
+  // Add the file extension
   const ext = filePath.split('.').pop();
-  if (ext && ext.length <= 4) {
-    keywords.push(ext);
+  if (ext && ext.length <= 4 && !seen.has(ext.toLowerCase())) {
+    keywords.push(ext.toLowerCase());
+    seen.add(ext.toLowerCase());
+  }
+
+  // Extract keywords from the content using RAKE algorithm
+  const contentKeywords = extractKeywordsFromText(content, {
+    maxKeywords: 5,
+    minLength: 3,
+  });
+
+  // Add content keywords (up to total of 5)
+  for (const keyword of contentKeywords) {
+    const normalized = keyword.toLowerCase();
+    if (!seen.has(normalized) && keywords.length < 5) {
+      keywords.push(normalized);
+      seen.add(normalized);
+    }
   }
 
   return keywords;

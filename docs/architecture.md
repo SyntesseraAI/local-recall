@@ -23,6 +23,15 @@ Local Recall is built with a modular architecture that separates concerns into d
           │                 │                   │
           ▼                 ▼                   ▼
 ┌─────────────────────────────────────────────────────────────┐
+│                     Utilities Layer                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
+│  │   Markdown   │  │  Transcript  │  │     Config       │  │
+│  │  (keywords)  │  │  (analysis)  │  │    (settings)    │  │
+│  └──────────────┘  └──────────────┘  └──────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+          │                 │                   │
+          ▼                 ▼                   ▼
+┌─────────────────────────────────────────────────────────────┐
 │                      Storage Layer                           │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │                  File System                          │  │
@@ -79,6 +88,49 @@ Exposes memory tools via Model Context Protocol:
 - Handles request/response serialization
 - Manages concurrent access to memory store
 
+### Utilities Layer (`src/utils/`)
+
+Shared utility functions used across the application:
+
+#### Markdown Utilities (`markdown.ts`)
+
+Central module for text processing:
+
+- **parseMarkdown()**: Parse markdown with YAML frontmatter
+- **serializeMemory()**: Convert memory objects to markdown
+- **extractKeywordsFromText()**: RAKE-based keyword extraction with POS tagging
+- **formatMemoryForDisplay()**: Format memory for human-readable output
+
+The `extractKeywordsFromText()` function uses the [rake-pos](https://github.com/hlo-world/rake-pos) library for intelligent keyword extraction. All keyword extraction across the codebase goes through this function for consistency.
+
+#### Transcript Utilities (`transcript.ts`)
+
+Functions for processing Claude Code transcripts:
+
+- **parseTranscript()**: Parse JSON transcript input
+- **extractNewMessages()**: Filter messages by time window
+- **analyzeForMemories()**: Detect memory-worthy content patterns
+- **readStdin()**: Read input from stdin for hooks
+
+The transcript module uses `extractKeywordsFromText()` from markdown.ts to ensure consistent keyword extraction across all memory creation paths.
+
+#### Configuration (`config.ts`)
+
+Configuration loading and validation:
+
+- **loadConfig()**: Load from file and environment
+- **getConfig()**: Get cached configuration
+- **validateConfig()**: Validate configuration objects
+
+#### Fuzzy Matching (`fuzzy.ts`)
+
+Low-level fuzzy string matching algorithms:
+
+- **levenshteinDistance()**: Calculate edit distance
+- **stringSimilarity()**: Normalized similarity score
+- **fuzzyMatch()**: Check if strings match within threshold
+- **fuzzyFilter()**: Filter array by fuzzy match
+
 ### Storage Layer
 
 #### File System Structure
@@ -130,11 +182,13 @@ local-recall/
 
 ```
 1. Claude processing ends
-2. Stop hook receives transcript JSON
-3. Recent messages extracted (last 30s)
-4. Content analyzed for memory-worthy info
-5. New memories created/existing updated
-6. Index refreshed
+2. Stop hook receives transcript JSON via stdin
+3. Transcript file read (JSONL format)
+4. Recent messages extracted (last 30s)
+5. Content analyzed for memory-worthy patterns
+6. Keywords extracted using RAKE algorithm (via markdown.ts)
+7. New memories created with extracted keywords
+8. Index refreshed
 ```
 
 ## Concurrency Considerations
