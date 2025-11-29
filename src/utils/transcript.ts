@@ -1,3 +1,4 @@
+import { extractWithRakePos } from 'rake-pos';
 import type { TranscriptMessage, TranscriptInput } from '../core/types.js';
 
 /**
@@ -140,24 +141,37 @@ function generateSubject(category: string, content: string): string {
 }
 
 /**
- * Generate keywords from category and content
+ * Generate keywords from category and content using RAKE algorithm with POS tagging
  */
 function generateKeywords(category: string, content: string): string[] {
   const keywords = [category];
-
-  // Extract potential keywords from content
-  const words = content
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, ' ')
-    .split(/\s+/)
-    .filter((w) => w.length > 3);
-
-  // Add first few unique words
   const seen = new Set(keywords);
-  for (const word of words) {
-    if (!seen.has(word) && keywords.length < 5) {
-      keywords.push(word);
-      seen.add(word);
+
+  try {
+    // Use RAKE algorithm with POS tagging for intelligent keyword extraction
+    const rakeKeywords = extractWithRakePos({ text: content });
+
+    // Add extracted keywords (up to 4 more, for a total of 5)
+    for (const keyword of rakeKeywords) {
+      const normalizedKeyword = keyword.toLowerCase();
+      if (!seen.has(normalizedKeyword) && keyword.length > 2 && keywords.length < 5) {
+        keywords.push(normalizedKeyword);
+        seen.add(normalizedKeyword);
+      }
+    }
+  } catch {
+    // Fallback to simple extraction if rake-pos fails
+    const words = content
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length > 3);
+
+    for (const word of words) {
+      if (!seen.has(word) && keywords.length < 5) {
+        keywords.push(word);
+        seen.add(word);
+      }
     }
   }
 

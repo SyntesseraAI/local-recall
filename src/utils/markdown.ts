@@ -1,4 +1,5 @@
 import matter from 'gray-matter';
+import { extractWithRakePos } from 'rake-pos';
 import type { Memory, MemoryFrontmatter } from '../core/types.js';
 
 /**
@@ -32,16 +33,47 @@ export function serializeMemory(memory: Memory): string {
 }
 
 /**
- * Extract keywords from text content
- * Useful for auto-suggesting keywords from memory content
+ * Extract keywords from text content using RAKE algorithm with POS tagging
+ * Uses rake-pos for intelligent keyword extraction
  */
 export function extractKeywordsFromText(
   text: string,
-  options: { maxKeywords?: number; minLength?: number } = {}
+  options: { maxKeywords?: number; minLength?: number; additionalStopWords?: string[] } = {}
 ): string[] {
   const maxKeywords = options.maxKeywords ?? 10;
   const minLength = options.minLength ?? 3;
 
+  // Build additional stop words set if provided
+  const additionalStopWordSet = options.additionalStopWords
+    ? new Set(options.additionalStopWords)
+    : undefined;
+
+  try {
+    // Use RAKE algorithm with POS tagging for intelligent keyword extraction
+    const keywords = extractWithRakePos({
+      text,
+      additionalStopWordSet,
+    });
+
+    // Filter by minimum length and limit results
+    return keywords
+      .filter((keyword) => keyword.length >= minLength)
+      .slice(0, maxKeywords);
+  } catch {
+    // Fallback to simple extraction if rake-pos fails
+    return extractKeywordsFallback(text, maxKeywords, minLength);
+  }
+}
+
+/**
+ * Fallback keyword extraction using simple frequency analysis
+ * Used when rake-pos is unavailable or fails
+ */
+function extractKeywordsFallback(
+  text: string,
+  maxKeywords: number,
+  minLength: number
+): string[] {
   // Common stop words to filter out
   const stopWords = new Set([
     'the', 'a', 'an', 'and', 'or', 'but', 'is', 'are', 'was', 'were',
