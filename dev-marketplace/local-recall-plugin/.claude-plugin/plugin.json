@@ -1,0 +1,20 @@
+{
+  "name": "local-recall",
+  "description": "Local markdown-powered memory system for AI coding assistants. Enables persistent memory across sessions through structured markdown files.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Local Recall"
+  },
+  "keywords": [
+    "memory",
+    "context",
+    "recall",
+    "mcp",
+    "ai-assistant",
+    "persistent-memory"
+  ],
+  "license": "MIT",
+  "repository": "https://github.com/local-recall/local-recall",
+  "hooks": "./config/hooks.json",
+  "mcpServers": "./.mcp.json"
+}

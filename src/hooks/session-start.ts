@@ -1,0 +1,121 @@
+#!/usr/bin/env node
+/**
+ * Session Start Hook
+ *
+ * This hook is triggered when a Claude Code session begins.
+ * It loads relevant memories and outputs them for context injection.
+ *
+ * Input (via stdin): JSON with session_id, transcript_path, cwd, etc.
+ * Output: stdout text is added to Claude's context
+ */
+
+import { loadConfig } from '../utils/config.js';
+import { IndexManager } from '../core/index.js';
+import { SearchEngine } from '../core/search.js';
+import { formatMemoryForDisplay } from '../utils/markdown.js';
+import { readStdin } from '../utils/transcript.js';
+import { logger } from '../utils/logger.js';
+
+interface SessionStartInput {
+  session_id: string;
+  transcript_path: string;
+  cwd: string;
+  permission_mode: string;
+  hook_event_name: string;
+}
+
+async function main(): Promise<void> {
+  logger.hooks.info('SessionStart hook fired');
+
+  try {
+    // Read input from stdin
+    const inputRaw = await readStdin();
+    let input: SessionStartInput | undefined;
+
+    if (inputRaw.trim()) {
+      try {
+        input = JSON.parse(inputRaw) as SessionStartInput;
+        logger.hooks.info(`SessionStart input received: ${JSON.stringify(input, null, 2)}`);
+      } catch {
+        logger.hooks.warn(`SessionStart: Failed to parse stdin input: ${inputRaw}`);
+        // Input might be empty or invalid, continue anyway
+      }
+    } else {
+      logger.hooks.debug('SessionStart: No stdin input received');
+    }
+
+    // Use cwd from input if available, otherwise use PROJECT_DIR env var
+    const projectDir = input?.cwd ?? process.env['CLAUDE_PROJECT_DIR'] ?? process.cwd();
+    logger.hooks.debug(`SessionStart: Using project directory: ${projectDir}`);
+
+    // Load configuration with the correct base directory
+    process.env['LOCAL_RECALL_DIR'] = `${projectDir}/local-recall`;
+    await loadConfig();
+    logger.hooks.debug('SessionStart: Configuration loaded');
+
+    const indexManager = new IndexManager();
+    // Intentionally omitting memoryManager as session-start only needs index-based searches
+    // to load relevant memories, not memory CRUD operations
+    const searchEngine = new SearchEngine(indexManager);
+
+    // Get context from environment if available
+    const context: { files?: string[]; area?: string } = {};
+
+    const contextFiles = process.env['LOCAL_RECALL_CONTEXT_FILES'];
+    if (contextFiles) {
+      context.files = contextFiles.split(',').map((f) => f.trim());
+    }
+
+    const contextArea = process.env['LOCAL_RECALL_CONTEXT_AREA'];
+    if (contextArea) {
+      context.area = contextArea;
+    }
+
+    // Get relevant memories for this session
+    logger.hooks.debug('SessionStart: Searching for relevant memories');
+    const memories = await searchEngine.getRelevantForSession(context);
+    logger.hooks.info(`SessionStart: Found ${memories.length} relevant memories`);
+
+    if (memories.length === 0) {
+      // Output context for Claude
+      console.log('# Local Recall: No memories loaded');
+      console.log('');
+      console.log('No prior memories found for this session. Memories will be created as the session progresses.');
+      logger.hooks.info('SessionStart hook completed (no memories)');
+      process.exit(0);
+    }
+
+    // Output memories for Claude to consume (stdout goes to context)
+    console.log('# Local Recall: Loaded Memories');
+    console.log('');
+    console.log(`Found ${memories.length} relevant memories for this session.`);
+    console.log('');
+
+    for (const memory of memories) {
+      console.log(formatMemoryForDisplay(memory));
+      console.log('');
+      console.log('---');
+      console.log('');
+    }
+
+    // Output index stats
+    const stats = await indexManager.getStats();
+    console.log('## Memory Index Status');
+    console.log('');
+    console.log(`- Total memories: ${stats.memoriesIndexed}`);
+    console.log(`- Total keywords: ${stats.keywordsIndexed}`);
+    console.log(`- Last indexed: ${stats.builtAt}`);
+
+    // Exit 0 for success
+    logger.hooks.info('SessionStart hook completed successfully');
+    process.exit(0);
+  } catch (error) {
+    // Log error to stderr (shown in verbose mode)
+    logger.hooks.error(`SessionStart hook error: ${String(error)}`);
+    console.error('Local Recall session-start hook error:', error);
+    // Exit 0 to not block the session
+    process.exit(0);
+  }
+}
+
+main();
