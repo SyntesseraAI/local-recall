@@ -1,0 +1,20 @@
+{
+  "name": "local-recall",
+  "description": "Local markdown-powered memory system for AI coding assistants",
+  "version": "0.1.0",
+  "author": {
+    "name": "Local Recall"
+  },
+  "keywords": [
+    "memory",
+    "context",
+    "recall",
+    "mcp",
+    "ai-assistant"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/local-recall/local-recall"
+  }
+}

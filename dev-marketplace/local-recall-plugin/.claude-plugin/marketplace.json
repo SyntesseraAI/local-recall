@@ -1,0 +1,9 @@
+{
+  "name": "local-recall-marketplace",
+  "plugins": [
+    {
+      "name": "local-recall",
+      "source": ".."
+    }
+  ]
+}
