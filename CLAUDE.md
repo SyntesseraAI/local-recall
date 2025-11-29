@@ -172,6 +172,8 @@ Add to your project's `.claude/settings.json`:
 
 If you prefer not to use the plugin system, add hooks directly to `.claude/settings.json`:
 
+**When local-recall is installed as an npm package:**
+
 ```json
 {
   "hooks": {
@@ -192,6 +194,37 @@ If you prefer not to use the plugin system, add hooks directly to `.claude/setti
           {
             "type": "command",
             "command": "node ./node_modules/local-recall/dist/hooks/stop.js",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**When running from the local-recall project directory:**
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./dist/hooks/session-start.js",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./dist/hooks/stop.js",
             "timeout": 60
           }
         ]
