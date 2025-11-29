@@ -14,10 +14,7 @@
     "persistent-memory"
   ],
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/local-recall/local-recall"
-  },
-  "hooks": "./hooks.json",
+  "repository": "https://github.com/local-recall/local-recall",
+  "hooks": "./config/hooks.json",
   "mcpServers": "./.mcp.json"
 }

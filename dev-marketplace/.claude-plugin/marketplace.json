@@ -1,0 +1,12 @@
+{
+  "name": "local-recall-marketplace",
+  "owner": {
+    "name": "SyntesseraAI"
+  },
+  "plugins": [
+    {
+      "name": "local-recall",
+      "source": "./local-recall-plugin"
+    }
+  ]
+}

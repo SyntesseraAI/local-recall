@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "tsc && npm run build:scripts",
-    "build:scripts": "mkdir -p scripts && esbuild src/hooks/session-start.ts src/hooks/stop.ts src/mcp-server/server.ts --bundle --platform=node --format=esm --outdir=scripts --packages=external",
+    "build:scripts": "mkdir -p dev-marketplace/local-recall-plugin/scripts && esbuild src/hooks/session-start.ts src/hooks/stop.ts src/mcp-server/server.ts --bundle --platform=node --format=esm --outdir=dev-marketplace/local-recall-plugin/scripts/ --packages=external",
     "dev": "tsc --watch",
     "test": "vitest",
     "test:unit": "vitest run --dir src",
