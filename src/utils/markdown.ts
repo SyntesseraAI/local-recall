@@ -1,5 +1,4 @@
 import matter from 'gray-matter';
-import { extractWithRakePos } from 'rake-pos';
 import type { Memory, MemoryFrontmatter } from '../core/types.js';
 
 /**
@@ -33,8 +32,7 @@ export function serializeMemory(memory: Memory): string {
 }
 
 /**
- * Extract keywords from text content using RAKE algorithm with POS tagging
- * Uses rake-pos for intelligent keyword extraction
+ * Extract keywords from text content using frequency analysis
  */
 export function extractKeywordsFromText(
   text: string,
@@ -43,36 +41,17 @@ export function extractKeywordsFromText(
   const maxKeywords = options.maxKeywords ?? 10;
   const minLength = options.minLength ?? 3;
 
-  // Build additional stop words set if provided
-  const additionalStopWordSet = options.additionalStopWords
-    ? new Set(options.additionalStopWords)
-    : undefined;
-
-  try {
-    // Use RAKE algorithm with POS tagging for intelligent keyword extraction
-    const keywords = extractWithRakePos({
-      text,
-      additionalStopWordSet,
-    });
-
-    // Filter by minimum length and limit results
-    return keywords
-      .filter((keyword: string) => keyword.length >= minLength)
-      .slice(0, maxKeywords);
-  } catch {
-    // Fallback to simple extraction if rake-pos fails
-    return extractKeywordsFallback(text, maxKeywords, minLength);
-  }
+  return extractKeywordsSimple(text, maxKeywords, minLength, options.additionalStopWords);
 }
 
 /**
- * Fallback keyword extraction using simple frequency analysis
- * Used when rake-pos is unavailable or fails
+ * Keyword extraction using simple frequency analysis
  */
-function extractKeywordsFallback(
+function extractKeywordsSimple(
   text: string,
   maxKeywords: number,
-  minLength: number
+  minLength: number,
+  additionalStopWords?: string[]
 ): string[] {
   // Common stop words to filter out
   const stopWords = new Set([
@@ -87,6 +66,13 @@ function extractKeywordsFallback(
     'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than',
     'too', 'very', 'just', 'also', 'now', 'this', 'that', 'these', 'those',
   ]);
+
+  // Add any additional stop words
+  if (additionalStopWords) {
+    for (const word of additionalStopWords) {
+      stopWords.add(word.toLowerCase());
+    }
+  }
 
   // Extract words
   const words = text

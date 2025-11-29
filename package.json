@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "tsc && npm run build:scripts",
-    "build:scripts": "mkdir -p dev-marketplace/local-recall-plugin/scripts && esbuild src/hooks/session-start.ts src/hooks/stop.ts src/mcp-server/server.ts --bundle --platform=node --format=esm --outdir=dev-marketplace/local-recall-plugin/scripts/ --packages=external",
+    "build:scripts": "mkdir -p scripts/hooks scripts/mcp-server && esbuild src/hooks/session-start.ts src/hooks/stop.ts --bundle --platform=node --format=esm --outdir=scripts/hooks --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\" && esbuild src/mcp-server/server.ts --bundle --platform=node --format=esm --outdir=scripts/mcp-server --external:@modelcontextprotocol/sdk --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\"",
     "dev": "tsc --watch",
     "test": "vitest",
     "test:unit": "vitest run --dir src",
@@ -40,7 +40,6 @@
     "@modelcontextprotocol/sdk": "^1.0.0",
     "fuse.js": "^7.0.0",
     "gray-matter": "^4.0.3",
-    "rake-pos": "^1.0.0",
     "uuid": "^10.0.0",
     "yaml": "^2.6.0",
     "zod": "^3.23.0"

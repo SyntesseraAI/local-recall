@@ -1,12 +1,6 @@
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  resolve: {
-    // Handle packages with incorrect main/exports like rake-pos
-    alias: {
-      'rake-pos': 'rake-pos/dist/src/index.js',
-    },
-  },
   test: {
     globals: true,
     environment: 'node',
