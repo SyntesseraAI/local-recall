@@ -2,19 +2,83 @@ import type { TranscriptMessage, TranscriptInput } from '../core/types.js';
 import { extractKeywordsFromText } from './markdown.js';
 
 /**
+ * Maximum distance from start/end of extracted text to look for sentence boundaries.
+ * Used in extractContextAroundMatch to find clean sentence breaks.
+ */
+const SENTENCE_BOUNDARY_SEARCH_LIMIT = 50;
+
+/**
+ * Validate that an object is a valid TranscriptMessage
+ */
+function isValidTranscriptMessage(obj: unknown): obj is TranscriptMessage {
+  if (typeof obj !== 'object' || obj === null) {
+    return false;
+  }
+
+  const message = obj as Record<string, unknown>;
+
+  // Check required fields
+  if (typeof message['role'] !== 'string') {
+    return false;
+  }
+  if (message['role'] !== 'user' && message['role'] !== 'assistant') {
+    return false;
+  }
+  if (typeof message['content'] !== 'string') {
+    return false;
+  }
+  if (typeof message['timestamp'] !== 'string') {
+    return false;
+  }
+
+  // Validate timestamp is a valid ISO date string
+  const date = new Date(message['timestamp']);
+  if (isNaN(date.getTime())) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Parse transcript input from JSON string
+ * Validates that all messages have required fields (role, content, timestamp)
  */
 export function parseTranscript(input: string): TranscriptInput {
-  const data = JSON.parse(input);
+  let data: unknown;
 
-  if (!data.transcript || !Array.isArray(data.transcript)) {
+  try {
+    data = JSON.parse(input);
+  } catch {
+    throw new Error('Invalid transcript input: malformed JSON');
+  }
+
+  if (typeof data !== 'object' || data === null) {
+    throw new Error('Invalid transcript input: expected object');
+  }
+
+  const obj = data as Record<string, unknown>;
+
+  if (!obj['transcript'] || !Array.isArray(obj['transcript'])) {
     throw new Error('Invalid transcript input: missing transcript array');
   }
 
+  // Validate each message in the transcript
+  const validatedMessages: TranscriptMessage[] = [];
+  for (let i = 0; i < obj['transcript'].length; i++) {
+    const message = obj['transcript'][i];
+    if (!isValidTranscriptMessage(message)) {
+      throw new Error(
+        `Invalid transcript message at index ${i}: must have role ('user' | 'assistant'), content (string), and timestamp (ISO date string)`
+      );
+    }
+    validatedMessages.push(message);
+  }
+
   return {
-    transcript: data.transcript as TranscriptMessage[],
-    session_id: data.session_id ?? 'unknown',
-    working_directory: data.working_directory ?? process.cwd(),
+    transcript: validatedMessages,
+    session_id: typeof obj['session_id'] === 'string' ? obj['session_id'] : 'unknown',
+    working_directory: typeof obj['working_directory'] === 'string' ? obj['working_directory'] : process.cwd(),
   };
 }
 
@@ -91,9 +155,13 @@ export function analyzeForMemories(
     const fileMatches = content.matchAll(filePattern);
     for (const match of fileMatches) {
       const filePath = match[1];
+      // Skip if index is missing (should not happen with matchAll)
+      if (typeof match.index !== 'number') {
+        continue;
+      }
       if (filePath && !filePath.includes('*')) {
         // Extract context around the file mention
-        const fileContext = extractContextAroundMatch(content, match.index ?? 0);
+        const fileContext = extractContextAroundMatch(content, match.index);
         if (fileContext.length > 30) {
           memories.push({
             subject: `Note about ${filePath}`,
@@ -228,7 +296,7 @@ function extractContextAroundMatch(
   // Try to start at a sentence boundary
   if (start > 0) {
     const sentenceStart = extracted.indexOf('. ');
-    if (sentenceStart !== -1 && sentenceStart < 50) {
+    if (sentenceStart !== -1 && sentenceStart < SENTENCE_BOUNDARY_SEARCH_LIMIT) {
       extracted = extracted.slice(sentenceStart + 2);
     } else {
       extracted = '...' + extracted;
@@ -238,7 +306,7 @@ function extractContextAroundMatch(
   // Try to end at a sentence boundary
   if (end < content.length) {
     const sentenceEnd = extracted.lastIndexOf('. ');
-    if (sentenceEnd !== -1 && sentenceEnd > extracted.length - 50) {
+    if (sentenceEnd !== -1 && sentenceEnd > extracted.length - SENTENCE_BOUNDARY_SEARCH_LIMIT) {
       extracted = extracted.slice(0, sentenceEnd + 1);
     } else {
       extracted = extracted + '...';
@@ -249,14 +317,53 @@ function extractContextAroundMatch(
 }
 
 /**
- * Read from stdin (for hook scripts)
+ * Default timeout for reading stdin (10 seconds)
  */
-export async function readStdin(): Promise<string> {
+const STDIN_TIMEOUT_MS = 10000;
+
+/**
+ * Read from stdin (for hook scripts)
+ * Handles cases where stdin may have already ended or is in flowing mode.
+ * Includes a timeout to avoid hanging forever.
+ */
+export async function readStdin(timeoutMs: number = STDIN_TIMEOUT_MS): Promise<string> {
   const chunks: Buffer[] = [];
 
   return new Promise((resolve, reject) => {
-    process.stdin.on('data', (chunk) => chunks.push(chunk));
-    process.stdin.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
-    process.stdin.on('error', reject);
+    // If stdin has already ended, resolve immediately
+    if (process.stdin.readableEnded) {
+      resolve('');
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('Timed out waiting for stdin'));
+    }, timeoutMs);
+
+    function cleanup() {
+      process.stdin.off('data', onData);
+      process.stdin.off('end', onEnd);
+      process.stdin.off('error', onError);
+      clearTimeout(timeout);
+    }
+
+    function onData(chunk: Buffer) {
+      chunks.push(chunk);
+    }
+
+    function onEnd() {
+      cleanup();
+      resolve(Buffer.concat(chunks).toString('utf-8'));
+    }
+
+    function onError(err: Error) {
+      cleanup();
+      reject(err);
+    }
+
+    process.stdin.on('data', onData);
+    process.stdin.on('end', onEnd);
+    process.stdin.on('error', onError);
   });
 }

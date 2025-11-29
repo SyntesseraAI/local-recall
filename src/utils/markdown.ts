@@ -57,7 +57,7 @@ export function extractKeywordsFromText(
 
     // Filter by minimum length and limit results
     return keywords
-      .filter((keyword) => keyword.length >= minLength)
+      .filter((keyword: string) => keyword.length >= minLength)
       .slice(0, maxKeywords);
   } catch {
     // Fallback to simple extraction if rake-pos fails

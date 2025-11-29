@@ -8,37 +8,45 @@
 
 /**
  * Calculate Levenshtein distance between two strings
+ * Uses dynamic programming with a 2D matrix.
  */
 export function levenshteinDistance(a: string, b: string): number {
   const m = a.length;
   const n = b.length;
 
   // Create a 2D array to store distances
+  // Initialized with all zeros, then first row/column set to incremental values
   const dp: number[][] = Array.from({ length: m + 1 }, () =>
     Array.from({ length: n + 1 }, () => 0)
   );
 
   // Initialize first row and column
   for (let i = 0; i <= m; i++) {
-    dp[i]![0] = i;
+    const row = dp[i];
+    if (row) row[0] = i;
   }
   for (let j = 0; j <= n; j++) {
-    dp[0]![j] = j;
+    const row = dp[0];
+    if (row) row[j] = j;
   }
 
   // Fill in the rest of the matrix
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
       const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      dp[i]![j] = Math.min(
-        dp[i - 1]![j]! + 1,      // deletion
-        dp[i]![j - 1]! + 1,      // insertion
-        dp[i - 1]![j - 1]! + cost // substitution
-      );
+      const currentRow = dp[i];
+      const prevRow = dp[i - 1];
+
+      if (currentRow && prevRow) {
+        const deletion = (prevRow[j] ?? 0) + 1;
+        const insertion = (currentRow[j - 1] ?? 0) + 1;
+        const substitution = (prevRow[j - 1] ?? 0) + cost;
+        currentRow[j] = Math.min(deletion, insertion, substitution);
+      }
     }
   }
 
-  return dp[m]![n]!;
+  return dp[m]?.[n] ?? Math.max(m, n);
 }
 
 /**

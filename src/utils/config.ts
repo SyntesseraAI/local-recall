@@ -2,10 +2,20 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { type Config, configSchema } from '../core/types.js';
 
+/**
+ * Cached configuration singleton.
+ * Intentionally allows overwriting: calling loadConfig() multiple times
+ * will reload the configuration (e.g., after config file changes).
+ * For cached access without reloading, use getConfig().
+ */
 let cachedConfig: Config | null = null;
 
 /**
- * Load configuration from file and environment
+ * Load configuration from file and environment.
+ * This function always reloads the configuration from disk and environment,
+ * updating the cached value. Use getConfig() for cached access.
+ *
+ * @param configPath - Optional path to config file. Defaults to .local-recall.json in cwd.
  */
 export async function loadConfig(configPath?: string): Promise<Config> {
   const defaultPath = path.join(process.cwd(), '.local-recall.json');

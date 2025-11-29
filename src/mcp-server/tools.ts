@@ -9,6 +9,15 @@ import { SearchEngine } from '../core/search.js';
 import type { MemoryScope } from '../core/types.js';
 
 /**
+ * Singleton instances for tool handlers.
+ * Created once at module load to ensure cache consistency across tool calls
+ * and avoid performance overhead of repeated instantiation.
+ */
+const memoryManager = new MemoryManager();
+const indexManager = new IndexManager();
+const searchEngine = new SearchEngine(indexManager, memoryManager);
+
+/**
  * Create tool definitions for MCP
  */
 export function createTools(): Tool[] {
@@ -192,16 +201,12 @@ export async function handleToolCall(
 }
 
 /**
- * Execute a specific tool
+ * Execute a specific tool using module-level singleton instances
  */
 async function executeToolCall(
   name: string,
   args: Record<string, unknown>
 ): Promise<unknown> {
-  const memoryManager = new MemoryManager();
-  const indexManager = new IndexManager();
-  const searchEngine = new SearchEngine(indexManager, memoryManager);
-
   switch (name) {
     case 'memory_create': {
       const memory = await memoryManager.createMemory({

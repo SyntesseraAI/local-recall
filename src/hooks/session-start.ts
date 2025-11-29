@@ -45,6 +45,8 @@ async function main(): Promise<void> {
     await loadConfig();
 
     const indexManager = new IndexManager();
+    // Intentionally omitting memoryManager as session-start only needs index-based searches
+    // to load relevant memories, not memory CRUD operations
     const searchEngine = new SearchEngine(indexManager);
 
     // Get context from environment if available

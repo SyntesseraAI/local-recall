@@ -144,7 +144,7 @@ async function main(): Promise<void> {
         });
         created.push(memory.id);
       } catch (error) {
-        console.error(`Failed to create memory: ${error}`);
+        console.error('Failed to create memory:', String(error));
       }
     }
 
