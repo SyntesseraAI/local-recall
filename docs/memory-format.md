@@ -19,10 +19,9 @@ keywords:
   - <keyword2>
 applies_to: <scope>
 created_at: <iso-8601-timestamp>
-updated_at: <iso-8601-timestamp>
+occurred_at: <iso-8601-timestamp>
+content_hash: <sha256-prefix>
 ---
-
-# <Title>
 
 <Content body>
 ```
@@ -62,33 +61,42 @@ updated_at: <iso-8601-timestamp>
 
 ### created_at (auto)
 - Type: `string` (ISO 8601)
-- Automatically set on creation
+- Automatically set when the memory file is created
 - Never modified after creation
 
-### updated_at (auto)
+### occurred_at (required)
 - Type: `string` (ISO 8601)
-- Updated on every modification
-- Used for sorting by recency
+- Timestamp of when the original event/message occurred
+- Used for deduplication together with `content_hash`
+- Used for sorting memories chronologically
+
+### content_hash (auto)
+- Type: `string` (16-char SHA-256 prefix)
+- Hash of the memory content for deduplication
+- Used together with `occurred_at` to detect duplicates
+- Ensures idempotent memory creation
 
 ## Content Section
 
-The content section follows standard markdown:
+The content section contains the full assistant message content without modification.
+
+### Filtering Rules
+
+Only certain messages are saved as memories:
+- **User messages are not saved** - only assistant responses are stored
+- **Single-line messages are skipped** - messages must have multiple lines to be considered substantive
+- **No summarization** - qualifying messages are stored in full
+
+This design ensures that only substantive assistant responses are retained, reducing noise while preserving important context.
 
 ### Supported Elements
 
-- **Headings**: H1-H6
 - **Paragraphs**: Regular text
 - **Code blocks**: Fenced with language hint
 - **Lists**: Ordered and unordered
 - **Links**: Standard markdown links
 - **Emphasis**: Bold, italic
-
-### Best Practices
-
-1. **Start with context**: Explain why this memory exists
-2. **Be specific**: Include concrete details
-3. **Include code**: Show examples when relevant
-4. **Keep it atomic**: One concept per memory
+- **Tables**: Standard markdown tables
 
 ## Examples
 
@@ -105,10 +113,9 @@ keywords:
   - conventions
 applies_to: global
 created_at: 2025-01-15T10:30:00Z
-updated_at: 2025-01-15T10:30:00Z
+occurred_at: 2025-01-15T10:30:00Z
+content_hash: a1b2c3d4e5f67890
 ---
-
-# Error Handling Convention
 
 All errors in this project should:
 
@@ -116,7 +123,7 @@ All errors in this project should:
 2. Include an error code for client handling
 3. Be logged with full stack trace in development
 
-## Example
+Example:
 
 \`\`\`typescript
 class ValidationError extends AppError {
@@ -140,27 +147,16 @@ keywords:
   - authentication
 applies_to: file:src/middleware/auth.ts
 created_at: 2025-01-16T14:20:00Z
-updated_at: 2025-01-16T14:20:00Z
+occurred_at: 2025-01-16T14:20:00Z
+content_hash: b2c3d4e5f6789012
 ---
-
-# Auth Middleware Context
 
 The auth middleware in `src/middleware/auth.ts` attaches user context to requests.
 
-## Important Notes
-
+Important Notes:
 - Token is extracted from `Authorization` header
 - User object is attached to `req.user`
 - Unauthenticated requests get `req.user = null`
-
-## Usage
-
-\`\`\`typescript
-app.get('/profile', authMiddleware, (req, res) => {
-  // req.user is guaranteed to be populated here
-  res.json(req.user);
-});
-\`\`\`
 ```
 
 ### Area-Specific Memory
@@ -176,10 +172,9 @@ keywords:
   - performance
 applies_to: area:database
 created_at: 2025-01-17T09:15:00Z
-updated_at: 2025-01-18T11:30:00Z
+occurred_at: 2025-01-17T09:15:00Z
+content_hash: c3d4e5f678901234
 ---
-
-# Database Connection Pooling
 
 The database layer uses connection pooling with these settings:
 
@@ -189,14 +184,10 @@ The database layer uses connection pooling with these settings:
 | max | 10 | Prevent overload |
 | idleTimeout | 30000 | Release unused connections |
 
-## Configuration Location
+Configuration is in `src/config/database.ts`
 
-Settings are in `src/config/database.ts`
-
-## Performance Notes
-
-- Pool size was increased from 5 to 10 after load testing
-- Idle timeout reduced from 60s to 30s to free resources faster
+Pool size was increased from 5 to 10 after load testing.
+Idle timeout reduced from 60s to 30s to free resources faster.
 ```
 
 ## Validation Rules
@@ -205,4 +196,10 @@ Settings are in `src/config/database.ts`
 2. **Subject**: 1-200 characters
 3. **Keywords**: 1-20 keywords, each 1-50 characters
 4. **applies_to**: Must match pattern `global|file:.+|area:.+`
-5. **Content**: Minimum 10 characters
+5. **occurred_at**: Must be valid ISO 8601 datetime
+6. **content_hash**: Auto-generated 16-character SHA-256 prefix
+7. **Content**: Minimum 10 characters
+
+## Deduplication
+
+Memories are deduplicated using the combination of `occurred_at` and `content_hash`. If a memory with the same values for both fields already exists, the creation is skipped and the existing memory is returned. This ensures idempotent memory creation across multiple hook invocations.

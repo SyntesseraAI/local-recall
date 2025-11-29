@@ -3,6 +3,7 @@ import {
   parseTranscript,
   extractNewMessages,
   analyzeForMemories,
+  parseTranscriptForMemories,
 } from '../../../src/utils/transcript.js';
 import type { TranscriptMessage } from '../../../src/core/types.js';
 
@@ -33,7 +34,7 @@ describe('transcript utilities', () => {
       expect(result.working_directory).toBe('/test/dir');
     });
 
-    it('should validate message roles', () => {
+    it('should skip messages with invalid roles', () => {
       const input = JSON.stringify({
         transcript: [
           {
@@ -41,13 +42,21 @@ describe('transcript utilities', () => {
             content: 'Hello',
             timestamp: '2024-01-01T10:00:00.000Z',
           },
+          {
+            role: 'user',
+            content: 'Valid message',
+            timestamp: '2024-01-01T10:00:01.000Z',
+          },
         ],
       });
 
-      expect(() => parseTranscript(input)).toThrow(/Invalid transcript message/);
+      const result = parseTranscript(input);
+      // Invalid message is skipped, valid message is kept
+      expect(result.transcript).toHaveLength(1);
+      expect(result.transcript[0]?.content).toBe('Valid message');
     });
 
-    it('should validate message content is string', () => {
+    it('should skip messages with non-string content', () => {
       const input = JSON.stringify({
         transcript: [
           {
@@ -55,13 +64,19 @@ describe('transcript utilities', () => {
             content: 123,
             timestamp: '2024-01-01T10:00:00.000Z',
           },
+          {
+            role: 'user',
+            content: 'Valid message',
+            timestamp: '2024-01-01T10:00:01.000Z',
+          },
         ],
       });
 
-      expect(() => parseTranscript(input)).toThrow(/Invalid transcript message/);
+      const result = parseTranscript(input);
+      expect(result.transcript).toHaveLength(1);
     });
 
-    it('should validate timestamp is valid ISO date', () => {
+    it('should skip messages with invalid timestamps', () => {
       const input = JSON.stringify({
         transcript: [
           {
@@ -69,10 +84,16 @@ describe('transcript utilities', () => {
             content: 'Hello',
             timestamp: 'not-a-date',
           },
+          {
+            role: 'user',
+            content: 'Valid message',
+            timestamp: '2024-01-01T10:00:01.000Z',
+          },
         ],
       });
 
-      expect(() => parseTranscript(input)).toThrow(/Invalid transcript message/);
+      const result = parseTranscript(input);
+      expect(result.transcript).toHaveLength(1);
     });
 
     it('should throw on malformed JSON', () => {
@@ -102,15 +123,48 @@ describe('transcript utilities', () => {
       expect(result.working_directory).toBeDefined();
     });
 
-    it('should report which message index is invalid', () => {
+    it('should skip invalid messages while keeping valid ones', () => {
       const input = JSON.stringify({
         transcript: [
           { role: 'user', content: 'Valid', timestamp: '2024-01-01T10:00:00.000Z' },
           { role: 'invalid', content: 'Invalid', timestamp: '2024-01-01T10:00:00.000Z' },
+          { role: 'assistant', content: 'Also valid', timestamp: '2024-01-01T10:00:01.000Z' },
         ],
       });
 
-      expect(() => parseTranscript(input)).toThrow(/at index 1/);
+      const result = parseTranscript(input);
+      expect(result.transcript).toHaveLength(2);
+      expect(result.transcript[0]?.content).toBe('Valid');
+      expect(result.transcript[1]?.content).toBe('Also valid');
+    });
+
+    it('should parse raw transcript format with content blocks', () => {
+      const input = JSON.stringify({
+        transcript: [
+          {
+            type: 'user',
+            timestamp: '2024-01-01T10:00:00.000Z',
+            content: 'Hello',
+          },
+          {
+            type: 'assistant',
+            timestamp: '2024-01-01T10:00:05.000Z',
+            message: {
+              content: [
+                { type: 'thinking', thinking: 'Let me think about this...' },
+                { type: 'text', text: 'Hi there!' },
+              ],
+            },
+          },
+        ],
+        session_id: 'test-session',
+      });
+
+      const result = parseTranscript(input);
+
+      expect(result.transcript).toHaveLength(2);
+      expect(result.transcript[1]?.content).toBe('Hi there!');
+      expect(result.transcript[1]?.thinking).toBe('Let me think about this...');
     });
   });
 
@@ -174,11 +228,11 @@ describe('transcript utilities', () => {
   });
 
   describe('analyzeForMemories', () => {
-    it('should detect decision patterns', () => {
+    it('should save multi-line assistant content', () => {
       const messages: TranscriptMessage[] = [
         {
           role: 'assistant',
-          content: 'We decided to use React instead of Vue for this project because of better TypeScript support.',
+          content: 'We decided to use React instead of Vue for this project.\nThis is because of better TypeScript support and ecosystem.',
           timestamp: new Date().toISOString(),
         },
       ];
@@ -186,14 +240,15 @@ describe('transcript utilities', () => {
       const memories = analyzeForMemories(messages);
 
       expect(memories.length).toBeGreaterThan(0);
-      expect(memories.some((m) => m.subject.includes('Decision'))).toBe(true);
+      expect(memories[0]?.subject).toContain('decided to use React');
     });
 
-    it('should detect solution patterns', () => {
+    it('should save all thinking content (even single-line)', () => {
       const messages: TranscriptMessage[] = [
         {
           role: 'assistant',
-          content: 'Fixed the authentication bug by adding proper token validation in the middleware.',
+          content: 'Done.',
+          thinking: 'I need to fix the auth bug.',
           timestamp: new Date().toISOString(),
         },
       ];
@@ -201,24 +256,26 @@ describe('transcript utilities', () => {
       const memories = analyzeForMemories(messages);
 
       expect(memories.length).toBeGreaterThan(0);
-      expect(memories.some((m) => m.subject.includes('Fix'))).toBe(true);
+      expect(memories[0]?.content).toContain('fix the auth bug');
     });
 
-    it('should detect configuration patterns', () => {
+    it('should save both thinking and multi-line content', () => {
       const messages: TranscriptMessage[] = [
         {
           role: 'assistant',
-          content: 'Configured the environment variable DATABASE_URL to point to the production database.',
+          content: 'Configured the environment variable DATABASE_URL.\nThis points to the production database.',
+          thinking: 'Let me check the config file...',
           timestamp: new Date().toISOString(),
         },
       ];
 
       const memories = analyzeForMemories(messages);
 
-      expect(memories.length).toBeGreaterThan(0);
+      // Should have 2 memories: one for thinking, one for content
+      expect(memories.length).toBe(2);
     });
 
-    it('should detect convention patterns', () => {
+    it('should skip single-line content (only multi-line is saved)', () => {
       const messages: TranscriptMessage[] = [
         {
           role: 'assistant',
@@ -229,7 +286,8 @@ describe('transcript utilities', () => {
 
       const memories = analyzeForMemories(messages);
 
-      expect(memories.length).toBeGreaterThan(0);
+      // Single-line content is not saved
+      expect(memories.length).toBe(0);
     });
 
     it('should skip user messages', () => {
@@ -265,7 +323,7 @@ describe('transcript utilities', () => {
       const messages: TranscriptMessage[] = [
         {
           role: 'assistant',
-          content: 'In file `src/components/Button.tsx`, we need to ensure the onClick handler is properly typed and handles async operations correctly.',
+          content: 'In file `src/components/Button.tsx`, we need to ensure the onClick handler is properly typed.\nIt should also handle async operations correctly.',
           timestamp: new Date().toISOString(),
         },
       ];
@@ -314,6 +372,154 @@ describe('transcript utilities', () => {
       const memories = analyzeForMemories([]);
 
       expect(memories).toEqual([]);
+    });
+  });
+
+  describe('parseTranscriptForMemories', () => {
+    it('should parse JSONL and extract memories from multi-line content', () => {
+      const jsonl = [
+        JSON.stringify({
+          type: 'user',
+          timestamp: '2024-01-01T10:00:00.000Z',
+          message: { content: 'Hello' },
+        }),
+        JSON.stringify({
+          type: 'assistant',
+          timestamp: '2024-01-01T10:00:05.000Z',
+          message: {
+            content: [
+              { type: 'text', text: 'Here is the answer.\nIt has multiple lines.' },
+            ],
+          },
+        }),
+      ].join('\n');
+
+      const memories = parseTranscriptForMemories(jsonl);
+
+      expect(memories.length).toBe(1);
+      expect(memories[0]?.content).toContain('Here is the answer');
+    });
+
+    it('should extract thinking content from thinking blocks', () => {
+      const jsonl = [
+        JSON.stringify({
+          type: 'assistant',
+          timestamp: '2024-01-01T10:00:05.000Z',
+          message: {
+            content: [
+              { type: 'thinking', thinking: 'I need to consider this carefully.' },
+              { type: 'text', text: 'Done.' },
+            ],
+          },
+        }),
+      ].join('\n');
+
+      const memories = parseTranscriptForMemories(jsonl);
+
+      // Should have 1 memory from thinking (single-line text content is dropped)
+      expect(memories.length).toBe(1);
+      expect(memories[0]?.content).toContain('consider this carefully');
+    });
+
+    it('should handle separate thinking and text messages', () => {
+      // This is the actual format Claude Code produces - thinking and text as separate entries
+      const jsonl = [
+        JSON.stringify({
+          type: 'assistant',
+          timestamp: '2024-01-01T10:00:05.000Z',
+          message: {
+            content: [
+              { type: 'thinking', thinking: 'The user wants to chat about food.' },
+            ],
+          },
+        }),
+        JSON.stringify({
+          type: 'assistant',
+          timestamp: '2024-01-01T10:00:06.000Z',
+          message: {
+            content: [
+              {
+                type: 'text',
+                text: 'Sausages and stew - a classic combination!\nWhat dish are you thinking about?',
+              },
+            ],
+          },
+        }),
+      ].join('\n');
+
+      const memories = parseTranscriptForMemories(jsonl);
+
+      // Should have 2 memories: one from thinking, one from multi-line text
+      expect(memories.length).toBe(2);
+      expect(memories.some((m) => m.content.includes('user wants to chat'))).toBe(true);
+      expect(memories.some((m) => m.content.includes('classic combination'))).toBe(true);
+    });
+
+    it('should skip non-user/assistant entries', () => {
+      const jsonl = [
+        JSON.stringify({
+          type: 'summary',
+          summary: 'Fixed transcript parsing',
+        }),
+        JSON.stringify({
+          type: 'system',
+          subtype: 'stop_hook_summary',
+        }),
+        JSON.stringify({
+          type: 'assistant',
+          timestamp: '2024-01-01T10:00:05.000Z',
+          message: {
+            content: [
+              { type: 'text', text: 'Valid message.\nWith multiple lines.' },
+            ],
+          },
+        }),
+      ].join('\n');
+
+      const memories = parseTranscriptForMemories(jsonl);
+
+      expect(memories.length).toBe(1);
+    });
+
+    it('should handle malformed lines gracefully', () => {
+      const jsonl = [
+        'not valid json',
+        JSON.stringify({
+          type: 'assistant',
+          timestamp: '2024-01-01T10:00:05.000Z',
+          message: {
+            content: [
+              { type: 'text', text: 'Valid message.\nWith multiple lines.' },
+            ],
+          },
+        }),
+        '{"incomplete":',
+      ].join('\n');
+
+      const memories = parseTranscriptForMemories(jsonl);
+
+      // Should still get the valid message
+      expect(memories.length).toBe(1);
+    });
+
+    it('should handle empty input', () => {
+      const memories = parseTranscriptForMemories('');
+      expect(memories).toEqual([]);
+    });
+
+    it('should handle string content (legacy format)', () => {
+      const jsonl = JSON.stringify({
+        type: 'assistant',
+        timestamp: '2024-01-01T10:00:05.000Z',
+        message: {
+          content: 'Simple string content.\nWith newline.',
+        },
+      });
+
+      const memories = parseTranscriptForMemories(jsonl);
+
+      expect(memories.length).toBe(1);
+      expect(memories[0]?.content).toContain('Simple string content');
     });
   });
 });

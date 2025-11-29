@@ -24,7 +24,8 @@ export const memoryFrontmatterSchema = z.object({
   keywords: z.array(z.string().min(1).max(50)).min(1).max(20),
   applies_to: memoryScopeSchema,
   created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
+  occurred_at: z.string().datetime(),
+  content_hash: z.string(),
 });
 
 export type MemoryFrontmatter = z.infer<typeof memoryFrontmatterSchema>;
@@ -44,22 +45,10 @@ export const createMemoryInputSchema = z.object({
   keywords: z.array(z.string().min(1).max(50)).min(1).max(20),
   applies_to: memoryScopeSchema,
   content: z.string().min(10),
+  occurred_at: z.string().datetime(),
 });
 
 export type CreateMemoryInput = z.infer<typeof createMemoryInputSchema>;
-
-/**
- * Input for updating an existing memory
- */
-export const updateMemoryInputSchema = z.object({
-  id: z.string().uuid(),
-  subject: z.string().min(1).max(200).optional(),
-  keywords: z.array(z.string().min(1).max(50)).min(1).max(20).optional(),
-  applies_to: memoryScopeSchema.optional(),
-  content: z.string().min(10).optional(),
-});
-
-export type UpdateMemoryInput = z.infer<typeof updateMemoryInputSchema>;
 
 /**
  * Memory index structure - maps keywords to memory IDs
@@ -79,7 +68,8 @@ export interface MemoryIndexEntry {
   subject: string;
   keywords: string[];
   applies_to: MemoryScope;
-  updated_at: string;
+  occurred_at: string;
+  content_hash: string;
 }
 
 /**
@@ -109,7 +99,6 @@ export const configSchema = z.object({
   indexRefreshInterval: z.number().nonnegative().default(300),
   fuzzyThreshold: z.number().min(0).max(1).default(0.6),
   hooks: z.object({
-    timeWindow: z.number().positive().default(30),
     maxContextMemories: z.number().positive().default(10),
   }).default({}),
   mcp: z.object({
@@ -121,11 +110,63 @@ export const configSchema = z.object({
 export type Config = z.infer<typeof configSchema>;
 
 /**
- * Transcript message structure
+ * Content block types in transcript messages
+ */
+export interface ThinkingContentBlock {
+  type: 'thinking';
+  thinking: string;
+  signature?: string;
+}
+
+export interface TextContentBlock {
+  type: 'text';
+  text: string;
+}
+
+export interface ToolUseContentBlock {
+  type: 'tool_use';
+  id: string;
+  name: string;
+  input: unknown;
+}
+
+export interface ToolResultContentBlock {
+  type: 'tool_result';
+  tool_use_id: string;
+  content: string;
+}
+
+export type ContentBlock =
+  | ThinkingContentBlock
+  | TextContentBlock
+  | ToolUseContentBlock
+  | ToolResultContentBlock;
+
+/**
+ * Raw transcript message structure (as received from Claude Code)
+ * The message field contains the actual API response with content blocks
+ */
+export interface RawTranscriptMessage {
+  type: 'user' | 'assistant';
+  timestamp: string;
+  uuid?: string;
+  message?: {
+    content: ContentBlock[] | string;
+    role?: string;
+    model?: string;
+    id?: string;
+  };
+  // For user messages, content may be at the root level
+  content?: ContentBlock[] | string;
+}
+
+/**
+ * Parsed transcript message with extracted content
  */
 export interface TranscriptMessage {
   role: 'user' | 'assistant';
   content: string;
+  thinking?: string;
   timestamp: string;
 }
 

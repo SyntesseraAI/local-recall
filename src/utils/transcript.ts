@@ -1,32 +1,91 @@
-import type { TranscriptMessage, TranscriptInput } from '../core/types.js';
+import type {
+  TranscriptMessage,
+  TranscriptInput,
+  RawTranscriptMessage,
+  ContentBlock,
+} from '../core/types.js';
 import { extractKeywordsFromText } from './markdown.js';
 
 /**
- * Maximum distance from start/end of extracted text to look for sentence boundaries.
- * Used in extractContextAroundMatch to find clean sentence breaks.
+ * Extract text content from content blocks array
  */
-const SENTENCE_BOUNDARY_SEARCH_LIMIT = 50;
+function extractTextFromBlocks(blocks: ContentBlock[]): string {
+  return blocks
+    .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
+    .map((block) => block.text)
+    .join('\n');
+}
 
 /**
- * Validate that an object is a valid TranscriptMessage
+ * Extract thinking content from content blocks array
  */
-function isValidTranscriptMessage(obj: unknown): obj is TranscriptMessage {
+function extractThinkingFromBlocks(blocks: ContentBlock[]): string {
+  return blocks
+    .filter((block): block is { type: 'thinking'; thinking: string } => block.type === 'thinking')
+    .map((block) => block.thinking)
+    .join('\n');
+}
+
+/**
+ * Parse a raw transcript message into our normalized format
+ */
+function parseRawMessage(raw: RawTranscriptMessage): TranscriptMessage | null {
+  const role = raw.type;
+  if (role !== 'user' && role !== 'assistant') {
+    return null;
+  }
+
+  const timestamp = raw.timestamp;
+  if (typeof timestamp !== 'string') {
+    return null;
+  }
+
+  // Validate timestamp
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) {
+    return null;
+  }
+
+  // Get content blocks - could be in message.content or directly in content
+  const rawContent = raw.message?.content ?? raw.content;
+
+  let content = '';
+  let thinking: string | undefined;
+
+  if (typeof rawContent === 'string') {
+    content = rawContent;
+  } else if (Array.isArray(rawContent)) {
+    content = extractTextFromBlocks(rawContent as ContentBlock[]);
+    thinking = extractThinkingFromBlocks(rawContent as ContentBlock[]) || undefined;
+  }
+
+  return {
+    role,
+    content,
+    thinking,
+    timestamp,
+  };
+}
+
+/**
+ * Validate that an object is a valid raw transcript message (new format with content blocks)
+ */
+function isValidRawTranscriptMessage(obj: unknown): obj is RawTranscriptMessage {
   if (typeof obj !== 'object' || obj === null) {
     return false;
   }
 
   const message = obj as Record<string, unknown>;
 
-  // Check required fields
-  if (typeof message['role'] !== 'string') {
+  // Check type field (raw format uses 'type' not 'role')
+  if (typeof message['type'] !== 'string') {
     return false;
   }
-  if (message['role'] !== 'user' && message['role'] !== 'assistant') {
+  if (message['type'] !== 'user' && message['type'] !== 'assistant') {
     return false;
   }
-  if (typeof message['content'] !== 'string') {
-    return false;
-  }
+
+  // Check timestamp
   if (typeof message['timestamp'] !== 'string') {
     return false;
   }
@@ -41,8 +100,60 @@ function isValidTranscriptMessage(obj: unknown): obj is TranscriptMessage {
 }
 
 /**
+ * Legacy transcript message structure (old format for backward compatibility)
+ */
+interface LegacyTranscriptMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  thinking?: string;
+  timestamp: string;
+}
+
+/**
+ * Validate that an object is a valid legacy transcript message (old format with flat content)
+ */
+function isValidLegacyTranscriptMessage(obj: unknown): obj is LegacyTranscriptMessage {
+  if (typeof obj !== 'object' || obj === null) {
+    return false;
+  }
+
+  const message = obj as Record<string, unknown>;
+
+  // Check role field (legacy format uses 'role')
+  if (typeof message['role'] !== 'string') {
+    return false;
+  }
+  if (message['role'] !== 'user' && message['role'] !== 'assistant') {
+    return false;
+  }
+
+  // Check content is a string
+  if (typeof message['content'] !== 'string') {
+    return false;
+  }
+
+  // Check timestamp
+  if (typeof message['timestamp'] !== 'string') {
+    return false;
+  }
+
+  // Check optional thinking field
+  if (message['thinking'] !== undefined && typeof message['thinking'] !== 'string') {
+    return false;
+  }
+
+  // Validate timestamp is a valid ISO date string
+  const date = new Date(message['timestamp']);
+  if (isNaN(date.getTime())) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Parse transcript input from JSON string
- * Validates that all messages have required fields (role, content, timestamp)
+ * Handles both raw transcript format (with content blocks) and legacy format (flat content)
  */
 export function parseTranscript(input: string): TranscriptInput {
   let data: unknown;
@@ -63,16 +174,32 @@ export function parseTranscript(input: string): TranscriptInput {
     throw new Error('Invalid transcript input: missing transcript array');
   }
 
-  // Validate each message in the transcript
+  // Parse each message in the transcript
   const validatedMessages: TranscriptMessage[] = [];
   for (let i = 0; i < obj['transcript'].length; i++) {
-    const message = obj['transcript'][i];
-    if (!isValidTranscriptMessage(message)) {
-      throw new Error(
-        `Invalid transcript message at index ${i}: must have role ('user' | 'assistant'), content (string), and timestamp (ISO date string)`
-      );
+    const rawMessage = obj['transcript'][i];
+
+    // Try parsing as raw format first (with content blocks, uses 'type' field)
+    if (isValidRawTranscriptMessage(rawMessage)) {
+      const parsed = parseRawMessage(rawMessage);
+      if (parsed) {
+        validatedMessages.push(parsed);
+      }
+      continue;
     }
-    validatedMessages.push(message);
+
+    // Try legacy format (flat content string, uses 'role' field)
+    if (isValidLegacyTranscriptMessage(rawMessage)) {
+      validatedMessages.push({
+        role: rawMessage.role,
+        content: rawMessage.content,
+        thinking: rawMessage.thinking,
+        timestamp: rawMessage.timestamp,
+      });
+      continue;
+    }
+
+    // Skip invalid messages silently (they might be system messages, etc.)
   }
 
   return {
@@ -99,8 +226,70 @@ export function extractNewMessages(
 }
 
 /**
- * Analyze messages for memory-worthy content
- * Returns suggested memories based on content analysis
+ * Generate a subject line from message content
+ *
+ * - Multi-line text: takes the first line
+ * - Single-line text: takes up to the first period, or all text if no period
+ */
+function generateSubject(content: string, maxLength: number = 200): string {
+  const trimmed = content.trim();
+  if (!trimmed) return '';
+
+  // Check if multi-line
+  const newlineIndex = trimmed.indexOf('\n');
+  let subject: string;
+
+  if (newlineIndex !== -1) {
+    // Multi-line: take first line
+    subject = trimmed.substring(0, newlineIndex).trim();
+  } else {
+    // Single line: take up to first period, or all text
+    const periodIndex = trimmed.indexOf('.');
+    subject = periodIndex !== -1 ? trimmed.substring(0, periodIndex) : trimmed;
+  }
+
+  // Truncate if needed
+  if (subject.length <= maxLength) {
+    return subject;
+  }
+
+  return subject.substring(0, maxLength - 3) + '...';
+}
+
+/**
+ * Detect scope from content (global, file, or area)
+ */
+function detectScope(content: string): string {
+  // Check for specific file mentions
+  const fileMatch = content.match(/(?:in|file|at)\s+[`"']?([^`"'\s]+\.[a-z]{1,4})[`"']?/i);
+  if (fileMatch?.[1] && !fileMatch[1].includes('*')) {
+    return `file:${fileMatch[1]}`;
+  }
+
+  // Check for area/component mentions
+  const areaPatterns = [
+    /(?:in|for)\s+the\s+(\w+)\s+(?:component|module|service|area|section)/i,
+    /(?:the\s+)?(\w+)\s+(?:system|subsystem|layer)/i,
+  ];
+
+  for (const pattern of areaPatterns) {
+    const match = content.match(pattern);
+    if (match?.[1]) {
+      return `area:${match[1].toLowerCase()}`;
+    }
+  }
+
+  return 'global';
+}
+
+/**
+ * Analyze messages and convert assistant messages to memories
+ *
+ * Saves:
+ * - All thinking (even single-line) - prefixed with "[Thinking]"
+ * - Only multiline answers/content
+ *
+ * User messages are not saved.
  */
 export function analyzeForMemories(
   messages: TranscriptMessage[]
@@ -109,211 +298,118 @@ export function analyzeForMemories(
   keywords: string[];
   applies_to: string;
   content: string;
+  occurred_at: string;
 }> {
   const memories: Array<{
     subject: string;
     keywords: string[];
     applies_to: string;
     content: string;
+    occurred_at: string;
   }> = [];
 
-  // Patterns that indicate memory-worthy content
-  const patterns = {
-    decision: /(?:decided|decision|chose|approach|strategy|pattern)[\s:]+(.+)/gi,
-    solution: /(?:fixed|solved|solution|resolved|fix was|issue was)[\s:]+(.+)/gi,
-    configuration: /(?:configured?|setting|config|environment|\.env)[\s:]+(.+)/gi,
-    convention: /(?:convention|pattern|always|never|standard|rule)[\s:]+(.+)/gi,
-    important: /(?:important|note|remember|don'?t forget)[\s:]+(.+)/gi,
-  };
-
   for (const message of messages) {
-    // Only analyze assistant messages (Claude's responses)
-    if (message.role !== 'assistant') {
-      continue;
+    // Skip user messages - only save assistant messages
+    if (message.role !== 'assistant') continue;
+
+    // Save all thinking (even single-line)
+    if (message.thinking?.trim()) {
+      memories.push({
+        subject: generateSubject(message.thinking),
+        keywords: extractKeywordsFromText(message.thinking, { maxKeywords: 5, minLength: 3 }),
+        applies_to: detectScope(message.thinking),
+        content: message.thinking,
+        occurred_at: message.timestamp,
+      });
     }
 
-    const content = message.content;
-
-    // Check for decision patterns
-    for (const [category, pattern] of Object.entries(patterns)) {
-      const matches = content.matchAll(pattern);
-      for (const match of matches) {
-        const matchedContent = match[1]?.trim();
-        if (matchedContent && matchedContent.length > 20) {
-          memories.push({
-            subject: generateSubject(category, matchedContent),
-            keywords: generateKeywords(category, matchedContent),
-            applies_to: 'global',
-            content: matchedContent,
-          });
-        }
+    // Only save multiline content/answers
+    if (message.content.trim()) {
+      const lines = message.content.trim().split('\n').filter(line => line.trim());
+      if (lines.length >= 2) {
+        memories.push({
+          subject: generateSubject(message.content),
+          keywords: extractKeywordsFromText(message.content, { maxKeywords: 5, minLength: 3 }),
+          applies_to: detectScope(message.content),
+          content: message.content,
+          occurred_at: message.timestamp,
+        });
       }
     }
+  }
 
-    // Check for file-specific mentions
-    const filePattern = /(?:in|file|at)\s+[`"]?([^`"\s]+\.[a-z]+)[`"]?/gi;
-    const fileMatches = content.matchAll(filePattern);
-    for (const match of fileMatches) {
-      const filePath = match[1];
-      // Skip if index is missing (should not happen with matchAll)
-      if (typeof match.index !== 'number') {
+  return memories;
+}
+
+/**
+ * Memory suggestion returned from transcript analysis
+ */
+export interface MemorySuggestion {
+  subject: string;
+  keywords: string[];
+  applies_to: string;
+  content: string;
+  occurred_at: string;
+}
+
+/**
+ * Raw transcript entry structure (JSONL line format from Claude Code)
+ */
+interface RawTranscriptEntry {
+  type: string;
+  timestamp?: string;
+  message?: {
+    role?: string;
+    content?: string | ContentBlock[];
+  };
+}
+
+/**
+ * Parse raw JSONL transcript content and extract memory-worthy content
+ *
+ * This is the main entry point for processing transcripts.
+ * Takes raw JSONL content (as read from the transcript file) and returns
+ * an array of memory suggestions ready to be saved.
+ *
+ * @param rawContent - Raw JSONL string from transcript file
+ * @returns Array of memory suggestions
+ */
+export function parseTranscriptForMemories(rawContent: string): MemorySuggestion[] {
+  const lines = rawContent.split('\n').filter((line) => line.trim());
+  const messages: TranscriptMessage[] = [];
+
+  for (const line of lines) {
+    try {
+      const entry = JSON.parse(line) as RawTranscriptEntry;
+
+      // Only process user/assistant message entries
+      if (entry.type !== 'user' && entry.type !== 'assistant') {
         continue;
       }
-      if (filePath && !filePath.includes('*')) {
-        // Extract context around the file mention
-        const fileContext = extractContextAroundMatch(content, match.index);
-        if (fileContext.length > 30) {
-          memories.push({
-            subject: `Note about ${filePath}`,
-            keywords: generateKeywordsForFile(filePath, fileContext),
-            applies_to: `file:${filePath}`,
-            content: fileContext,
-          });
-        }
+
+      const role = entry.type as 'user' | 'assistant';
+      const timestamp = entry.timestamp ?? new Date().toISOString();
+      const rawContent = entry.message?.content;
+
+      let content = '';
+      let thinking: string | undefined;
+
+      if (typeof rawContent === 'string') {
+        content = rawContent;
+      } else if (Array.isArray(rawContent)) {
+        content = extractTextFromBlocks(rawContent);
+        thinking = extractThinkingFromBlocks(rawContent) || undefined;
+      } else {
+        continue;
       }
+
+      messages.push({ role, content, thinking, timestamp });
+    } catch {
+      // Skip malformed lines
     }
   }
 
-  // Deduplicate by subject
-  const seen = new Set<string>();
-  return memories.filter((m) => {
-    const key = m.subject.toLowerCase();
-    if (seen.has(key)) {
-      return false;
-    }
-    seen.add(key);
-    return true;
-  });
-}
-
-/**
- * Generate a subject line from category and content
- */
-function generateSubject(category: string, content: string): string {
-  const prefix = {
-    decision: 'Decision:',
-    solution: 'Fix:',
-    configuration: 'Config:',
-    convention: 'Convention:',
-    important: 'Note:',
-  }[category] ?? 'Memory:';
-
-  // Take first sentence or first 50 chars
-  const firstSentence = content.split(/[.!?]/)[0] ?? content;
-  const truncated =
-    firstSentence.length > 50
-      ? firstSentence.slice(0, 47) + '...'
-      : firstSentence;
-
-  return `${prefix} ${truncated}`;
-}
-
-/**
- * Generate keywords from category and content
- * Uses extractKeywordsFromText from markdown.ts for consistent RAKE-based extraction
- */
-function generateKeywords(category: string, content: string): string[] {
-  // Start with the category as the first keyword
-  const keywords = [category];
-  const seen = new Set(keywords);
-
-  // Extract keywords from content using RAKE algorithm (via markdown.ts)
-  const extractedKeywords = extractKeywordsFromText(content, {
-    maxKeywords: 10,
-    minLength: 3,
-  });
-
-  // Add extracted keywords (up to 4 more, for a total of 5)
-  for (const keyword of extractedKeywords) {
-    const normalizedKeyword = keyword.toLowerCase();
-    if (!seen.has(normalizedKeyword) && keywords.length < 5) {
-      keywords.push(normalizedKeyword);
-      seen.add(normalizedKeyword);
-    }
-  }
-
-  return keywords;
-}
-
-/**
- * Generate keywords for a file-specific memory
- * Combines path-based keywords with content-based keywords
- */
-function generateKeywordsForFile(filePath: string, content: string): string[] {
-  const keywords: string[] = [];
-  const seen = new Set<string>();
-
-  // Extract keywords from the file path
-  const pathParts = filePath.split(/[\/\\.]/).filter(Boolean);
-  const pathKeywords = pathParts.filter((p) => p.length > 2).slice(-3);
-
-  for (const keyword of pathKeywords) {
-    const normalized = keyword.toLowerCase();
-    if (!seen.has(normalized)) {
-      keywords.push(normalized);
-      seen.add(normalized);
-    }
-  }
-
-  // Add the file extension
-  const ext = filePath.split('.').pop();
-  if (ext && ext.length <= 4 && !seen.has(ext.toLowerCase())) {
-    keywords.push(ext.toLowerCase());
-    seen.add(ext.toLowerCase());
-  }
-
-  // Extract keywords from the content using RAKE algorithm
-  const contentKeywords = extractKeywordsFromText(content, {
-    maxKeywords: 5,
-    minLength: 3,
-  });
-
-  // Add content keywords (up to total of 5)
-  for (const keyword of contentKeywords) {
-    const normalized = keyword.toLowerCase();
-    if (!seen.has(normalized) && keywords.length < 5) {
-      keywords.push(normalized);
-      seen.add(normalized);
-    }
-  }
-
-  return keywords;
-}
-
-/**
- * Extract context around a match position
- */
-function extractContextAroundMatch(
-  content: string,
-  position: number,
-  contextSize: number = 200
-): string {
-  const start = Math.max(0, position - contextSize);
-  const end = Math.min(content.length, position + contextSize);
-
-  let extracted = content.slice(start, end);
-
-  // Try to start at a sentence boundary
-  if (start > 0) {
-    const sentenceStart = extracted.indexOf('. ');
-    if (sentenceStart !== -1 && sentenceStart < SENTENCE_BOUNDARY_SEARCH_LIMIT) {
-      extracted = extracted.slice(sentenceStart + 2);
-    } else {
-      extracted = '...' + extracted;
-    }
-  }
-
-  // Try to end at a sentence boundary
-  if (end < content.length) {
-    const sentenceEnd = extracted.lastIndexOf('. ');
-    if (sentenceEnd !== -1 && sentenceEnd > extracted.length - SENTENCE_BOUNDARY_SEARCH_LIMIT) {
-      extracted = extracted.slice(0, sentenceEnd + 1);
-    } else {
-      extracted = extracted + '...';
-    }
-  }
-
-  return extracted.trim();
+  return analyzeForMemories(messages);
 }
 
 /**

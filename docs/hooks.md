@@ -77,7 +77,7 @@ All hooks receive JSON via stdin with these common fields:
 
 **Trigger**: When Claude stops processing (after each response)
 
-**Purpose**: Analyze the conversation for memory-worthy information
+**Purpose**: Store conversation messages as memories for future retrieval
 
 **Input Fields**:
 - `session_id`: Unique session identifier
@@ -86,17 +86,25 @@ All hooks receive JSON via stdin with these common fields:
 
 **Transcript File Format** (JSONL):
 ```json
-{"type": "message", "message": {"role": "user", "content": "..."}, "timestamp": "2025-01-15T10:30:00Z"}
-{"type": "message", "message": {"role": "assistant", "content": "..."}, "timestamp": "2025-01-15T10:30:05Z"}
+{"type": "user", "message": {"role": "user", "content": "..."}, "timestamp": "2025-01-15T10:30:00Z"}
+{"type": "assistant", "message": {"role": "assistant", "content": "..."}, "timestamp": "2025-01-15T10:30:05Z"}
 ```
 
 **Flow**:
 1. Receives JSON input via stdin
-2. Reads the transcript file
-3. Filters to messages from last 30 seconds
-4. Analyzes content for memory-worthy information
-5. Creates memories and updates the index
-6. Exit code 0 indicates success (non-blocking)
+2. Reads the transcript file (JSONL format)
+3. Parses all messages from the transcript
+4. Filters to multi-line assistant messages only
+5. Creates memories with deduplication check (via occurred_at + content_hash)
+6. Refreshes the index
+7. Exit code 0 indicates success (non-blocking)
+
+**Filtering Rules**:
+- **User messages are not saved** - only assistant messages are stored
+- **Single-line messages are skipped** - assistant messages must have multiple lines to be saved
+- **No summarization** - qualifying messages are stored in full without modification
+
+Duplicate prevention is handled via the `occurred_at` timestamp and `content_hash` fields - if a memory with the same values already exists, it is skipped rather than creating a duplicate.
 
 ## Exit Codes
 
@@ -117,30 +125,6 @@ Available to hook commands:
 | `LOCAL_RECALL_DEBUG` | Enable debug logging when set to "1" |
 | `LOCAL_RECALL_TIME_WINDOW` | Seconds to look back in stop hook (default: 30) |
 | `LOCAL_RECALL_MAX_CONTEXT` | Max memories at session start (default: 10) |
-
-## Memory Detection Heuristics
-
-The stop hook analyzes messages for these patterns:
-
-### Decision Indicators
-- "We decided to..."
-- "The approach is..."
-- "Using X instead of Y because..."
-
-### Problem Solutions
-- "Fixed by..."
-- "The issue was..."
-- "Solution: ..."
-
-### Configuration Details
-- Environment variable mentions
-- Config file changes
-- Setup instructions
-
-### Code Patterns
-- Recurring code structures
-- Import patterns
-- API usage examples
 
 ## Debugging
 

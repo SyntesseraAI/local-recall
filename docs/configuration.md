@@ -92,7 +92,7 @@ Minimum score for fuzzy search matches:
 **Type**: `number` (seconds)
 **Default**: `30`
 
-How far back the stop hook looks when identifying new messages in the transcript.
+*Note*: This setting is currently not used. The stop hook processes all messages in the transcript, using deduplication (via `occurred_at` + `content_hash`) to avoid creating duplicate memories.
 
 ### hooks.maxContextMemories
 

@@ -50,51 +50,6 @@ export function createTools(): Tool[] {
       },
     },
     {
-      name: 'memory_update',
-      description: 'Update an existing memory by ID',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          id: {
-            type: 'string',
-            description: 'Memory UUID to update',
-          },
-          subject: {
-            type: 'string',
-            description: 'New subject (optional)',
-          },
-          keywords: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'New keywords (optional)',
-          },
-          applies_to: {
-            type: 'string',
-            description: 'New scope (optional)',
-          },
-          content: {
-            type: 'string',
-            description: 'New content (optional)',
-          },
-        },
-        required: ['id'],
-      },
-    },
-    {
-      name: 'memory_delete',
-      description: 'Delete a memory by ID',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          id: {
-            type: 'string',
-            description: 'Memory UUID to delete',
-          },
-        },
-        required: ['id'],
-      },
-    },
-    {
       name: 'memory_get',
       description: 'Retrieve a specific memory by ID',
       inputSchema: {
@@ -209,11 +164,14 @@ async function executeToolCall(
 ): Promise<unknown> {
   switch (name) {
     case 'memory_create': {
+      // Use current time as occurred_at for MCP-created memories
+      const occurredAt = new Date().toISOString();
       const memory = await memoryManager.createMemory({
         subject: args['subject'] as string,
         keywords: args['keywords'] as string[],
         applies_to: args['applies_to'] as MemoryScope,
         content: args['content'] as string,
+        occurred_at: occurredAt,
       });
       // Refresh index after creation
       await indexManager.refreshIndex();
@@ -221,34 +179,6 @@ async function executeToolCall(
         success: true,
         id: memory.id,
         message: 'Memory created successfully',
-      };
-    }
-
-    case 'memory_update': {
-      const memory = await memoryManager.updateMemory({
-        id: args['id'] as string,
-        subject: args['subject'] as string | undefined,
-        keywords: args['keywords'] as string[] | undefined,
-        applies_to: args['applies_to'] as MemoryScope | undefined,
-        content: args['content'] as string | undefined,
-      });
-      // Refresh index after update
-      await indexManager.refreshIndex();
-      return {
-        success: true,
-        id: memory.id,
-        message: 'Memory updated successfully',
-      };
-    }
-
-    case 'memory_delete': {
-      const deleted = await memoryManager.deleteMemory(args['id'] as string);
-      if (deleted) {
-        await indexManager.refreshIndex();
-      }
-      return {
-        success: deleted,
-        message: deleted ? 'Memory deleted successfully' : 'Memory not found',
       };
     }
 
@@ -293,7 +223,7 @@ async function executeToolCall(
           subject: m.subject,
           keywords: m.keywords,
           applies_to: m.applies_to,
-          updated_at: m.updated_at,
+          occurred_at: m.occurred_at,
         })),
         total: memories.length,
       };

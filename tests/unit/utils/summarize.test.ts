@@ -22,9 +22,8 @@ describe('summarize utilities', () => {
       expect(result.every((s) => typeof s === 'string')).toBe(true);
     });
 
-    it('should respect sentenceRatio option', () => {
-      // Note: ts-textrank requires ratio to be 0 < ratio < 0.5
-      const result = summarizeText(sampleText, { sentenceRatio: 0.4 });
+    it('should return all sentences when no limit specified', () => {
+      const result = summarizeText(sampleText);
 
       expect(result).toBeInstanceOf(Array);
       expect(result.length).toBeGreaterThan(0);
@@ -40,14 +39,6 @@ describe('summarize utilities', () => {
       const result = summarizeText('This is a single sentence.', { sentenceCount: 1 });
 
       expect(result.length).toBeLessThanOrEqual(1);
-    });
-
-    it('should support different sort modes', () => {
-      const byScore = summarizeText(sampleText, { sentenceCount: 3, sortMode: 'score' });
-      const byOccurrence = summarizeText(sampleText, { sentenceCount: 3, sortMode: 'occurrence' });
-
-      expect(byScore).toBeInstanceOf(Array);
-      expect(byOccurrence).toBeInstanceOf(Array);
     });
   });
 
@@ -67,12 +58,25 @@ describe('summarize utilities', () => {
   });
 
   describe('generateSubject', () => {
-    it('should generate a brief subject from text', () => {
-      const result = generateSubject(sampleText);
+    it('should take first line for multi-line text', () => {
+      const text = 'First line here\nSecond line here\nThird line';
+      const result = generateSubject(text);
 
-      expect(typeof result).toBe('string');
-      expect(result.length).toBeGreaterThan(0);
-      expect(result.length).toBeLessThanOrEqual(100);
+      expect(result).toBe('First line here');
+    });
+
+    it('should take text up to first period for single-line text', () => {
+      const text = 'This is the first sentence. This is the second sentence.';
+      const result = generateSubject(text);
+
+      expect(result).toBe('This is the first sentence');
+    });
+
+    it('should return all text if single line with no period', () => {
+      const text = 'This has no period';
+      const result = generateSubject(text);
+
+      expect(result).toBe('This has no period');
     });
 
     it('should respect maxLength option', () => {
@@ -82,26 +86,23 @@ describe('summarize utilities', () => {
     });
 
     it('should truncate with ellipsis if needed', () => {
-      const longText = 'This is a very long sentence that should be truncated when generating a subject line because it exceeds the maximum length.';
+      const longText = 'This is a very long sentence that should be truncated when generating a subject line because it exceeds the maximum length';
       const result = generateSubject(longText, 30);
 
       expect(result.length).toBeLessThanOrEqual(30);
-      if (result.length === 30) {
-        expect(result.endsWith('...')).toBe(true);
-      }
+      expect(result.endsWith('...')).toBe(true);
     });
 
     it('should handle empty text', () => {
       const result = generateSubject('');
 
-      expect(typeof result).toBe('string');
+      expect(result).toBe('');
     });
 
-    it('should use first line as fallback for very short text', () => {
-      const shortText = 'Short text';
-      const result = generateSubject(shortText);
+    it('should handle text with only whitespace', () => {
+      const result = generateSubject('   ');
 
-      expect(result).toBe('Short text');
+      expect(result).toBe('');
     });
   });
 });

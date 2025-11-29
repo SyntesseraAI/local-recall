@@ -69,42 +69,9 @@ Create a new memory.
 }
 ```
 
-### memory_update
+### memory_get
 
-Update an existing memory.
-
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "id": {
-      "type": "string",
-      "description": "Memory UUID to update"
-    },
-    "subject": { "type": "string" },
-    "keywords": {
-      "type": "array",
-      "items": { "type": "string" }
-    },
-    "applies_to": { "type": "string" },
-    "content": { "type": "string" }
-  },
-  "required": ["id"]
-}
-```
-
-**Example**:
-```json
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "keywords": ["api", "rate-limit", "throttling", "redis"]
-}
-```
-
-### memory_delete
-
-Delete a memory by ID.
+Retrieve a specific memory by ID.
 
 **Input Schema**:
 ```json
@@ -113,10 +80,24 @@ Delete a memory by ID.
   "properties": {
     "id": {
       "type": "string",
-      "description": "Memory UUID to delete"
+      "description": "Memory UUID"
     }
   },
   "required": ["id"]
+}
+```
+
+**Response**:
+```json
+{
+  "id": "...",
+  "subject": "...",
+  "keywords": ["..."],
+  "applies_to": "...",
+  "content": "...",
+  "created_at": "...",
+  "occurred_at": "...",
+  "content_hash": "..."
 }
 ```
 
@@ -164,7 +145,8 @@ Search memories using fuzzy keyword matching.
       "subject": "JWT authentication setup",
       "score": 0.95,
       "keywords": ["auth", "jwt", "tokens"],
-      "applies_to": "area:api"
+      "applies_to": "area:api",
+      "matchedKeywords": ["auth", "jwt"]
     }
   ],
   "total": 1
@@ -196,34 +178,19 @@ List all memories with optional filtering.
 }
 ```
 
-### memory_get
-
-Retrieve a specific memory by ID.
-
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "id": {
-      "type": "string",
-      "description": "Memory UUID"
-    }
-  },
-  "required": ["id"]
-}
-```
-
 **Response**:
 ```json
 {
-  "id": "...",
-  "subject": "...",
-  "keywords": ["..."],
-  "applies_to": "...",
-  "content": "...",
-  "created_at": "...",
-  "updated_at": "..."
+  "memories": [
+    {
+      "id": "...",
+      "subject": "...",
+      "keywords": ["..."],
+      "applies_to": "...",
+      "occurred_at": "..."
+    }
+  ],
+  "total": 42
 }
 ```
 

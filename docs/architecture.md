@@ -46,12 +46,14 @@ Local Recall is built with a modular architecture that separates concerns into d
 
 #### Memory Manager (`src/core/memory.ts`)
 
-Handles all CRUD operations for memory files:
+Handles memory file operations:
 
-- **Create**: Generates new memory files with unique IDs
-- **Read**: Parses markdown files with YAML frontmatter
-- **Update**: Modifies existing memories while preserving metadata
-- **Delete**: Removes memory files and updates the index
+- **createMemory()**: Creates new memory files with unique IDs (idempotent - returns existing if duplicate)
+- **getMemory()**: Retrieves a memory by ID, parsing markdown with YAML frontmatter
+- **listMemories()**: Lists all memories with optional filtering by scope or keyword
+- **findDuplicate()**: Checks for existing memories with same `occurred_at` and `content_hash`
+
+Memory creation is idempotent: if a memory with the same timestamp and content hash already exists, the existing memory is returned instead of creating a duplicate.
 
 #### Index Manager (`src/core/index.ts`)
 
@@ -96,23 +98,25 @@ Shared utility functions used across the application:
 
 Central module for text processing:
 
-- **parseMarkdown()**: Parse markdown with YAML frontmatter
+- **parseMarkdown()**: Parse markdown with YAML frontmatter using gray-matter
 - **serializeMemory()**: Convert memory objects to markdown
-- **extractKeywordsFromText()**: RAKE-based keyword extraction with POS tagging
+- **extractKeywordsFromText()**: Keyword extraction with stop word removal
 - **formatMemoryForDisplay()**: Format memory for human-readable output
 
-The `extractKeywordsFromText()` function uses the [rake-pos](https://github.com/hlo-world/rake-pos) library for intelligent keyword extraction. All keyword extraction across the codebase goes through this function for consistency.
+The `extractKeywordsFromText()` function uses the [keyword-extractor](https://www.npmjs.com/package/keyword-extractor) library for intelligent keyword extraction with stop word removal. Keywords are ranked by frequency and filtered by minimum length. All keyword extraction across the codebase goes through this function for consistency.
 
 #### Transcript Utilities (`transcript.ts`)
 
 Functions for processing Claude Code transcripts:
 
-- **parseTranscript()**: Parse JSON transcript input
+- **parseTranscript()**: Parse and validate JSON transcript input
 - **extractNewMessages()**: Filter messages by time window
-- **analyzeForMemories()**: Detect memory-worthy content patterns
-- **readStdin()**: Read input from stdin for hooks
+- **analyzeForMemories()**: Convert messages to memories (no filtering or summarization)
+- **readStdin()**: Read input from stdin for hooks with timeout handling
 
 The transcript module uses `extractKeywordsFromText()` from markdown.ts to ensure consistent keyword extraction across all memory creation paths.
+
+**Filtering rules**: The `analyzeForMemories()` function only saves **assistant messages** that are **multi-line** (contain substantive content). User messages are not saved, and single-line assistant responses are skipped.
 
 #### Configuration (`config.ts`)
 
@@ -184,12 +188,15 @@ local-recall/
 1. Claude processing ends
 2. Stop hook receives transcript JSON via stdin
 3. Transcript file read (JSONL format)
-4. Recent messages extracted (last 30s)
-5. Content analyzed for memory-worthy patterns
-6. Keywords extracted using RAKE algorithm (via markdown.ts)
-7. New memories created with extracted keywords
-8. Index refreshed
+4. All messages parsed from transcript
+5. User messages and single-line assistant messages filtered out
+6. Multi-line assistant messages converted to memories
+7. Keywords extracted using keyword-extractor (via markdown.ts)
+8. Memories created with deduplication (via occurred_at + content_hash)
+9. Index refreshed
 ```
+
+**Filtering**: Only assistant messages with multiple lines are saved. User messages are never saved. Duplicate memories are prevented using the `occurred_at` timestamp and `content_hash` fields.
 
 ## Concurrency Considerations
 

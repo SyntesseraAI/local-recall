@@ -1,18 +1,24 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { v4 as uuidv4 } from 'uuid';
 import {
   type Memory,
   type CreateMemoryInput,
-  type UpdateMemoryInput,
   type MemoryScope,
   createMemoryInputSchema,
-  updateMemoryInputSchema,
   memoryFrontmatterSchema,
 } from './types.js';
 import { getConfig } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
 import { serializeMemory, parseMarkdown } from '../utils/markdown.js';
+
+/**
+ * Compute SHA-256 hash of content
+ */
+function computeContentHash(content: string): string {
+  return createHash('sha256').update(content).digest('hex').slice(0, 16);
+}
 
 /**
  * Memory Manager - handles CRUD operations for memory files
@@ -41,12 +47,41 @@ export class MemoryManager {
   }
 
   /**
-   * Create a new memory
+   * Check if a memory with the same occurred_at and content_hash already exists
+   */
+  async findDuplicate(occurredAt: string, contentHash: string): Promise<Memory | null> {
+    await this.ensureDir();
+    const files = await fs.readdir(this.memoriesDir);
+    const mdFiles = files.filter((f) => f.endsWith('.md'));
+
+    for (const file of mdFiles) {
+      const filePath = path.join(this.memoriesDir, file);
+      const content = await fs.readFile(filePath, 'utf-8');
+      const memory = this.parseMemory(content);
+
+      if (memory && memory.occurred_at === occurredAt && memory.content_hash === contentHash) {
+        return memory;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Create a new memory (idempotent - returns existing if duplicate)
    */
   async createMemory(input: CreateMemoryInput): Promise<Memory> {
     logger.memory.debug(`Creating memory: "${input.subject}"`);
     const validated = createMemoryInputSchema.parse(input);
     await this.ensureDir();
+
+    const contentHash = computeContentHash(validated.content);
+
+    // Check for existing duplicate
+    const existing = await this.findDuplicate(validated.occurred_at, contentHash);
+    if (existing) {
+      logger.memory.info(`Duplicate memory found (${existing.id}), skipping creation`);
+      return existing;
+    }
 
     const now = new Date().toISOString();
     const id = uuidv4();
@@ -57,60 +92,14 @@ export class MemoryManager {
       keywords: validated.keywords,
       applies_to: validated.applies_to as MemoryScope,
       created_at: now,
-      updated_at: now,
+      occurred_at: validated.occurred_at,
+      content_hash: contentHash,
       content: validated.content,
     };
 
     await this.writeMemory(memory);
     logger.memory.info(`Created memory ${id}: "${memory.subject}"`);
     return memory;
-  }
-
-  /**
-   * Update an existing memory
-   */
-  async updateMemory(input: UpdateMemoryInput): Promise<Memory> {
-    logger.memory.debug(`Updating memory: ${input.id}`);
-    const validated = updateMemoryInputSchema.parse(input);
-    const existing = await this.getMemory(validated.id);
-
-    if (!existing) {
-      logger.memory.warn(`Memory not found for update: ${validated.id}`);
-      throw new Error(`Memory with ID ${validated.id} not found`);
-    }
-
-    const updated: Memory = {
-      ...existing,
-      subject: validated.subject ?? existing.subject,
-      keywords: validated.keywords ?? existing.keywords,
-      applies_to: (validated.applies_to as MemoryScope | undefined) ?? existing.applies_to,
-      content: validated.content ?? existing.content,
-      updated_at: new Date().toISOString(),
-    };
-
-    await this.writeMemory(updated);
-    logger.memory.info(`Updated memory ${validated.id}: "${updated.subject}"`);
-    return updated;
-  }
-
-  /**
-   * Delete a memory by ID
-   */
-  async deleteMemory(id: string): Promise<boolean> {
-    logger.memory.debug(`Deleting memory: ${id}`);
-    const filePath = this.getFilePath(id);
-    try {
-      await fs.unlink(filePath);
-      logger.memory.info(`Deleted memory: ${id}`);
-      return true;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        logger.memory.warn(`Memory not found for deletion: ${id}`);
-        return false;
-      }
-      logger.memory.error(`Failed to delete memory ${id}: ${String(error)}`);
-      throw error;
-    }
   }
 
   /**
@@ -162,9 +151,9 @@ export class MemoryManager {
       }
     }
 
-    // Sort by updated_at descending
+    // Sort by occurred_at descending
     memories.sort((a, b) =>
-      new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()
     );
 
     // Apply pagination

@@ -10,12 +10,11 @@
  */
 
 import { promises as fs } from 'node:fs';
-import { loadConfig, getConfig } from '../utils/config.js';
+import { loadConfig } from '../utils/config.js';
 import { MemoryManager } from '../core/memory.js';
 import { IndexManager } from '../core/index.js';
-import { analyzeForMemories, readStdin } from '../utils/transcript.js';
+import { parseTranscriptForMemories, readStdin } from '../utils/transcript.js';
 import { logger } from '../utils/logger.js';
-import type { TranscriptMessage } from '../core/types.js';
 
 interface StopHookInput {
   session_id: string;
@@ -23,15 +22,6 @@ interface StopHookInput {
   cwd: string;
   permission_mode: string;
   hook_event_name: string;
-}
-
-interface TranscriptEntry {
-  type: string;
-  message?: {
-    role: string;
-    content: string | Array<{ type: string; text?: string }>;
-  };
-  timestamp?: string;
 }
 
 async function main(): Promise<void> {
@@ -63,7 +53,6 @@ async function main(): Promise<void> {
     // Load configuration with the correct base directory
     process.env['LOCAL_RECALL_DIR'] = `${projectDir}/local-recall`;
     await loadConfig();
-    const config = getConfig();
     logger.hooks.debug('Stop hook: Configuration loaded');
 
     // Read the transcript file
@@ -83,68 +72,11 @@ async function main(): Promise<void> {
       process.exit(0);
     }
 
-    // Parse JSONL transcript
-    const transcriptLines = transcriptContent
-      .split('\n')
-      .filter((line) => line.trim());
-
-    const messages: TranscriptMessage[] = [];
-    const now = Date.now();
-    const timeWindowMs = config.hooks.timeWindow * 1000;
-
-    for (const line of transcriptLines) {
-      try {
-        const entry = JSON.parse(line) as TranscriptEntry;
-
-        // Look for message entries
-        if (entry.type === 'message' && entry.message) {
-          const role = entry.message.role as 'user' | 'assistant';
-          let content: string;
-
-          // Handle different content formats
-          if (typeof entry.message.content === 'string') {
-            content = entry.message.content;
-          } else if (Array.isArray(entry.message.content)) {
-            content = entry.message.content
-              .filter((c) => c.type === 'text' && c.text)
-              .map((c) => c.text)
-              .join('\n');
-          } else {
-            continue;
-          }
-
-          // Check timestamp if available
-          const timestamp = entry.timestamp ?? new Date().toISOString();
-          const messageTime = new Date(timestamp).getTime();
-
-          // Only include recent messages (within time window)
-          if (now - messageTime <= timeWindowMs) {
-            messages.push({
-              role,
-              content,
-              timestamp,
-            });
-          }
-        }
-      } catch {
-        // Skip malformed lines
-      }
-    }
-
-    logger.hooks.debug(`Stop hook: Parsed ${messages.length} messages from transcript`);
-
-    if (messages.length === 0) {
-      // No recent messages to analyze
-      logger.hooks.info('Stop hook completed: No recent messages to analyze');
-      process.exit(0);
-    }
-
-    // Analyze for memory-worthy content
-    logger.hooks.debug('Stop hook: Analyzing messages for memory-worthy content');
-    const suggestedMemories = analyzeForMemories(messages);
+    // Parse transcript and analyze for memory-worthy content
+    logger.hooks.debug('Stop hook: Parsing transcript for memories');
+    const suggestedMemories = parseTranscriptForMemories(transcriptContent);
 
     if (suggestedMemories.length === 0) {
-      // No memory-worthy content found
       logger.hooks.info('Stop hook completed: No memory-worthy content found');
       process.exit(0);
     }
@@ -165,6 +97,7 @@ async function main(): Promise<void> {
           keywords: memoryData.keywords,
           applies_to: memoryData.applies_to as 'global' | `file:${string}` | `area:${string}`,
           content: memoryData.content,
+          occurred_at: memoryData.occurred_at,
         });
         created.push(memory.id);
         logger.hooks.debug(`Stop hook: Created memory ${memory.id}`);

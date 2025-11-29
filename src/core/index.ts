@@ -206,7 +206,8 @@ export class IndexManager {
         subject: validated.subject,
         keywords: validated.keywords,
         applies_to: validated.applies_to as MemoryScope,
-        updated_at: validated.updated_at,
+        occurred_at: validated.occurred_at,
+        content_hash: validated.content_hash,
       };
     } catch {
       return null;

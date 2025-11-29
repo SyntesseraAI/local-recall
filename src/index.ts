@@ -17,7 +17,6 @@ export type {
   MemoryIndex,
   MemoryIndexEntry,
   CreateMemoryInput,
-  UpdateMemoryInput,
   SearchResult,
   SearchOptions,
   Config,

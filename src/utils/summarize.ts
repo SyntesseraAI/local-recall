@@ -1,61 +1,34 @@
-import {
-  Summarizer,
-  RelativeSummarizerConfig,
-  AbsoluteSummarizerConfig,
-  SorensenDiceSimilarity,
-  DefaultTextParser,
-  NullLogger,
-} from 'ts-textrank';
-
 /**
  * Options for text summarization
  */
 export interface SummarizeOptions {
-  /** Number of sentences to extract (absolute mode) */
+  /** Maximum number of sentences to extract */
   sentenceCount?: number;
-  /** Ratio of sentences to extract, 0 < ratio < 0.5 (relative mode, default 0.3) */
-  sentenceRatio?: number;
-  /** Language for text parsing (default: 'en') */
-  language?: string;
-  /** Sort mode: 'score' for relevance, 'occurrence' for original order */
-  sortMode?: 'score' | 'occurrence';
+  /** Maximum length of output (default: unlimited) */
+  maxLength?: number;
 }
 
 /**
- * Summarize text using TextRank algorithm
+ * Extract sentences from text
  *
- * TextRank is a graph-based ranking algorithm that extracts the most
- * important sentences from a text. It works by:
- * 1. Building a graph where sentences are nodes
- * 2. Connecting sentences based on similarity (Sorensen-Dice coefficient)
- * 3. Ranking sentences using a PageRank-like algorithm
- * 4. Extracting top-ranked sentences as the summary
- *
- * @param text - The text to summarize
- * @param options - Summarization options
- * @returns Array of extracted sentences forming the summary
+ * @param text - The text to extract sentences from
+ * @param options - Options for extraction
+ * @returns Array of extracted sentences
  */
 export function summarizeText(text: string, options: SummarizeOptions = {}): string[] {
-  const {
-    sentenceCount,
-    sentenceRatio = 0.3,
-    language = 'en',
-    sortMode = 'occurrence',
-  } = options;
+  const { sentenceCount } = options;
 
-  // Use absolute config if sentenceCount is specified, otherwise relative
-  const similarity = new SorensenDiceSimilarity();
-  const parser = new DefaultTextParser();
-  const dampingFactor = 0.85; // Standard PageRank damping factor
-  const sortModeValue = sortMode === 'score' ? Summarizer.SORT_SCORE : Summarizer.SORT_OCCURENCE;
+  // Split on sentence boundaries (. ! ?) followed by whitespace or end
+  const sentences = text
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
 
-  const config = sentenceCount !== undefined
-    ? new AbsoluteSummarizerConfig(sentenceCount, similarity, parser, dampingFactor, sortModeValue)
-    : new RelativeSummarizerConfig(sentenceRatio, similarity, parser, dampingFactor, sortModeValue);
+  if (sentenceCount !== undefined && sentenceCount > 0) {
+    return sentences.slice(0, sentenceCount);
+  }
 
-  const summarizer = new Summarizer(config, new NullLogger());
-
-  return summarizer.summarize(text, language);
+  return sentences;
 }
 
 /**
@@ -73,25 +46,36 @@ export function summarizeToString(text: string, options: SummarizeOptions = {}):
 /**
  * Generate a brief subject line from text
  *
- * Extracts the single most important sentence and truncates if needed.
+ * - Multi-line text: takes the first line
+ * - Single-line text: takes up to the first period, or all text if no period
+ *
+ * Truncates to maxLength if needed.
  *
  * @param text - The text to generate a subject from
- * @param maxLength - Maximum length of the subject (default: 100)
+ * @param maxLength - Maximum length of the subject (default: 200)
  * @returns A brief subject line
  */
-export function generateSubject(text: string, maxLength: number = 100): string {
-  const sentences = summarizeText(text, { sentenceCount: 1, sortMode: 'score' });
+export function generateSubject(text: string, maxLength: number = 200): string {
+  const trimmed = text.trim();
+  if (!trimmed) return '';
 
-  if (sentences.length === 0) {
-    // Fallback: use first line or truncated text
-    const firstLine = text.split(/[.\n]/)[0]?.trim() ?? text.trim();
-    return firstLine.length <= maxLength
-      ? firstLine
-      : firstLine.substring(0, maxLength - 3) + '...';
+  // Check if multi-line
+  const newlineIndex = trimmed.indexOf('\n');
+  let subject: string;
+
+  if (newlineIndex !== -1) {
+    // Multi-line: take first line
+    subject = trimmed.substring(0, newlineIndex).trim();
+  } else {
+    // Single line: take up to first period, or all text
+    const periodIndex = trimmed.indexOf('.');
+    subject = periodIndex !== -1 ? trimmed.substring(0, periodIndex) : trimmed;
   }
 
-  const subject = sentences[0] ?? '';
-  return subject.length <= maxLength
-    ? subject
-    : subject.substring(0, maxLength - 3) + '...';
+  // Truncate if needed
+  if (subject.length <= maxLength) {
+    return subject;
+  }
+
+  return subject.substring(0, maxLength - 3) + '...';
 }

@@ -34,7 +34,8 @@ export function serializeMemory(memory: Memory): string {
     keywords: memory.keywords,
     applies_to: memory.applies_to,
     created_at: memory.created_at,
-    updated_at: memory.updated_at,
+    occurred_at: memory.occurred_at,
+    content_hash: memory.content_hash,
   };
 
   return matter.stringify(memory.content, frontmatter);
@@ -93,7 +94,7 @@ export function formatMemoryForDisplay(memory: Memory): string {
     `**ID:** ${memory.id}`,
     `**Scope:** ${memory.applies_to}`,
     `**Keywords:** ${memory.keywords.join(', ')}`,
-    `**Updated:** ${memory.updated_at}`,
+    `**Occurred:** ${memory.occurred_at}`,
     '',
     '---',
     '',
