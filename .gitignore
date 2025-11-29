@@ -143,4 +143,5 @@ local-recall/index.json
 local-recall/recall.log
 
 # Plugin scripts folder (build output)
+scripts/
 dev-marketplace/local-recall-plugin/scripts/
