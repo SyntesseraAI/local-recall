@@ -148,12 +148,16 @@ local-recall-plugin/
 
 ### Installing the Plugin
 
+#### Option 1: Via Claude Code Command
+
 ```bash
 # From Claude Code
 /plugin install local-recall@local-recall-marketplace
 ```
 
-Or add to `.claude/settings.json`:
+#### Option 2: Manual Configuration
+
+Add to your project's `.claude/settings.json`:
 
 ```json
 {
@@ -164,9 +168,104 @@ Or add to `.claude/settings.json`:
 }
 ```
 
+#### Option 3: Direct Hooks Configuration
+
+If you prefer not to use the plugin system, add hooks directly to `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./node_modules/local-recall/dist/hooks/session-start.js",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./node_modules/local-recall/dist/hooks/stop.js",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
 ## MCP Server
 
-The MCP server exposes memory tools to any MCP-compatible client:
+The MCP server exposes memory tools to any MCP-compatible client.
+
+### Adding to Claude Code
+
+Add the MCP server to your Claude Code configuration in `.claude/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "local-recall": {
+      "command": "node",
+      "args": ["./node_modules/local-recall/dist/mcp-server/server.js"],
+      "env": {
+        "LOCAL_RECALL_DIR": "./local-recall"
+      }
+    }
+  }
+}
+```
+
+Or if running from the local-recall project directory:
+
+```json
+{
+  "mcpServers": {
+    "local-recall": {
+      "command": "node",
+      "args": ["./dist/mcp-server/server.js"],
+      "env": {
+        "LOCAL_RECALL_DIR": "./local-recall"
+      }
+    }
+  }
+}
+```
+
+### Adding to Claude Desktop
+
+Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS or `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
+
+```json
+{
+  "mcpServers": {
+    "local-recall": {
+      "command": "node",
+      "args": ["/absolute/path/to/local-recall/dist/mcp-server/server.js"],
+      "env": {
+        "LOCAL_RECALL_DIR": "/absolute/path/to/your/project/local-recall"
+      }
+    }
+  }
+}
+```
+
+### Starting the Server Manually
+
+```bash
+# From the local-recall project directory
+npm run mcp:start
+
+# Or directly
+node dist/mcp-server/server.js
+```
 
 ### Available Tools
 
