@@ -22,6 +22,17 @@ Hooks are defined in `hooks.json` following Claude Code's hook format:
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PROJECT_DIR}/node_modules/local-recall/dist/hooks/user-prompt-submit.js",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
@@ -72,6 +83,46 @@ All hooks receive JSON via stdin with these common fields:
 3. Identifies relevant memories based on context
 4. Outputs formatted memory content to stdout
 5. Exit code 0 indicates success
+
+### UserPromptSubmit Hook
+
+**Trigger**: When a user submits a prompt, before Claude processes it
+
+**Purpose**: Search for relevant memories based on the user's prompt and add them to the context
+
+**Input Fields**:
+- `session_id`: Unique session identifier
+- `transcript_path`: Path to the JSONL transcript file
+- `cwd`: Current working directory
+- `prompt`: The user's submitted prompt text
+
+**Output**: Stdout text is injected into Claude's context (appears before Claude processes the prompt)
+
+**Flow**:
+1. Receives JSON input via stdin (includes `prompt` field)
+2. Extracts keywords from the prompt using keyword-extractor
+3. Searches memory index for matching keywords (fuzzy matching)
+4. Outputs formatted matching memories to stdout
+5. Exit code 0 indicates success
+
+**Keyword Extraction**:
+- Uses the `keyword-extractor` library
+- Removes common stopwords (the, a, is, etc.)
+- Filters out very short keywords (< 3 characters)
+- Limits to 10 keywords per prompt
+
+**Example Output**:
+```
+# Local Recall: Relevant Memories
+
+Found 2 memories related to your query.
+
+## Memory about API design
+**ID:** abc123
+**Scope:** global
+**Keywords:** api, rest, design
+...
+```
 
 ### Stop Hook
 
@@ -145,6 +196,10 @@ claude --debug
 # Test session-start hook
 echo '{"session_id":"test","cwd":"/path/to/project","transcript_path":"/tmp/transcript.jsonl"}' | \
   node dist/hooks/session-start.js
+
+# Test user-prompt-submit hook
+echo '{"session_id":"test","cwd":"/path/to/project","transcript_path":"/tmp/transcript.jsonl","prompt":"tell me about the API design"}' | \
+  node dist/hooks/user-prompt-submit.js
 
 # Test stop hook
 echo '{"session_id":"test","cwd":"/path/to/project","transcript_path":"/tmp/transcript.jsonl"}' | \

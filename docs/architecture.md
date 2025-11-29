@@ -79,7 +79,8 @@ Provides fuzzy search capabilities:
 
 Integration with Claude Code's hook system:
 
-- **SessionStart**: Loads relevant memories into context
+- **SessionStart**: Loads relevant memories into context at session start
+- **UserPromptSubmit**: Searches for relevant memories based on user prompt keywords
 - **Stop**: Analyzes transcripts for memory-worthy content
 
 #### MCP Server (`src/mcp-server/`)
@@ -141,12 +142,16 @@ Low-level fuzzy string matching algorithms:
 
 ```
 local-recall/
-├── index.json           # Keyword index (auto-generated)
+├── .gitignore           # Auto-generated, excludes index.json and recall.log
+├── index.json           # Keyword index (auto-generated, gitignored)
+├── recall.log           # Debug log (gitignored)
 └── memories/
     ├── <uuid-1>.md      # Individual memory files
     ├── <uuid-2>.md
     └── ...
 ```
+
+The `.gitignore` file is automatically created when the index is first built, ensuring that generated files (`index.json`, `recall.log`) are not committed while memory files are tracked.
 
 ## Data Flow
 
@@ -180,6 +185,17 @@ local-recall/
 3. Index loaded from disk
 4. Relevant memories identified
 5. Context injected into session
+```
+
+### User Prompt Submit Flow
+
+```
+1. User submits a prompt
+2. UserPromptSubmit hook triggered
+3. Keywords extracted from prompt text
+4. Fuzzy search against memory index
+5. Matching memories output to stdout
+6. Context injected before Claude processes prompt
 ```
 
 ### Stop Flow

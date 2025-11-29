@@ -177,10 +177,36 @@ export class IndexManager {
   }
 
   /**
-   * Ensure the base directory exists
+   * Ensure the base directory exists and has proper .gitignore
    */
   private async ensureDir(): Promise<void> {
     await fs.mkdir(this.memoriesDir, { recursive: true });
+    await this.ensureGitignore();
+  }
+
+  /**
+   * Ensure .gitignore exists with proper exclusions
+   */
+  private async ensureGitignore(): Promise<void> {
+    const gitignorePath = path.join(this.baseDir, '.gitignore');
+    const gitignoreContent = `# Local Recall - auto-generated
+# These files are regenerated and should not be committed
+
+# Index cache (rebuilt automatically)
+index.json
+
+# Debug log
+recall.log
+`;
+
+    try {
+      await fs.access(gitignorePath);
+      // File exists, don't overwrite
+    } catch {
+      // File doesn't exist, create it
+      await fs.writeFile(gitignorePath, gitignoreContent, 'utf-8');
+      logger.index.debug('Created .gitignore in local-recall directory');
+    }
   }
 
   /**

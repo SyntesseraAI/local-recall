@@ -17,11 +17,12 @@ All memories are stored locally within the repository, making them version-contr
 local-recall/                    # Project root IS the plugin root
 ├── .claude-plugin/
 │   └── plugin.json              # Plugin metadata
-├── hooks.json                   # Hook configuration (SessionStart, Stop)
+├── hooks.json                   # Hook configuration (SessionStart, UserPromptSubmit, Stop)
 ├── .mcp.json                    # MCP server configuration
 ├── scripts/                     # Bundled scripts (build output, gitignored)
 │   ├── hooks/
 │   │   ├── session-start.js     # Bundled session-start hook
+│   │   ├── user-prompt-submit.js # Bundled user-prompt-submit hook
 │   │   └── stop.js              # Bundled stop hook
 │   └── mcp-server/
 │       └── server.js            # Bundled MCP server
@@ -33,6 +34,7 @@ local-recall/                    # Project root IS the plugin root
 │   │   └── types.ts             # TypeScript interfaces
 │   ├── hooks/                   # Claude Code hooks (source)
 │   │   ├── session-start.ts     # Load memory index on session start
+│   │   ├── user-prompt-submit.ts # Search memories based on user prompt
 │   │   └── stop.ts              # Parse transcript and create memories
 │   ├── mcp-server/              # MCP server implementation
 │   │   ├── server.ts            # Main MCP server
@@ -43,6 +45,7 @@ local-recall/                    # Project root IS the plugin root
 │       ├── logger.ts            # Logging utility (writes to recall.log)
 │       └── fuzzy.ts             # Fuzzy matching utilities
 ├── local-recall/                # Memory storage (version-controlled)
+│   ├── .gitignore               # Auto-generated, excludes index.json and recall.log
 │   ├── index.json               # Keyword index cache (gitignored)
 │   ├── recall.log               # Debug log file (gitignored)
 │   └── memories/                # Individual memory files (tracked in git)
@@ -130,6 +133,13 @@ Triggered when a Claude Code session begins:
 3. Retrieves relevant memories based on the current context
 4. Outputs memory content to stdout (injected into Claude's context)
 
+#### UserPromptSubmit Hook
+Triggered when a user submits a prompt, before Claude processes it:
+1. Receives JSON input with `session_id`, `transcript_path`, `cwd`, `prompt`
+2. Extracts keywords from the prompt using keyword-extractor
+3. Searches the memory index for matching keywords (fuzzy matching)
+4. Outputs matching memories to stdout (injected into Claude's context)
+
 #### Stop Hook
 Triggered when Claude stops processing:
 1. Receives JSON input with `session_id`, `transcript_path`, `cwd`
@@ -151,6 +161,7 @@ local-recall/                    # Plugin root
 └── scripts/                     # Bundled executables (build output)
     ├── hooks/
     │   ├── session-start.js
+    │   ├── user-prompt-submit.js
     │   └── stop.js
     └── mcp-server/
         └── server.js
@@ -202,6 +213,17 @@ If you prefer not to use the plugin system, add hooks directly to `.claude/setti
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./node_modules/local-recall/scripts/hooks/user-prompt-submit.js",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
@@ -228,6 +250,17 @@ If you prefer not to use the plugin system, add hooks directly to `.claude/setti
           {
             "type": "command",
             "command": "node ./scripts/hooks/session-start.js",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./scripts/hooks/user-prompt-submit.js",
             "timeout": 30
           }
         ]
