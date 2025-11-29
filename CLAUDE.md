@@ -14,14 +14,24 @@ All memories are stored locally within the repository, making them version-contr
 ## Architecture
 
 ```
-local-recall/
+local-recall/                    # Project root IS the plugin root
+├── .claude-plugin/
+│   └── plugin.json              # Plugin metadata
+├── hooks.json                   # Hook configuration (SessionStart, Stop)
+├── .mcp.json                    # MCP server configuration
+├── scripts/                     # Bundled scripts (build output, gitignored)
+│   ├── hooks/
+│   │   ├── session-start.js     # Bundled session-start hook
+│   │   └── stop.js              # Bundled stop hook
+│   └── mcp-server/
+│       └── server.js            # Bundled MCP server
 ├── src/
 │   ├── core/                    # Core memory management
 │   │   ├── memory.ts            # CRUD operations for memory files
 │   │   ├── index.ts             # Index creation and management
 │   │   ├── search.ts            # Fuzzy search implementation
 │   │   └── types.ts             # TypeScript interfaces
-│   ├── hooks/                   # Claude Code hooks
+│   ├── hooks/                   # Claude Code hooks (source)
 │   │   ├── session-start.ts     # Load memory index on session start
 │   │   └── stop.ts              # Parse transcript and create memories
 │   ├── mcp-server/              # MCP server implementation
@@ -30,16 +40,11 @@ local-recall/
 │   └── utils/                   # Utility functions
 │       ├── markdown.ts          # Markdown parsing utilities
 │       ├── transcript.ts        # Transcript parsing
+│       ├── logger.ts            # Logging utility (writes to recall.log)
 │       └── fuzzy.ts             # Fuzzy matching utilities
-├── dev-marketplace/             # Claude Code plugin marketplace
-│   └── local-recall-plugin/
-│       ├── .claude-plugin/
-│       │   ├── plugin.json      # Plugin metadata
-│       │   └── marketplace.json # Marketplace manifest
-│       ├── hooks.json           # Hook configuration (SessionStart, Stop)
-│       └── .mcp.json            # MCP server configuration
 ├── local-recall/                # Memory storage (version-controlled)
-│   ├── index.json               # Keyword index cache (gitignored - auto-generated)
+│   ├── index.json               # Keyword index cache (gitignored)
+│   ├── recall.log               # Debug log file (gitignored)
 │   └── memories/                # Individual memory files (tracked in git)
 │       └── *.md                 # Memory markdown files
 ├── package.json
@@ -135,40 +140,49 @@ Triggered when Claude stops processing:
 
 ### Plugin Structure
 
-The plugin lives in `dev-marketplace/local-recall-plugin/` and follows Claude Code's plugin format:
+The project root is the plugin root, following Claude Code's plugin format:
 
 ```
-local-recall-plugin/
+local-recall/                    # Plugin root
 ├── .claude-plugin/
-│   ├── plugin.json       # Plugin metadata (name, version, description)
-│   └── marketplace.json  # Marketplace catalog
-├── hooks.json            # Hook event handlers
-└── .mcp.json             # MCP server configuration
+│   └── plugin.json              # Plugin metadata (name, version, description)
+├── hooks.json                   # Hook event handlers (uses ${CLAUDE_PLUGIN_ROOT})
+├── .mcp.json                    # MCP server configuration
+└── scripts/                     # Bundled executables (build output)
+    ├── hooks/
+    │   ├── session-start.js
+    │   └── stop.js
+    └── mcp-server/
+        └── server.js
 ```
+
+**Important:** The hooks use `${CLAUDE_PLUGIN_ROOT}` to reference scripts relative to the plugin installation, and receive `cwd` via stdin to operate on the user's project directory.
 
 ### Installing the Plugin
 
-#### Option 1: Via Claude Code Command
+#### Option 1: Clone and Build
 
 ```bash
-# From Claude Code
-/plugin install local-recall@local-recall-marketplace
+# Clone the repository
+git clone https://github.com/local-recall/local-recall.git
+
+# Install dependencies and build
+cd local-recall
+npm install
+npm run build
 ```
 
-#### Option 2: Manual Configuration
-
-Add to your project's `.claude/settings.json`:
+Then add to your project's `.claude/settings.json`:
 
 ```json
 {
   "plugins": {
-    "marketplaces": ["./dev-marketplace/local-recall-plugin/.claude-plugin/marketplace.json"],
-    "installed": ["local-recall@local-recall-marketplace"]
+    "installed": ["/path/to/local-recall"]
   }
 }
 ```
 
-#### Option 3: Direct Hooks Configuration
+#### Option 2: Direct Hooks Configuration
 
 If you prefer not to use the plugin system, add hooks directly to `.claude/settings.json`:
 
@@ -182,7 +196,7 @@ If you prefer not to use the plugin system, add hooks directly to `.claude/setti
         "hooks": [
           {
             "type": "command",
-            "command": "node ./node_modules/local-recall/dist/hooks/session-start.js",
+            "command": "node ./node_modules/local-recall/scripts/hooks/session-start.js",
             "timeout": 30
           }
         ]
@@ -193,7 +207,7 @@ If you prefer not to use the plugin system, add hooks directly to `.claude/setti
         "hooks": [
           {
             "type": "command",
-            "command": "node ./node_modules/local-recall/dist/hooks/stop.js",
+            "command": "node ./node_modules/local-recall/scripts/hooks/stop.js",
             "timeout": 60
           }
         ]
@@ -213,7 +227,7 @@ If you prefer not to use the plugin system, add hooks directly to `.claude/setti
         "hooks": [
           {
             "type": "command",
-            "command": "node ./dist/hooks/session-start.js",
+            "command": "node ./scripts/hooks/session-start.js",
             "timeout": 30
           }
         ]
@@ -224,7 +238,7 @@ If you prefer not to use the plugin system, add hooks directly to `.claude/setti
         "hooks": [
           {
             "type": "command",
-            "command": "node ./dist/hooks/stop.js",
+            "command": "node ./scripts/hooks/stop.js",
             "timeout": 60
           }
         ]
@@ -242,12 +256,14 @@ The MCP server exposes memory tools to any MCP-compatible client.
 
 Add the MCP server to your Claude Code configuration in `.claude/settings.json`:
 
+**When local-recall is installed as an npm package:**
+
 ```json
 {
   "mcpServers": {
     "local-recall": {
       "command": "node",
-      "args": ["./node_modules/local-recall/dist/mcp-server/server.js"],
+      "args": ["./node_modules/local-recall/scripts/mcp-server/server.js"],
       "env": {
         "LOCAL_RECALL_DIR": "./local-recall"
       }
@@ -256,14 +272,14 @@ Add the MCP server to your Claude Code configuration in `.claude/settings.json`:
 }
 ```
 
-Or if running from the local-recall project directory:
+**When running from the local-recall project directory:**
 
 ```json
 {
   "mcpServers": {
     "local-recall": {
       "command": "node",
-      "args": ["./dist/mcp-server/server.js"],
+      "args": ["./scripts/mcp-server/server.js"],
       "env": {
         "LOCAL_RECALL_DIR": "./local-recall"
       }
@@ -281,7 +297,7 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
   "mcpServers": {
     "local-recall": {
       "command": "node",
-      "args": ["/absolute/path/to/local-recall/dist/mcp-server/server.js"],
+      "args": ["/absolute/path/to/local-recall/scripts/mcp-server/server.js"],
       "env": {
         "LOCAL_RECALL_DIR": "/absolute/path/to/your/project/local-recall"
       }

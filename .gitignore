@@ -141,3 +141,6 @@ vite.config.ts.timestamp-*
 # Local Recall - index and logs are auto-generated, memories are tracked
 local-recall/index.json
 local-recall/recall.log
+
+# Plugin scripts folder (build output)
+scripts/
