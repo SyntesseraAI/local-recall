@@ -1,4 +1,13 @@
 import matter from 'gray-matter';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const keywordExtractor = require('keyword-extractor') as {
+  extract: (str: string, options?: {
+    language?: string;
+    remove_digits?: boolean;
+    return_changed_case?: boolean;
+    remove_duplicates?: boolean;
+  }) => string[];
+};
 import type { Memory, MemoryFrontmatter } from '../core/types.js';
 
 /**
@@ -32,7 +41,10 @@ export function serializeMemory(memory: Memory): string {
 }
 
 /**
- * Extract keywords from text content using frequency analysis
+ * Extract keywords from text content using keyword-extractor
+ *
+ * Uses stop word removal and returns unique keywords from the text.
+ * More sophisticated than simple frequency analysis.
  */
 export function extractKeywordsFromText(
   text: string,
@@ -41,49 +53,26 @@ export function extractKeywordsFromText(
   const maxKeywords = options.maxKeywords ?? 10;
   const minLength = options.minLength ?? 3;
 
-  return extractKeywordsSimple(text, maxKeywords, minLength, options.additionalStopWords);
-}
+  // Use keyword-extractor for better keyword extraction
+  const extracted = keywordExtractor.extract(text, {
+    language: 'english',
+    remove_digits: false,
+    return_changed_case: true,
+    remove_duplicates: false, // We'll handle deduplication with frequency
+  });
 
-/**
- * Keyword extraction using simple frequency analysis
- */
-function extractKeywordsSimple(
-  text: string,
-  maxKeywords: number,
-  minLength: number,
-  additionalStopWords?: string[]
-): string[] {
-  // Common stop words to filter out
-  const stopWords = new Set([
-    'the', 'a', 'an', 'and', 'or', 'but', 'is', 'are', 'was', 'were',
-    'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did',
-    'will', 'would', 'could', 'should', 'may', 'might', 'must', 'shall',
-    'can', 'need', 'dare', 'ought', 'used', 'to', 'of', 'in', 'for',
-    'on', 'with', 'at', 'by', 'from', 'up', 'about', 'into', 'through',
-    'during', 'before', 'after', 'above', 'below', 'between', 'under',
-    'again', 'further', 'then', 'once', 'here', 'there', 'when', 'where',
-    'why', 'how', 'all', 'each', 'few', 'more', 'most', 'other', 'some',
-    'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than',
-    'too', 'very', 'just', 'also', 'now', 'this', 'that', 'these', 'those',
-  ]);
+  // Filter by minimum length and additional stop words
+  const additionalStops = new Set(
+    (options.additionalStopWords ?? []).map(w => w.toLowerCase())
+  );
 
-  // Add any additional stop words
-  if (additionalStopWords) {
-    for (const word of additionalStopWords) {
-      stopWords.add(word.toLowerCase());
-    }
-  }
+  const filtered = extracted.filter(
+    (word: string) => word.length >= minLength && !additionalStops.has(word)
+  );
 
-  // Extract words
-  const words = text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, ' ')
-    .split(/\s+/)
-    .filter((word) => word.length >= minLength && !stopWords.has(word));
-
-  // Count frequency
+  // Count frequency to rank keywords
   const frequency = new Map<string, number>();
-  for (const word of words) {
+  for (const word of filtered) {
     frequency.set(word, (frequency.get(word) ?? 0) + 1);
   }
 
