@@ -14,6 +14,7 @@ import { IndexManager } from '../core/index.js';
 import { SearchEngine } from '../core/search.js';
 import { formatMemoryForDisplay } from '../utils/markdown.js';
 import { readStdin } from '../utils/transcript.js';
+import { logger } from '../utils/logger.js';
 
 interface SessionStartInput {
   session_id: string;
@@ -24,6 +25,8 @@ interface SessionStartInput {
 }
 
 async function main(): Promise<void> {
+  logger.hooks.info('SessionStart hook fired');
+
   try {
     // Read input from stdin
     const inputRaw = await readStdin();
@@ -32,17 +35,21 @@ async function main(): Promise<void> {
     if (inputRaw.trim()) {
       try {
         input = JSON.parse(inputRaw) as SessionStartInput;
+        logger.hooks.debug(`SessionStart input: session_id=${input.session_id}, cwd=${input.cwd}`);
       } catch {
+        logger.hooks.warn('SessionStart: Failed to parse stdin input');
         // Input might be empty or invalid, continue anyway
       }
     }
 
     // Use cwd from input if available, otherwise use PROJECT_DIR env var
     const projectDir = input?.cwd ?? process.env['CLAUDE_PROJECT_DIR'] ?? process.cwd();
+    logger.hooks.debug(`SessionStart: Using project directory: ${projectDir}`);
 
     // Load configuration with the correct base directory
     process.env['LOCAL_RECALL_DIR'] = `${projectDir}/local-recall`;
     await loadConfig();
+    logger.hooks.debug('SessionStart: Configuration loaded');
 
     const indexManager = new IndexManager();
     // Intentionally omitting memoryManager as session-start only needs index-based searches
@@ -63,13 +70,16 @@ async function main(): Promise<void> {
     }
 
     // Get relevant memories for this session
+    logger.hooks.debug('SessionStart: Searching for relevant memories');
     const memories = await searchEngine.getRelevantForSession(context);
+    logger.hooks.info(`SessionStart: Found ${memories.length} relevant memories`);
 
     if (memories.length === 0) {
       // Output context for Claude
       console.log('# Local Recall: No memories loaded');
       console.log('');
       console.log('No prior memories found for this session. Memories will be created as the session progresses.');
+      logger.hooks.info('SessionStart hook completed (no memories)');
       process.exit(0);
     }
 
@@ -95,9 +105,11 @@ async function main(): Promise<void> {
     console.log(`- Last indexed: ${stats.builtAt}`);
 
     // Exit 0 for success
+    logger.hooks.info('SessionStart hook completed successfully');
     process.exit(0);
   } catch (error) {
     // Log error to stderr (shown in verbose mode)
+    logger.hooks.error(`SessionStart hook error: ${String(error)}`);
     console.error('Local Recall session-start hook error:', error);
     // Exit 0 to not block the session
     process.exit(0);

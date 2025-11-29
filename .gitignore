@@ -138,5 +138,6 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-# Local Recall - index is auto-generated, memories are tracked
+# Local Recall - index and logs are auto-generated, memories are tracked
 local-recall/index.json
+local-recall/recall.log

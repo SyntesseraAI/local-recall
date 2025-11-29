@@ -8,6 +8,7 @@ import {
 import { IndexManager } from './index.js';
 import { MemoryManager } from './memory.js';
 import { getConfig } from '../utils/config.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Search Engine - fuzzy search implementation for memories
@@ -29,6 +30,7 @@ export class SearchEngine {
     query: string,
     options: SearchOptions = {}
   ): Promise<SearchResult[]> {
+    logger.search.debug(`Searching by keywords: "${query}"`);
     const config = getConfig();
     const threshold = options.threshold ?? config.fuzzyThreshold;
     const limit = options.limit ?? 10;
@@ -97,6 +99,7 @@ export class SearchEngine {
       }
     }
 
+    logger.search.info(`Keyword search found ${results.length} results for "${query}"`);
     return results;
   }
 
@@ -107,6 +110,7 @@ export class SearchEngine {
     query: string,
     options: SearchOptions = {}
   ): Promise<SearchResult[]> {
+    logger.search.debug(`Searching by subject: "${query}"`);
     const config = getConfig();
     const threshold = options.threshold ?? config.fuzzyThreshold;
     const limit = options.limit ?? 10;
@@ -123,11 +127,14 @@ export class SearchEngine {
 
     const fuseResults = fuse.search(query);
 
-    return fuseResults.slice(0, limit).map((result) => ({
+    const results = fuseResults.slice(0, limit).map((result) => ({
       memory: result.item,
       score: 1 - (result.score ?? 0),
       matchedKeywords: [],
     }));
+
+    logger.search.info(`Subject search found ${results.length} results for "${query}"`);
+    return results;
   }
 
   /**
@@ -145,6 +152,7 @@ export class SearchEngine {
     files?: string[];
     area?: string;
   }): Promise<Memory[]> {
+    logger.search.debug('Getting relevant memories for session');
     const config = getConfig();
     const limit = config.hooks.maxContextMemories;
 
@@ -202,6 +210,8 @@ export class SearchEngine {
       }
     }
 
-    return memories.slice(0, limit);
+    const result = memories.slice(0, limit);
+    logger.search.info(`Found ${result.length} relevant memories for session`);
+    return result;
   }
 }

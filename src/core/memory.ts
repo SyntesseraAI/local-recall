@@ -1,18 +1,18 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
-import matter from 'gray-matter';
 import {
   type Memory,
   type CreateMemoryInput,
   type UpdateMemoryInput,
-  type MemoryFrontmatter,
   type MemoryScope,
   createMemoryInputSchema,
   updateMemoryInputSchema,
   memoryFrontmatterSchema,
 } from './types.js';
 import { getConfig } from '../utils/config.js';
+import { logger } from '../utils/logger.js';
+import { serializeMemory, parseMarkdown } from '../utils/markdown.js';
 
 /**
  * Memory Manager - handles CRUD operations for memory files
@@ -44,6 +44,7 @@ export class MemoryManager {
    * Create a new memory
    */
   async createMemory(input: CreateMemoryInput): Promise<Memory> {
+    logger.memory.debug(`Creating memory: "${input.subject}"`);
     const validated = createMemoryInputSchema.parse(input);
     await this.ensureDir();
 
@@ -61,6 +62,7 @@ export class MemoryManager {
     };
 
     await this.writeMemory(memory);
+    logger.memory.info(`Created memory ${id}: "${memory.subject}"`);
     return memory;
   }
 
@@ -68,10 +70,12 @@ export class MemoryManager {
    * Update an existing memory
    */
   async updateMemory(input: UpdateMemoryInput): Promise<Memory> {
+    logger.memory.debug(`Updating memory: ${input.id}`);
     const validated = updateMemoryInputSchema.parse(input);
     const existing = await this.getMemory(validated.id);
 
     if (!existing) {
+      logger.memory.warn(`Memory not found for update: ${validated.id}`);
       throw new Error(`Memory with ID ${validated.id} not found`);
     }
 
@@ -85,6 +89,7 @@ export class MemoryManager {
     };
 
     await this.writeMemory(updated);
+    logger.memory.info(`Updated memory ${validated.id}: "${updated.subject}"`);
     return updated;
   }
 
@@ -92,14 +97,18 @@ export class MemoryManager {
    * Delete a memory by ID
    */
   async deleteMemory(id: string): Promise<boolean> {
+    logger.memory.debug(`Deleting memory: ${id}`);
     const filePath = this.getFilePath(id);
     try {
       await fs.unlink(filePath);
+      logger.memory.info(`Deleted memory: ${id}`);
       return true;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        logger.memory.warn(`Memory not found for deletion: ${id}`);
         return false;
       }
+      logger.memory.error(`Failed to delete memory ${id}: ${String(error)}`);
       throw error;
     }
   }
@@ -166,19 +175,10 @@ export class MemoryManager {
   }
 
   /**
-   * Write a memory to disk
+   * Write a memory to disk using the markdown utility
    */
   private async writeMemory(memory: Memory): Promise<void> {
-    const frontmatter: MemoryFrontmatter = {
-      id: memory.id,
-      subject: memory.subject,
-      keywords: memory.keywords,
-      applies_to: memory.applies_to,
-      created_at: memory.created_at,
-      updated_at: memory.updated_at,
-    };
-
-    const fileContent = matter.stringify(memory.content, frontmatter);
+    const fileContent = serializeMemory(memory);
     const filePath = this.getFilePath(memory.id);
 
     // Write to temp file first, then rename for atomicity
@@ -188,16 +188,16 @@ export class MemoryManager {
   }
 
   /**
-   * Parse a memory from markdown content
+   * Parse a memory from markdown content using the markdown utility
    */
   private parseMemory(content: string): Memory | null {
     try {
-      const { data, content: body } = matter(content);
-      const frontmatter = memoryFrontmatterSchema.parse(data);
+      const { frontmatter, body } = parseMarkdown(content);
+      const validated = memoryFrontmatterSchema.parse(frontmatter);
 
       return {
-        ...frontmatter,
-        content: body.trim(),
+        ...validated,
+        content: body,
       };
     } catch {
       return null;
