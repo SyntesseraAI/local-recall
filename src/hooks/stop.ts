@@ -43,12 +43,18 @@ async function main(): Promise<void> {
 
     if (!inputRaw.trim()) {
       // No input, nothing to do
-      logger.hooks.debug('Stop hook: No input received, exiting');
+      logger.hooks.warn('Stop hook: No stdin input received, exiting');
       process.exit(0);
     }
 
-    const input = JSON.parse(inputRaw) as StopHookInput;
-    logger.hooks.debug(`Stop hook input: session_id=${input.session_id}, cwd=${input.cwd}`);
+    let input: StopHookInput;
+    try {
+      input = JSON.parse(inputRaw) as StopHookInput;
+      logger.hooks.info(`Stop hook input received: ${JSON.stringify(input, null, 2)}`);
+    } catch (parseError) {
+      logger.hooks.error(`Stop hook: Failed to parse stdin input: ${inputRaw}`);
+      process.exit(0);
+    }
 
     // Use cwd from input
     const projectDir = input.cwd ?? process.env['CLAUDE_PROJECT_DIR'] ?? process.cwd();

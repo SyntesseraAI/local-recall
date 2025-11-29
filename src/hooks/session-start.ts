@@ -35,11 +35,13 @@ async function main(): Promise<void> {
     if (inputRaw.trim()) {
       try {
         input = JSON.parse(inputRaw) as SessionStartInput;
-        logger.hooks.debug(`SessionStart input: session_id=${input.session_id}, cwd=${input.cwd}`);
+        logger.hooks.info(`SessionStart input received: ${JSON.stringify(input, null, 2)}`);
       } catch {
-        logger.hooks.warn('SessionStart: Failed to parse stdin input');
+        logger.hooks.warn(`SessionStart: Failed to parse stdin input: ${inputRaw}`);
         // Input might be empty or invalid, continue anyway
       }
+    } else {
+      logger.hooks.debug('SessionStart: No stdin input received');
     }
 
     // Use cwd from input if available, otherwise use PROJECT_DIR env var
