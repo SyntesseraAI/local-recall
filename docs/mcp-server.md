@@ -95,7 +95,6 @@ Retrieve a specific memory by ID.
   "keywords": ["..."],
   "applies_to": "...",
   "content": "...",
-  "created_at": "...",
   "occurred_at": "...",
   "content_hash": "..."
 }

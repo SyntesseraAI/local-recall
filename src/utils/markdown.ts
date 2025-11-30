@@ -33,7 +33,6 @@ export function serializeMemory(memory: Memory): string {
     subject: memory.subject,
     keywords: memory.keywords,
     applies_to: memory.applies_to,
-    created_at: memory.created_at,
     occurred_at: memory.occurred_at,
     content_hash: memory.content_hash,
   };

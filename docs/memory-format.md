@@ -18,7 +18,6 @@ keywords:
   - <keyword1>
   - <keyword2>
 applies_to: <scope>
-created_at: <iso-8601-timestamp>
 occurred_at: <iso-8601-timestamp>
 content_hash: <sha256-prefix>
 ---
@@ -58,11 +57,6 @@ content_hash: <sha256-prefix>
 | `global` | Applies to entire project |
 | `file:<path>` | Specific to a file (e.g., `file:src/api/auth.ts`) |
 | `area:<name>` | Specific to a component/area (e.g., `area:authentication`) |
-
-### created_at (auto)
-- Type: `string` (ISO 8601)
-- Automatically set when the memory file is created
-- Never modified after creation
 
 ### occurred_at (required)
 - Type: `string` (ISO 8601)
@@ -112,7 +106,6 @@ keywords:
   - error-handling
   - conventions
 applies_to: global
-created_at: 2025-01-15T10:30:00Z
 occurred_at: 2025-01-15T10:30:00Z
 content_hash: a1b2c3d4e5f67890
 ---
@@ -146,7 +139,6 @@ keywords:
   - user-context
   - authentication
 applies_to: file:src/middleware/auth.ts
-created_at: 2025-01-16T14:20:00Z
 occurred_at: 2025-01-16T14:20:00Z
 content_hash: b2c3d4e5f6789012
 ---
@@ -171,7 +163,6 @@ keywords:
   - connection-pool
   - performance
 applies_to: area:database
-created_at: 2025-01-17T09:15:00Z
 occurred_at: 2025-01-17T09:15:00Z
 content_hash: c3d4e5f678901234
 ---

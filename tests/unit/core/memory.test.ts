@@ -39,7 +39,6 @@ describe('MemoryManager', () => {
       expect(memory.keywords).toEqual(input.keywords);
       expect(memory.applies_to).toBe(input.applies_to);
       expect(memory.content).toBe(input.content);
-      expect(memory.created_at).toBeDefined();
       expect(memory.occurred_at).toBeDefined();
     });
 

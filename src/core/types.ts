@@ -23,7 +23,6 @@ export const memoryFrontmatterSchema = z.object({
   subject: z.string().min(1).max(200),
   keywords: z.array(z.string().min(1).max(50)).min(1).max(20),
   applies_to: memoryScopeSchema,
-  created_at: z.string().datetime(),
   occurred_at: z.string().datetime(),
   content_hash: z.string(),
 });

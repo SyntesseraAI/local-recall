@@ -120,7 +120,6 @@ recall.log
       subject: validated.subject,
       keywords: validated.keywords,
       applies_to: validated.applies_to as MemoryScope,
-      created_at: now,
       occurred_at: occurredAt,
       content_hash: contentHash,
       content: validated.content,

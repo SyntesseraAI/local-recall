@@ -68,7 +68,6 @@ keywords:
   - keyword2
   - keyword3
 applies_to: global | file:/path/to/file | area:component-name
-created_at: ISO-8601 timestamp
 occurred_at: ISO-8601 timestamp
 content_hash: SHA-256 prefix (16 chars)
 ---
@@ -91,8 +90,7 @@ The actual memory content goes here. This can include:
 | `subject` | Brief one-line description |
 | `keywords` | Array of searchable keywords |
 | `applies_to` | Scope: `global`, `file:<path>`, or `area:<name>` |
-| `created_at` | Creation timestamp |
-| `occurred_at` | When the original event occurred (for deduplication) |
+| `occurred_at` | When the original event occurred (for deduplication and sorting) |
 | `content_hash` | SHA-256 hash prefix of content (for deduplication) |
 
 ## Core Components

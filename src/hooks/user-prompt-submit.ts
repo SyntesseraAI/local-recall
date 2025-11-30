@@ -192,7 +192,7 @@ async function main(): Promise<void> {
     const contextParts: string[] = [
       '# Local Recall: Relevant Memories',
       '',
-      `Found ${results.length} memories related to your query.`,
+      `Found ${results.length} memories related to your query (sorted by most recent first).`,
       '',
     ];
 

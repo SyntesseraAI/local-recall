@@ -99,7 +99,12 @@ export class SearchEngine {
       }
     }
 
-    logger.search.info(`Keyword search found ${results.length} results for "${query}"`);
+    // Sort by occurred_at descending (most recent first)
+    results.sort((a, b) =>
+      new Date(b.memory.occurred_at).getTime() - new Date(a.memory.occurred_at).getTime()
+    );
+
+    logger.search.info(`Keyword search found ${results.length} results for "${query}" (sorted by occurred_at desc)`);
     return results;
   }
 
@@ -133,7 +138,12 @@ export class SearchEngine {
       matchedKeywords: [],
     }));
 
-    logger.search.info(`Subject search found ${results.length} results for "${query}"`);
+    // Sort by occurred_at descending (most recent first)
+    results.sort((a, b) =>
+      new Date(b.memory.occurred_at).getTime() - new Date(a.memory.occurred_at).getTime()
+    );
+
+    logger.search.info(`Subject search found ${results.length} results for "${query}" (sorted by occurred_at desc)`);
     return results;
   }
 

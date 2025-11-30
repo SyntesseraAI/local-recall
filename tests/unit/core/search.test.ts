@@ -59,28 +59,33 @@ describe('SearchEngine', () => {
       expect(results.length).toBeGreaterThan(0);
     });
 
-    it('should rank results by relevance', async () => {
+    it('should sort results by occurred_at descending (most recent first)', async () => {
+      // Create older memory first
       await memoryManager.createMemory({
         subject: 'React components',
         keywords: ['react', 'components'],
         applies_to: 'global' as const,
         content: 'Building React components.',
+        occurred_at: '2024-01-01T00:00:00.000Z',
       });
 
+      // Create newer memory second
       await memoryManager.createMemory({
         subject: 'React and Vue comparison',
         keywords: ['react', 'vue', 'comparison'],
         applies_to: 'global' as const,
         content: 'Comparing React and Vue.',
+        occurred_at: '2024-01-02T00:00:00.000Z',
       });
 
       await indexManager.buildIndex();
 
-      const results = await searchEngine.searchByKeywords('react components');
+      const results = await searchEngine.searchByKeywords('react');
 
-      // The memory with both keywords should rank higher
+      // Results should be sorted by occurred_at descending (most recent first)
       expect(results).toHaveLength(2);
-      expect(results[0]?.memory.subject).toBe('React components');
+      expect(results[0]?.memory.subject).toBe('React and Vue comparison');
+      expect(results[1]?.memory.subject).toBe('React components');
     });
 
     it('should filter by scope', async () => {
