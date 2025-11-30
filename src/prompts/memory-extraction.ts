@@ -59,7 +59,8 @@ export const MEMORY_EXTRACTION_JSON_SCHEMA = {
  * @param projectPath - The path to the project for context
  */
 export function buildMemoryExtractionPrompt(transcriptContent: string, projectPath: string): string {
-  return `You are analyzing a Claude Code session transcript to extract valuable memories that will help future AI assistants working on this codebase.
+  // Prefix with [LOCAL_RECALL_INTERNAL] to prevent UserPromptSubmit hook recursion
+  return `[LOCAL_RECALL_INTERNAL] You are analyzing a Claude Code session transcript to extract valuable memories that will help future AI assistants working on this codebase.
 
 ## Project Context
 Working directory: ${projectPath}
@@ -102,7 +103,9 @@ DO NOT extract:
 
 ## Output Format
 
-Return a JSON object with a "memories" array. Each memory should have:
+IMPORTANT: Return ONLY a valid JSON object with no explanation, no markdown formatting, no code blocks - just raw JSON.
+
+The JSON object must have a "memories" array. Each memory should have:
 - \`subject\`: Brief one-line description (max 200 chars)
 - \`keywords\`: Array of 1-10 searchable keywords (lowercase, specific)
 - \`applies_to\`: Scope string (\`global\`, \`file:<path>\`, or \`area:<name>\`)
@@ -112,9 +115,7 @@ If no valuable memories can be extracted, return: { "memories": [] }
 
 ## Transcript to Analyze
 
-\`\`\`
 ${transcriptContent}
-\`\`\`
 
-Extract the memories now:`;
+Return ONLY the JSON object now:`;
 }

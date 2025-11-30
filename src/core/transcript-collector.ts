@@ -44,14 +44,14 @@ export class TranscriptCollector {
   }
 
   /**
-   * Compute the project hash that Claude uses for folder names
-   * Claude uses a base64-encoded hash of the project path
+   * Convert a project path to Claude's folder naming convention
+   * Claude replaces all path separators with dashes
+   * e.g., /Users/joe/Code/project -> -Users-joe-Code-project
    */
-  private computeProjectHash(projectPath: string): string {
-    // Claude appears to use the absolute path with forward slashes
-    const normalizedPath = path.resolve(projectPath).replace(/\\/g, '/');
-    const hash = createHash('sha256').update(normalizedPath).digest('base64url');
-    return hash;
+  private pathToClaudeFolderName(projectPath: string): string {
+    const normalizedPath = path.resolve(projectPath);
+    // Replace all path separators with dashes
+    return normalizedPath.replace(/\//g, '-');
   }
 
   /**
@@ -59,6 +59,9 @@ export class TranscriptCollector {
    * Returns null if not found
    */
   async findClaudeProjectDir(): Promise<string | null> {
+    logger.transcript.debug(`Looking for Claude project for: ${this.projectPath}`);
+    logger.transcript.debug(`Claude projects directory: ${this.claudeProjectsDir}`);
+
     try {
       await fs.access(this.claudeProjectsDir);
     } catch {
@@ -66,38 +69,53 @@ export class TranscriptCollector {
       return null;
     }
 
+    // Primary approach: Claude uses path with slashes replaced by dashes
+    // e.g., /Users/joe/Code/project -> -Users-joe-Code-project
+    const expectedFolderName = this.pathToClaudeFolderName(this.projectPath);
+    const expectedDir = path.join(this.claudeProjectsDir, expectedFolderName);
+    logger.transcript.debug(`Expected folder name: ${expectedFolderName}`);
+    logger.transcript.debug(`Checking path: ${expectedDir}`);
+
+    try {
+      await fs.access(expectedDir);
+      // Transcripts are stored directly in the project folder as .jsonl files
+      const files = await fs.readdir(expectedDir);
+      const hasTranscripts = files.some((f) => f.endsWith('.jsonl'));
+      if (hasTranscripts) {
+        logger.transcript.debug(`Found Claude project via path convention: ${expectedFolderName}`);
+        return expectedDir;
+      } else {
+        logger.transcript.debug(`Claude project found but no transcript files: ${expectedFolderName}`);
+      }
+    } catch {
+      logger.transcript.debug(`No Claude project at expected path: ${expectedFolderName}`);
+    }
+
+    // Fallback: scan all directories and check cwd in transcript files
     const entries = await fs.readdir(this.claudeProjectsDir, { withFileTypes: true });
     const projectDirs = entries.filter((e) => e.isDirectory());
 
-    // Claude stores project info in a CLAUDE.md or similar file
-    // We need to check each directory to find the matching project
     for (const dir of projectDirs) {
       const projectDir = path.join(this.claudeProjectsDir, dir.name);
-      const transcriptsPath = path.join(projectDir, 'transcripts');
 
       try {
-        await fs.access(transcriptsPath);
-
-        // Check if there's a project marker file that tells us the path
-        // Try reading a session file to check the cwd
-        const files = await fs.readdir(transcriptsPath);
+        // Transcripts are stored directly in the project folder
+        const files = await fs.readdir(projectDir);
         const jsonlFiles = files.filter((f) => f.endsWith('.jsonl'));
 
         if (jsonlFiles.length > 0) {
-          // Read first line of first transcript to check the project path
           const firstFile = jsonlFiles[0];
           if (!firstFile) continue;
 
-          const sampleFile = path.join(transcriptsPath, firstFile);
+          const sampleFile = path.join(projectDir, firstFile);
           const content = await fs.readFile(sampleFile, 'utf-8');
           const firstLine = content.split('\n')[0];
           if (!firstLine) continue;
 
           try {
             const parsed = JSON.parse(firstLine);
-            // Look for working directory in the transcript
             if (parsed.cwd && this.isMatchingProject(parsed.cwd)) {
-              logger.transcript.debug(`Found matching Claude project: ${dir.name}`);
+              logger.transcript.debug(`Found matching Claude project via cwd: ${dir.name}`);
               return projectDir;
             }
           } catch {
@@ -105,35 +123,24 @@ export class TranscriptCollector {
           }
         }
       } catch {
-        // No transcripts folder, skip
+        // Can't read directory, skip
       }
     }
 
-    // Fallback: try the hash-based approach
-    const projectHash = this.computeProjectHash(this.projectPath);
-    const hashBasedDir = path.join(this.claudeProjectsDir, projectHash);
-
-    try {
-      await fs.access(hashBasedDir);
-      logger.transcript.debug(`Found Claude project via hash: ${projectHash}`);
-      return hashBasedDir;
-    } catch {
-      // Hash-based lookup failed
-    }
-
-    // Last resort: check all directories and compare paths
+    // Last resort: check for directories ending with the project basename
     for (const dir of projectDirs) {
       const projectDir = path.join(this.claudeProjectsDir, dir.name);
 
-      // Check if dir.name is a path-like string that matches our project
-      if (dir.name.includes(path.basename(this.projectPath))) {
-        const transcriptsPath = path.join(projectDir, 'transcripts');
+      if (dir.name.endsWith('-' + path.basename(this.projectPath))) {
         try {
-          await fs.access(transcriptsPath);
-          logger.transcript.debug(`Found Claude project via name match: ${dir.name}`);
-          return projectDir;
+          const files = await fs.readdir(projectDir);
+          const hasTranscripts = files.some((f) => f.endsWith('.jsonl'));
+          if (hasTranscripts) {
+            logger.transcript.debug(`Found Claude project via basename match: ${dir.name}`);
+            return projectDir;
+          }
         } catch {
-          // No transcripts folder
+          // Can't read directory
         }
       }
     }
@@ -160,16 +167,15 @@ export class TranscriptCollector {
       return [];
     }
 
-    const transcriptsPath = path.join(projectDir, 'transcripts');
-
     try {
-      const files = await fs.readdir(transcriptsPath);
+      // Transcripts are stored directly in the project folder
+      const files = await fs.readdir(projectDir);
       const jsonlFiles = files.filter((f) => f.endsWith('.jsonl'));
 
       const transcripts: TranscriptInfo[] = [];
 
       for (const filename of jsonlFiles) {
-        const sourcePath = path.join(transcriptsPath, filename);
+        const sourcePath = path.join(projectDir, filename);
         const stats = await fs.stat(sourcePath);
 
         transcripts.push({

@@ -12,6 +12,7 @@ import {
 import { getConfig } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
 import { serializeMemory, parseMarkdown } from '../utils/markdown.js';
+import { ensureGitignore } from '../utils/gitignore.js';
 
 /**
  * Compute SHA-256 hash of content
@@ -38,33 +39,7 @@ export class MemoryManager {
    */
   private async ensureDir(): Promise<void> {
     await fs.mkdir(this.memoriesDir, { recursive: true });
-    await this.ensureGitignore();
-  }
-
-  /**
-   * Ensure .gitignore exists with proper exclusions
-   */
-  private async ensureGitignore(): Promise<void> {
-    const gitignorePath = path.join(this.baseDir, '.gitignore');
-    const gitignoreContent = `# Local Recall - auto-generated
-# These files are regenerated and should not be committed
-
-# Index cache (rebuilt automatically)
-index.json
-
-# Debug log
-recall.log
-`;
-
-    try {
-      await fs.access(gitignorePath);
-      // File exists, don't overwrite
-    } catch {
-      // File doesn't exist, create it
-      await fs.mkdir(this.baseDir, { recursive: true });
-      await fs.writeFile(gitignorePath, gitignoreContent, 'utf-8');
-      logger.memory.debug('Created .gitignore in local-recall directory');
-    }
+    await ensureGitignore(this.baseDir);
   }
 
   /**

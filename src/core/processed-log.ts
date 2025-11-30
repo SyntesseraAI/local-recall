@@ -23,85 +23,158 @@ export const processedTranscriptEntrySchema = z.object({
 export type ProcessedTranscriptEntry = z.infer<typeof processedTranscriptEntrySchema>;
 
 /**
- * Schema for the processed log file
+ * Schema for an "add" log entry
  */
-export const processedLogSchema = z.object({
-  version: z.number().default(1),
-  lastUpdated: z.string().datetime(),
-  transcripts: z.record(z.string(), processedTranscriptEntrySchema),
+const addEntrySchema = z.object({
+  action: z.literal('add'),
+  filename: z.string(),
+  sourcePath: z.string(),
+  contentHash: z.string(),
+  lastModified: z.string().datetime(),
+  processedAt: z.string().datetime(),
+  memoriesCreated: z.array(z.string()),
 });
 
-export type ProcessedLog = z.infer<typeof processedLogSchema>;
+/**
+ * Schema for a "remove" log entry
+ */
+const removeEntrySchema = z.object({
+  action: z.literal('remove'),
+  filename: z.string(),
+  removedAt: z.string().datetime(),
+});
+
+/**
+ * Union schema for log entries
+ */
+const logEntrySchema = z.discriminatedUnion('action', [addEntrySchema, removeEntrySchema]);
+
+type LogEntry = z.infer<typeof logEntrySchema>;
+
+/**
+ * In-memory state representation
+ */
+export interface ProcessedLog {
+  version: number;
+  lastUpdated: string;
+  transcripts: Record<string, ProcessedTranscriptEntry>;
+}
 
 /**
  * Processed Log Manager - tracks which transcripts have been processed
+ * Uses JSONL format for append-only, fast writes
  */
 export class ProcessedLogManager {
   private logPath: string;
-  private cache: ProcessedLog | null = null;
+  private cache: Map<string, ProcessedTranscriptEntry> | null = null;
 
   constructor(baseDir?: string) {
     const config = getConfig();
     const dir = baseDir ?? config.memoryDir;
-    this.logPath = path.join(dir, 'processed-log.json');
+    this.logPath = path.join(dir, 'processed-log.jsonl');
   }
 
   /**
-   * Load the processed log from disk
+   * Load the processed log from disk by replaying JSONL entries
    */
   async load(): Promise<ProcessedLog> {
     if (this.cache) {
-      return this.cache;
+      return this.toProcessedLog();
     }
+
+    this.cache = new Map();
 
     try {
       const content = await fs.readFile(this.logPath, 'utf-8');
-      const parsed = JSON.parse(content);
-      this.cache = processedLogSchema.parse(parsed);
-      return this.cache;
+      const lines = content.split('\n').filter((line) => line.trim());
+
+      for (const line of lines) {
+        try {
+          const entry = logEntrySchema.parse(JSON.parse(line));
+          this.applyEntry(entry);
+        } catch {
+          logger.transcript.warn(`Skipping invalid log entry: ${line}`);
+        }
+      }
+
+      logger.transcript.debug(`Loaded ${this.cache.size} processed transcripts from JSONL`);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        // File doesn't exist, return empty log
-        const emptyLog: ProcessedLog = {
-          version: 1,
-          lastUpdated: new Date().toISOString(),
-          transcripts: {},
-        };
-        this.cache = emptyLog;
-        return emptyLog;
+        // File doesn't exist, start with empty state
+        logger.transcript.debug('No processed log found, starting fresh');
+      } else {
+        logger.transcript.error('Failed to load processed log', error);
+        throw error;
       }
-      logger.transcript.error('Failed to load processed log', error);
-      throw error;
+    }
+
+    return this.toProcessedLog();
+  }
+
+  /**
+   * Apply a log entry to the in-memory state
+   */
+  private applyEntry(entry: LogEntry): void {
+    if (!this.cache) {
+      this.cache = new Map();
+    }
+
+    if (entry.action === 'add') {
+      this.cache.set(entry.filename, {
+        sourcePath: entry.sourcePath,
+        contentHash: entry.contentHash,
+        lastModified: entry.lastModified,
+        processedAt: entry.processedAt,
+        memoriesCreated: entry.memoriesCreated,
+      });
+    } else if (entry.action === 'remove') {
+      this.cache.delete(entry.filename);
     }
   }
 
   /**
-   * Save the processed log to disk
+   * Convert in-memory state to ProcessedLog format (for compatibility)
    */
-  async save(): Promise<void> {
-    if (!this.cache) {
-      return;
+  private toProcessedLog(): ProcessedLog {
+    const transcripts: Record<string, ProcessedTranscriptEntry> = {};
+    if (this.cache) {
+      for (const [filename, entry] of this.cache) {
+        transcripts[filename] = entry;
+      }
     }
+    return {
+      version: 1,
+      lastUpdated: new Date().toISOString(),
+      transcripts,
+    };
+  }
 
-    this.cache.lastUpdated = new Date().toISOString();
-
+  /**
+   * Append an entry to the JSONL file
+   */
+  private async appendEntry(entry: LogEntry): Promise<void> {
     const dir = path.dirname(this.logPath);
     await fs.mkdir(dir, { recursive: true });
 
-    // Write atomically
-    const tempPath = `${this.logPath}.tmp`;
-    await fs.writeFile(tempPath, JSON.stringify(this.cache, null, 2), 'utf-8');
-    await fs.rename(tempPath, this.logPath);
+    const line = JSON.stringify(entry) + '\n';
+    await fs.appendFile(this.logPath, line, 'utf-8');
+  }
 
-    logger.transcript.debug('Saved processed log');
+  /**
+   * Save is now a no-op since we append immediately
+   * Kept for API compatibility
+   */
+  async save(): Promise<void> {
+    // No-op - JSONL format appends immediately
+    logger.transcript.debug('Save called (no-op for JSONL format)');
   }
 
   /**
    * Get the entry for a transcript by filename
    */
   async getEntry(filename: string): Promise<ProcessedTranscriptEntry | null> {
-    const log = await this.load();
-    return log.transcripts[filename] ?? null;
+    await this.load();
+    return this.cache?.get(filename) ?? null;
   }
 
   /**
@@ -134,9 +207,11 @@ export class ProcessedLogManager {
     lastModified: Date,
     memoryIds: string[]
   ): Promise<void> {
-    const log = await this.load();
+    await this.load(); // Ensure cache is loaded
 
-    log.transcripts[filename] = {
+    const entry: z.infer<typeof addEntrySchema> = {
+      action: 'add',
+      filename,
       sourcePath,
       contentHash,
       lastModified: lastModified.toISOString(),
@@ -144,7 +219,12 @@ export class ProcessedLogManager {
       memoriesCreated: memoryIds,
     };
 
-    await this.save();
+    // Append to file
+    await this.appendEntry(entry);
+
+    // Update cache
+    this.applyEntry(entry);
+
     logger.transcript.info(`Recorded processed transcript: ${filename} (${memoryIds.length} memories)`);
   }
 
@@ -160,16 +240,26 @@ export class ProcessedLogManager {
    * Remove an entry and return its memory IDs (for cleanup before re-processing)
    */
   async removeEntry(filename: string): Promise<string[]> {
-    const log = await this.load();
-    const entry = log.transcripts[filename];
+    await this.load(); // Ensure cache is loaded
 
-    if (!entry) {
+    const existingEntry = this.cache?.get(filename);
+    if (!existingEntry) {
       return [];
     }
 
-    const memoryIds = entry.memoriesCreated;
-    delete log.transcripts[filename];
-    await this.save();
+    const memoryIds = existingEntry.memoriesCreated;
+
+    const entry: z.infer<typeof removeEntrySchema> = {
+      action: 'remove',
+      filename,
+      removedAt: new Date().toISOString(),
+    };
+
+    // Append to file
+    await this.appendEntry(entry);
+
+    // Update cache
+    this.applyEntry(entry);
 
     logger.transcript.debug(`Removed processed entry: ${filename}`);
     return memoryIds;
@@ -179,11 +269,14 @@ export class ProcessedLogManager {
    * List all processed transcripts
    */
   async listProcessed(): Promise<Array<{ filename: string; entry: ProcessedTranscriptEntry }>> {
-    const log = await this.load();
-    return Object.entries(log.transcripts).map(([filename, entry]) => ({
-      filename,
-      entry,
-    }));
+    await this.load();
+    const result: Array<{ filename: string; entry: ProcessedTranscriptEntry }> = [];
+    if (this.cache) {
+      for (const [filename, entry] of this.cache) {
+        result.push({ filename, entry });
+      }
+    }
+    return result;
   }
 
   /**
@@ -191,5 +284,45 @@ export class ProcessedLogManager {
    */
   clearCache(): void {
     this.cache = null;
+  }
+
+  /**
+   * Compact the JSONL file by rewriting only the current state
+   * This removes old/superseded entries and deleted items
+   */
+  async compact(): Promise<void> {
+    await this.load();
+
+    if (!this.cache || this.cache.size === 0) {
+      // Nothing to compact, delete the file if it exists
+      try {
+        await fs.unlink(this.logPath);
+      } catch {
+        // Ignore if file doesn't exist
+      }
+      return;
+    }
+
+    // Write all current entries to a new file
+    const tempPath = `${this.logPath}.tmp`;
+    const lines: string[] = [];
+
+    for (const [filename, entry] of this.cache) {
+      const logEntry: z.infer<typeof addEntrySchema> = {
+        action: 'add',
+        filename,
+        sourcePath: entry.sourcePath,
+        contentHash: entry.contentHash,
+        lastModified: entry.lastModified,
+        processedAt: entry.processedAt,
+        memoriesCreated: entry.memoriesCreated,
+      };
+      lines.push(JSON.stringify(logEntry));
+    }
+
+    await fs.writeFile(tempPath, lines.join('\n') + '\n', 'utf-8');
+    await fs.rename(tempPath, this.logPath);
+
+    logger.transcript.info(`Compacted processed log to ${this.cache.size} entries`);
   }
 }

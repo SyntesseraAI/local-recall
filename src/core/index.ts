@@ -9,6 +9,7 @@ import {
 import { getConfig } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
 import { parseMarkdown } from '../utils/markdown.js';
+import { ensureGitignore } from '../utils/gitignore.js';
 
 const INDEX_VERSION = 1;
 
@@ -96,7 +97,7 @@ export class IndexManager {
     const cacheAge = (Date.now() - this.cacheTime) / 1000;
 
     // Always ensure .gitignore exists
-    await this.ensureGitignore();
+    await ensureGitignore(this.baseDir);
 
     // Return cached index if still fresh
     if (this.cachedIndex && cacheAge < config.indexRefreshInterval) {
@@ -184,33 +185,7 @@ export class IndexManager {
    */
   private async ensureDir(): Promise<void> {
     await fs.mkdir(this.memoriesDir, { recursive: true });
-    await this.ensureGitignore();
-  }
-
-  /**
-   * Ensure .gitignore exists with proper exclusions
-   */
-  private async ensureGitignore(): Promise<void> {
-    const gitignorePath = path.join(this.baseDir, '.gitignore');
-    const gitignoreContent = `# Local Recall - auto-generated
-# These files are regenerated and should not be committed
-
-# Index cache (rebuilt automatically)
-index.json
-
-# Debug log
-recall.log
-`;
-
-    try {
-      await fs.access(gitignorePath);
-      // File exists, don't overwrite
-    } catch {
-      // File doesn't exist, create base directory and .gitignore
-      await fs.mkdir(this.baseDir, { recursive: true });
-      await fs.writeFile(gitignorePath, gitignoreContent, 'utf-8');
-      logger.index.debug('Created .gitignore in local-recall directory');
-    }
+    await ensureGitignore(this.baseDir);
   }
 
   /**

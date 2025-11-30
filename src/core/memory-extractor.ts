@@ -1,16 +1,12 @@
-import { spawn } from 'node:child_process';
-import { MemoryManager } from './memory.js';
-import { IndexManager } from './index.js';
-import { ProcessedLogManager } from './processed-log.js';
-import { TranscriptCollector, type TranscriptInfo } from './transcript-collector.js';
-import type { MemoryScope } from './types.js';
-import {
-  buildMemoryExtractionPrompt,
-  extractedMemoriesSchema,
-  type ExtractedMemory,
-} from '../prompts/memory-extraction.js';
-import { logger } from '../utils/logger.js';
-import { getConfig } from '../utils/config.js';
+import { spawn } from "node:child_process";
+import { MemoryManager } from "./memory.js";
+import { IndexManager } from "./index.js";
+import { ProcessedLogManager } from "./processed-log.js";
+import { TranscriptCollector, type TranscriptInfo } from "./transcript-collector.js";
+import type { MemoryScope } from "./types.js";
+import { buildMemoryExtractionPrompt, extractedMemoriesSchema, type ExtractedMemory } from "../prompts/memory-extraction.js";
+import { logger } from "../utils/logger.js";
+import { getConfig } from "../utils/config.js";
 
 /**
  * Result of processing a single transcript
@@ -32,12 +28,15 @@ export interface ExtractorOptions {
   baseDelay?: number;
   /** Timeout for Claude CLI (ms) */
   timeout?: number;
+  /** Maximum concurrent transcript processors */
+  concurrency?: number;
 }
 
 const DEFAULT_OPTIONS: Required<ExtractorOptions> = {
   maxRetries: 3,
   baseDelay: 2000,
-  timeout: 120000, // 2 minutes
+  timeout: 600000, // 10 minutes
+  concurrency: 20,
 };
 
 /**
@@ -70,32 +69,40 @@ export class MemoryExtractor {
 
   /**
    * Call Claude CLI with a prompt and get JSON response
+   * Uses stdin to pass the prompt to avoid E2BIG errors with large transcripts
    */
   private async callClaudeCLI(prompt: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      const args = ['-p', prompt, '--output-format', 'json'];
+      const args = [
+        "-p",
+        "-", // Read prompt from stdin
+        "--output-format",
+        "json",
+        "--max-turns",
+        "1",
+        "--strict-mcp-config",
+      ];
 
-      const child = spawn('claude', args, {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        timeout: this.options.timeout,
+      const child = spawn("claude", args, {
+        stdio: ["pipe", "pipe", "pipe"],
       });
 
-      let stdout = '';
-      let stderr = '';
+      let stdout = "";
+      let stderr = "";
 
-      child.stdout?.on('data', (data) => {
+      child.stdout?.on("data", (data) => {
         stdout += data.toString();
       });
 
-      child.stderr?.on('data', (data) => {
+      child.stderr?.on("data", (data) => {
         stderr += data.toString();
       });
 
-      child.on('error', (error) => {
+      child.on("error", (error) => {
         reject(new Error(`Failed to spawn Claude CLI: ${error.message}`));
       });
 
-      child.on('close', (code) => {
+      child.on("close", (code) => {
         if (code === 0) {
           resolve(stdout);
         } else {
@@ -105,13 +112,17 @@ export class MemoryExtractor {
 
       // Set timeout
       const timeoutId = setTimeout(() => {
-        child.kill('SIGTERM');
+        child.kill("SIGTERM");
         reject(new Error(`Claude CLI timed out after ${this.options.timeout}ms`));
       }, this.options.timeout);
 
-      child.on('close', () => {
+      child.on("close", () => {
         clearTimeout(timeoutId);
       });
+
+      // Write prompt to stdin and close it
+      child.stdin?.write(prompt);
+      child.stdin?.end();
     });
   }
 
@@ -136,7 +147,62 @@ export class MemoryExtractor {
       }
     }
 
-    throw lastError ?? new Error('Claude CLI failed after retries');
+    throw lastError ?? new Error("Claude CLI failed after retries");
+  }
+
+  /**
+   * Extract text content from Claude CLI JSON output format
+   * Claude CLI with --output-format json returns an array of conversation messages
+   */
+  private extractTextFromClaudeOutput(response: string): string {
+    try {
+      const parsed = JSON.parse(response);
+
+      // Check if it's the Claude CLI conversation format (array of messages)
+      if (Array.isArray(parsed)) {
+        // Find the assistant message
+        const assistantMessage = parsed.find((msg: { type?: string }) => msg.type === "assistant");
+
+        if (assistantMessage?.message?.content) {
+          // Extract text from content array
+          const content = assistantMessage.message.content;
+          if (Array.isArray(content)) {
+            const textBlock = content.find((block: { type?: string }) => block.type === "text");
+            if (textBlock?.text) {
+              return textBlock.text;
+            }
+          }
+        }
+
+        // Fallback: look for result field in first item
+        if (parsed.length > 0 && parsed[0].result) {
+          return typeof parsed[0].result === "string" ? parsed[0].result : JSON.stringify(parsed[0].result);
+        }
+      }
+
+      // Handle single object response
+      if (parsed.result) {
+        return typeof parsed.result === "string" ? parsed.result : JSON.stringify(parsed.result);
+      }
+
+      // Already a plain response, return original
+      return response;
+    } catch {
+      // Not JSON, return as-is
+      return response;
+    }
+  }
+
+  /**
+   * Strip markdown code blocks from response
+   */
+  private stripMarkdownCodeBlocks(text: string): string {
+    // Match ```json ... ``` or ``` ... ```
+    const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch?.[1]) {
+      return codeBlockMatch[1].trim();
+    }
+    return text.trim();
   }
 
   /**
@@ -144,34 +210,72 @@ export class MemoryExtractor {
    */
   private parseClaudeResponse(response: string): ExtractedMemory[] {
     try {
-      // The response might be wrapped in a result object from --output-format json
-      let parsed = JSON.parse(response);
+      // Step 1: Extract text content from Claude CLI output format
+      let textContent = this.extractTextFromClaudeOutput(response);
 
-      // Handle different response formats
+      // Step 2: Strip markdown code blocks
+      textContent = this.stripMarkdownCodeBlocks(textContent);
+
+      // Step 3: Parse the JSON
+      let parsed = JSON.parse(textContent);
+
+      // Handle if the memories are nested in a result field
       if (parsed.result) {
-        // If result is a string (JSON stringified), parse it
-        if (typeof parsed.result === 'string') {
+        if (typeof parsed.result === "string") {
           parsed = JSON.parse(parsed.result);
         } else {
           parsed = parsed.result;
         }
       }
 
-      // Handle if the memories are nested
-      if (typeof parsed === 'string') {
+      // Handle nested string
+      if (typeof parsed === "string") {
         parsed = JSON.parse(parsed);
       }
+
+      // Handle if Claude returns array of memories directly instead of { memories: [...] }
+      // Only wrap if it looks like memory objects (has subject/keywords), not if it's conversation messages
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const firstItem = parsed[0];
+        const looksLikeMemory = firstItem.subject || firstItem.title || firstItem.keywords || firstItem.tags;
+        if (looksLikeMemory) {
+          parsed = { memories: parsed };
+        }
+      }
+
+      // Normalize field names - Claude might use variations
+      if (parsed.memories && Array.isArray(parsed.memories)) {
+        parsed.memories = parsed.memories.map((memory: Record<string, unknown>) => ({
+          subject: memory.subject ?? memory.title ?? memory.name ?? memory.summary,
+          keywords: memory.keywords ?? memory.tags ?? memory.keys,
+          applies_to: memory.applies_to ?? memory.appliesTo ?? memory.scope ?? memory.applies,
+          content: memory.content ?? memory.body ?? memory.text ?? memory.details ?? memory.description,
+        }));
+      }
+
+      // Log the parsed structure before validation for debugging
+      logger.extractor.debug("Normalized response structure: " + JSON.stringify(parsed, null, 2));
 
       const validated = extractedMemoriesSchema.parse(parsed);
       return validated.memories;
     } catch (error) {
-      logger.extractor.error('Failed to parse Claude response', error);
+      logger.extractor.error("Failed to parse Claude response", error);
+      logger.extractor.debug("Raw response was: " + response.substring(0, 2000));
 
       // Try to extract JSON from the response (Claude might include explanation text)
       const jsonMatch = response.match(/\{[\s\S]*"memories"[\s\S]*\}/);
       if (jsonMatch) {
         try {
-          const extracted = JSON.parse(jsonMatch[0]);
+          let extracted = JSON.parse(jsonMatch[0]);
+          // Apply same normalization as above
+          if (extracted.memories && Array.isArray(extracted.memories)) {
+            extracted.memories = extracted.memories.map((memory: Record<string, unknown>) => ({
+              subject: memory.subject ?? memory.title ?? memory.name ?? memory.summary,
+              keywords: memory.keywords ?? memory.tags ?? memory.keys,
+              applies_to: memory.applies_to ?? memory.appliesTo ?? memory.scope ?? memory.applies,
+              content: memory.content ?? memory.body ?? memory.text ?? memory.details ?? memory.description,
+            }));
+          }
           const validated = extractedMemoriesSchema.parse(extracted);
           return validated.memories;
         } catch {
@@ -208,10 +312,7 @@ export class MemoryExtractor {
       const contentHash = await this.transcriptCollector.computeTranscriptHash(transcript);
 
       // Check if already processed with same hash
-      const needsProcessing = await this.processedLog.needsProcessing(
-        transcript.filename,
-        contentHash
-      );
+      const needsProcessing = await this.processedLog.needsProcessing(transcript.filename, contentHash);
 
       if (!needsProcessing) {
         logger.extractor.debug(`Transcript already processed: ${transcript.filename}`);
@@ -242,13 +343,7 @@ export class MemoryExtractor {
 
       if (extractedMemories.length === 0) {
         logger.extractor.info(`No memories extracted from: ${transcript.filename}`);
-        await this.processedLog.recordProcessed(
-          transcript.filename,
-          transcript.sourcePath,
-          contentHash,
-          transcript.lastModified,
-          []
-        );
+        await this.processedLog.recordProcessed(transcript.filename, transcript.sourcePath, contentHash, transcript.lastModified, []);
         return {
           filename: transcript.filename,
           success: true,
@@ -281,17 +376,9 @@ export class MemoryExtractor {
       }
 
       // Record in processed log
-      await this.processedLog.recordProcessed(
-        transcript.filename,
-        transcript.sourcePath,
-        contentHash,
-        transcript.lastModified,
-        createdIds
-      );
+      await this.processedLog.recordProcessed(transcript.filename, transcript.sourcePath, contentHash, transcript.lastModified, createdIds);
 
-      logger.extractor.info(
-        `Created ${createdIds.length} memories from: ${transcript.filename}`
-      );
+      logger.extractor.info(`Created ${createdIds.length} memories from: ${transcript.filename}`);
 
       return {
         filename: transcript.filename,
@@ -312,10 +399,10 @@ export class MemoryExtractor {
   }
 
   /**
-   * Process all unprocessed transcripts
+   * Process all unprocessed transcripts with concurrent execution
    */
   async processAllTranscripts(): Promise<ProcessingResult[]> {
-    logger.extractor.info('Starting transcript processing run');
+    logger.extractor.info("Starting transcript processing run");
 
     // Sync transcripts from Claude cache
     await this.transcriptCollector.syncTranscripts();
@@ -324,19 +411,52 @@ export class MemoryExtractor {
     const transcripts = await this.transcriptCollector.listLocalTranscripts();
     logger.extractor.info(`Found ${transcripts.length} transcripts to check`);
 
-    const results: ProcessingResult[] = [];
-
-    for (const transcript of transcripts) {
-      const result = await this.processTranscript(transcript);
-      results.push(result);
+    if (transcripts.length === 0) {
+      return [];
     }
+
+    // Semaphore for controlling concurrency
+    let activeCount = 0;
+    const maxConcurrency = this.options.concurrency;
+    const waitQueue: (() => void)[] = [];
+
+    const acquire = (): Promise<void> => {
+      if (activeCount < maxConcurrency) {
+        activeCount++;
+        return Promise.resolve();
+      }
+      return new Promise((resolve) => {
+        waitQueue.push(resolve);
+      });
+    };
+
+    const release = (): void => {
+      const next = waitQueue.shift();
+      if (next) {
+        next();
+      } else {
+        activeCount--;
+      }
+    };
+
+    // Process with semaphore - spawn all at once, limit concurrent execution
+    logger.extractor.info(`Processing with concurrency: ${maxConcurrency}`);
+
+    const promises = transcripts.map(async (transcript) => {
+      await acquire();
+      try {
+        return await this.processTranscript(transcript);
+      } finally {
+        release();
+      }
+    });
+
+    const results = await Promise.all(promises);
 
     const successful = results.filter((r) => r.success);
     const memoriesCreated = results.reduce((sum, r) => sum + r.memoriesCreated.length, 0);
 
-    logger.extractor.info(
-      `Processing complete: ${successful.length}/${results.length} transcripts, ${memoriesCreated} memories created`
-    );
+    logger.extractor.info(`Processing complete: ${successful.length}/${results.length} transcripts, ${memoriesCreated} memories created`);
 
     return results;
   }

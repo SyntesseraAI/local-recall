@@ -32,13 +32,50 @@ interface UserPromptSubmitInput {
  */
 async function callClaudeForKeywords(text: string): Promise<string[]> {
   return new Promise((resolve) => {
-    const prompt = `Extract keywords from this text and return only the keywords as a JSON array of strings. No explanation, just the JSON array:\n\n${text}`;
-    const args = ['-p', prompt, '--model', 'haiku', '--output-format', 'json'];
+    // Use [LOCAL_RECALL_INTERNAL] token to identify internal extraction calls
+    const prompt = `[LOCAL_RECALL_INTERNAL] Extract keywords from this text and return only the keywords as a JSON array of strings. No explanation, just the JSON array:\n\n${text}`;
+    const args = ['-p', prompt, '--model', 'haiku', '--output-format', 'json', '--strict-mcp-config'];
 
-    const child = spawn('claude', args, {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 30000,
-    });
+    let resolved = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const safeResolve = (value: string[]) => {
+      if (!resolved) {
+        resolved = true;
+        if (timeoutId) clearTimeout(timeoutId);
+        resolve(value);
+      }
+    };
+
+    logger.hooks.debug('UserPromptSubmit: About to spawn Claude CLI for keyword extraction');
+
+    let child;
+    try {
+      child = spawn('claude', args, {
+        // Use 'ignore' for stdin - Claude CLI hangs if stdin is piped but not written to
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      logger.hooks.debug(`UserPromptSubmit: Claude CLI spawned with PID ${child.pid}`);
+    } catch (error) {
+      // Handle spawn errors (including AbortError)
+      logger.hooks.warn(`Failed to spawn Claude CLI: ${error}`);
+      // Return empty array immediately - we need to resolve outside of catch
+      setTimeout(() => resolve([]), 0);
+      return;
+    }
+
+    // Handle case where spawn returns but child is undefined/null
+    if (!child) {
+      logger.hooks.warn('Claude CLI spawn returned null/undefined');
+      setTimeout(() => resolve([]), 0);
+      return;
+    }
+
+    // Set timeout after successful spawn - use 20s to be well under the 30s hook timeout
+    timeoutId = setTimeout(() => {
+      logger.hooks.warn('Claude CLI timed out for keyword extraction (20s)');
+      child.kill('SIGTERM');
+      safeResolve([]);
+    }, 20000);
 
     let stdout = '';
     let stderr = '';
@@ -53,13 +90,15 @@ async function callClaudeForKeywords(text: string): Promise<string[]> {
 
     child.on('error', (error) => {
       logger.hooks.warn(`Claude CLI error: ${error.message}`);
-      resolve([]);
+      safeResolve([]);
     });
 
     child.on('close', (code) => {
+      if (resolved) return;
+
       if (code !== 0) {
         logger.hooks.warn(`Claude CLI exited with code ${code}: ${stderr}`);
-        resolve([]);
+        safeResolve([]);
         return;
       }
 
@@ -78,17 +117,17 @@ async function callClaudeForKeywords(text: string): Promise<string[]> {
 
         // Extract array from response
         if (Array.isArray(parsed)) {
-          resolve(parsed.filter((k: unknown) => typeof k === 'string' && k.length > 2).slice(0, 10));
+          safeResolve(parsed.filter((k: unknown) => typeof k === 'string' && k.length > 2).slice(0, 10));
         } else if (typeof parsed === 'string') {
           // Try parsing again if it's a stringified array
           const inner = JSON.parse(parsed);
           if (Array.isArray(inner)) {
-            resolve(inner.filter((k: unknown) => typeof k === 'string' && k.length > 2).slice(0, 10));
+            safeResolve(inner.filter((k: unknown) => typeof k === 'string' && k.length > 2).slice(0, 10));
           } else {
-            resolve([]);
+            safeResolve([]);
           }
         } else {
-          resolve([]);
+          safeResolve([]);
         }
       } catch (error) {
         // Try to extract JSON array from response text
@@ -97,7 +136,7 @@ async function callClaudeForKeywords(text: string): Promise<string[]> {
           try {
             const arr = JSON.parse(match[0]);
             if (Array.isArray(arr)) {
-              resolve(arr.filter((k: unknown) => typeof k === 'string' && k.length > 2).slice(0, 10));
+              safeResolve(arr.filter((k: unknown) => typeof k === 'string' && k.length > 2).slice(0, 10));
               return;
             }
           } catch {
@@ -105,19 +144,8 @@ async function callClaudeForKeywords(text: string): Promise<string[]> {
           }
         }
         logger.hooks.warn(`Failed to parse keywords from Claude response: ${error}`);
-        resolve([]);
+        safeResolve([]);
       }
-    });
-
-    // Set timeout
-    const timeoutId = setTimeout(() => {
-      child.kill('SIGTERM');
-      logger.hooks.warn('Claude CLI timed out for keyword extraction');
-      resolve([]);
-    }, 30000);
-
-    child.on('close', () => {
-      clearTimeout(timeoutId);
     });
   });
 }
@@ -153,6 +181,12 @@ async function main(): Promise<void> {
     // Check if we have a prompt to process
     if (!input.prompt || input.prompt.trim().length === 0) {
       logger.hooks.debug('UserPromptSubmit: No prompt provided, skipping');
+      process.exit(0);
+    }
+
+    // Skip prompts that are internal Local Recall calls to prevent recursion
+    if (input.prompt.startsWith('[LOCAL_RECALL_INTERNAL]')) {
+      logger.hooks.debug('UserPromptSubmit: Skipping internal Local Recall prompt to prevent recursion');
       process.exit(0);
     }
 

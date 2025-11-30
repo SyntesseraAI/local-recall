@@ -8,6 +8,12 @@ import {
 
 describe('memory-extraction', () => {
   describe('buildMemoryExtractionPrompt', () => {
+    it('should start with [LOCAL_RECALL_INTERNAL] prefix to prevent hook recursion', () => {
+      const prompt = buildMemoryExtractionPrompt('transcript content', '/path/to/project');
+
+      expect(prompt.startsWith('[LOCAL_RECALL_INTERNAL]')).toBe(true);
+    });
+
     it('should include project path in prompt', () => {
       const prompt = buildMemoryExtractionPrompt('transcript content', '/path/to/project');
 

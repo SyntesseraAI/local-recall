@@ -17,7 +17,7 @@
           {
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/user-prompt-submit.js",
-            "timeout": 30
+            "timeout": 60
           }
         ]
       }
