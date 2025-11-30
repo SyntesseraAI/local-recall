@@ -102,16 +102,17 @@ recall.log
     const validated = createMemoryInputSchema.parse(input);
     await this.ensureDir();
 
+    const now = new Date().toISOString();
+    const occurredAt = validated.occurred_at ?? now;
     const contentHash = computeContentHash(validated.content);
 
     // Check for existing duplicate
-    const existing = await this.findDuplicate(validated.occurred_at, contentHash);
+    const existing = await this.findDuplicate(occurredAt, contentHash);
     if (existing) {
       logger.memory.info(`Duplicate memory found (${existing.id}), skipping creation`);
       return existing;
     }
 
-    const now = new Date().toISOString();
     const id = uuidv4();
 
     const memory: Memory = {
@@ -120,7 +121,7 @@ recall.log
       keywords: validated.keywords,
       applies_to: validated.applies_to as MemoryScope,
       created_at: now,
-      occurred_at: validated.occurred_at,
+      occurred_at: occurredAt,
       content_hash: contentHash,
       content: validated.content,
     };
@@ -189,6 +190,56 @@ recall.log
     const limit = filter?.limit ?? memories.length;
 
     return memories.slice(offset, offset + limit);
+  }
+
+  /**
+   * Update an existing memory
+   */
+  async updateMemory(update: {
+    id: string;
+    subject?: string;
+    keywords?: string[];
+    applies_to?: MemoryScope;
+    content?: string;
+  }): Promise<Memory> {
+    const existing = await this.getMemory(update.id);
+    if (!existing) {
+      throw new Error(`Memory with ID ${update.id} not found`);
+    }
+
+    const newContent = update.content ?? existing.content;
+    const contentHash = computeContentHash(newContent);
+
+    const updated: Memory = {
+      ...existing,
+      subject: update.subject ?? existing.subject,
+      keywords: update.keywords ?? existing.keywords,
+      applies_to: update.applies_to ?? existing.applies_to,
+      content: newContent,
+      content_hash: contentHash,
+      // Note: updated_at is not in the schema, but we keep the same created_at
+    };
+
+    await this.writeMemory(updated);
+    logger.memory.info(`Updated memory ${update.id}`);
+    return updated;
+  }
+
+  /**
+   * Delete a memory by ID
+   */
+  async deleteMemory(id: string): Promise<boolean> {
+    const filePath = this.getFilePath(id);
+    try {
+      await fs.unlink(filePath);
+      logger.memory.info(`Deleted memory ${id}`);
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return false;
+      }
+      throw error;
+    }
   }
 
   /**

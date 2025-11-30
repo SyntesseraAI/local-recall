@@ -45,7 +45,7 @@ export const createMemoryInputSchema = z.object({
   keywords: z.array(z.string().min(1).max(50)).min(1).max(20),
   applies_to: memoryScopeSchema,
   content: z.string().min(10),
-  occurred_at: z.string().datetime(),
+  occurred_at: z.string().datetime().optional(),
 });
 
 export type CreateMemoryInput = z.infer<typeof createMemoryInputSchema>;

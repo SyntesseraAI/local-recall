@@ -6,3 +6,9 @@ index.json
 
 # Debug log
 recall.log
+
+# Transcript sync (copied from Claude cache)
+transcripts/
+
+# Processed transcripts log
+processed-log.json

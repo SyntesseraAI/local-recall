@@ -93,6 +93,21 @@ export function createLogger(component: string) {
 }
 
 /**
+ * Create a logger instance for a specific component with error object support
+ */
+export function createLoggerWithErrors(component: string) {
+  return {
+    debug: (message: string) => writeLog('debug', component, message),
+    info: (message: string) => writeLog('info', component, message),
+    warn: (message: string) => writeLog('warn', component, message),
+    error: (message: string, error?: unknown) => {
+      const errorDetails = error instanceof Error ? `: ${error.message}` : '';
+      writeLog('error', component, message + errorDetails);
+    },
+  };
+}
+
+/**
  * Pre-configured loggers for common components
  */
 export const logger = {
@@ -102,4 +117,6 @@ export const logger = {
   search: createLogger('search'),
   mcp: createLogger('mcp'),
   config: createLogger('config'),
+  transcript: createLoggerWithErrors('transcript'),
+  extractor: createLoggerWithErrors('extractor'),
 };

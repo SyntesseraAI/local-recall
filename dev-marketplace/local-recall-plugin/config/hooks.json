@@ -21,17 +21,6 @@
           }
         ]
       }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/stop.js",
-            "timeout": 60
-          }
-        ]
-      }
     ]
   }
 }
