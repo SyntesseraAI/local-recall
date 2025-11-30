@@ -215,6 +215,61 @@ Force a rebuild of the memory index.
 }
 ```
 
+## Background Transcript Processing
+
+The MCP server includes a daemon loop that automatically processes Claude Code transcripts and extracts memories. This replaces the Stop hook approach for better performance.
+
+### How It Works
+
+1. **Transcript Collection**: Every 5 minutes, the daemon checks `~/.claude/projects/<project>/transcripts/` for transcript files
+2. **Change Detection**: Each transcript's content hash is tracked in `local-recall/processed-log.json`
+3. **Memory Extraction**: New/modified transcripts are sent to `claude -p` CLI for intelligent memory extraction
+4. **Idempotent Storage**: Memories are created with `occurred_at` and `content_hash` for deduplication
+
+### Storage Structure
+
+```
+local-recall/
+├── transcripts/          # Copied transcripts from Claude cache
+│   └── *.jsonl
+├── processed-log.json    # Tracks processed transcripts and their memory IDs
+├── memories/             # Extracted memories
+│   └── *.md
+└── index.json            # Keyword index
+```
+
+### Memory Extraction Prompt
+
+The daemon uses Claude CLI to analyze transcripts with a prompt that asks:
+- What did the assistant learn about the codebase?
+- What problems were solved and how?
+- What patterns or approaches were discovered?
+- What information would be useful in future sessions?
+
+### Processed Log Format
+
+```json
+{
+  "version": 1,
+  "lastUpdated": "2025-01-15T10:30:00Z",
+  "transcripts": {
+    "session-abc123.jsonl": {
+      "sourcePath": "/home/user/.claude/projects/.../transcripts/session-abc123.jsonl",
+      "contentHash": "a1b2c3d4",
+      "lastModified": "2025-01-15T10:00:00Z",
+      "processedAt": "2025-01-15T10:30:00Z",
+      "memoriesCreated": ["uuid-1", "uuid-2"]
+    }
+  }
+}
+```
+
+When a transcript changes:
+1. Old memories are deleted (using tracked IDs)
+2. Transcript is re-processed
+3. New memories are created
+4. Log is updated with new memory IDs
+
 ## Server Configuration
 
 ### Environment Variables

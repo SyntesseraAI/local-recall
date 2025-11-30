@@ -7,26 +7,32 @@ Local Recall is built with a modular architecture that separates concerns into d
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    External Interfaces                       │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │ Claude Hooks │  │  MCP Server  │  │   CLI (future)   │  │
-│  └──────┬───────┘  └──────┬───────┘  └────────┬─────────┘  │
-└─────────┼─────────────────┼───────────────────┼─────────────┘
-          │                 │                   │
-          ▼                 ▼                   ▼
+│  ┌──────────────┐  ┌────────────────────────────────────┐  │
+│  │ Claude Hooks │  │  MCP Server + Daemon Loop          │  │
+│  │  (Session &  │  │  (Tools + Transcript Processing)   │  │
+│  │   Prompt)    │  │                                    │  │
+│  └──────┬───────┘  └──────────────┬─────────────────────┘  │
+└─────────┼──────────────────────────┼────────────────────────┘
+          │                          │
+          ▼                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                       Core Layer                             │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
 │  │    Memory    │  │    Index     │  │      Search      │  │
 │  │   Manager    │  │   Manager    │  │      Engine      │  │
 │  └──────┬───────┘  └──────┬───────┘  └────────┬─────────┘  │
-└─────────┼─────────────────┼───────────────────┼─────────────┘
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
+│  │  Transcript  │  │   Memory     │  │   Processed      │  │
+│  │  Collector   │  │  Extractor   │  │   Log Manager    │  │
+│  └──────────────┘  └──────────────┘  └──────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
           │                 │                   │
           ▼                 ▼                   ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                     Utilities Layer                          │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │   Markdown   │  │  Transcript  │  │     Config       │  │
-│  │  (keywords)  │  │  (analysis)  │  │    (settings)    │  │
+│  │   Markdown   │  │    Logger    │  │     Config       │  │
+│  │  (keywords)  │  │ (recall.log) │  │    (settings)    │  │
 │  └──────────────┘  └──────────────┘  └──────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
           │                 │                   │
@@ -36,6 +42,7 @@ Local Recall is built with a modular architecture that separates concerns into d
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │                  File System                          │  │
 │  │   local-recall/memories/*.md    local-recall/index.json │
+│  │   local-recall/transcripts/     processed-log.json      │
 │  └──────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -51,9 +58,36 @@ Handles memory file operations:
 - **createMemory()**: Creates new memory files with unique IDs (idempotent - returns existing if duplicate)
 - **getMemory()**: Retrieves a memory by ID, parsing markdown with YAML frontmatter
 - **listMemories()**: Lists all memories with optional filtering by scope or keyword
+- **deleteMemory()**: Deletes a memory by ID
 - **findDuplicate()**: Checks for existing memories with same `occurred_at` and `content_hash`
 
 Memory creation is idempotent: if a memory with the same timestamp and content hash already exists, the existing memory is returned instead of creating a duplicate.
+
+#### Transcript Collector (`src/core/transcript-collector.ts`)
+
+Collects transcripts from Claude's cache:
+
+- **findClaudeProjectDir()**: Auto-detects the Claude project directory for the current project
+- **listSourceTranscripts()**: Lists all transcripts in Claude's cache
+- **syncTranscripts()**: Copies new/modified transcripts to local storage
+- **computeTranscriptHash()**: Computes content hash for change detection
+
+#### Memory Extractor (`src/core/memory-extractor.ts`)
+
+Extracts memories from transcripts using Claude CLI:
+
+- **processTranscript()**: Processes a single transcript to extract memories
+- **processAllTranscripts()**: Processes all unprocessed transcripts
+- Uses `claude -p` with intelligent prompts to identify memory-worthy content
+- Handles retry logic with exponential backoff
+
+#### Processed Log Manager (`src/core/processed-log.ts`)
+
+Tracks which transcripts have been processed:
+
+- **needsProcessing()**: Checks if a transcript needs processing (new or modified)
+- **recordProcessed()**: Records a transcript as processed with its memory IDs
+- **getMemoryIds()**: Gets memory IDs created from a transcript (for cleanup on re-processing)
 
 #### Index Manager (`src/core/index.ts`)
 
@@ -111,7 +145,6 @@ The `extractKeywordsFromText()` function uses the [keyword-extractor](https://ww
 Functions for processing Claude Code transcripts:
 
 - **parseTranscript()**: Parse and validate JSON transcript input
-- **extractNewMessages()**: Filter messages by time window
 - **analyzeForMemories()**: Convert messages to memories (no filtering or summarization)
 - **readStdin()**: Read input from stdin for hooks with timeout handling
 
@@ -198,21 +231,26 @@ The `.gitignore` file is automatically created when the index is first built, en
 6. Context injected before Claude processes prompt
 ```
 
-### Stop Flow
+### Daemon Processing Flow (replaces Stop Hook)
 
 ```
-1. Claude processing ends
-2. Stop hook receives transcript JSON via stdin
-3. Transcript file read (JSONL format)
-4. All messages parsed from transcript
-5. User messages and single-line assistant messages filtered out
-6. Multi-line assistant messages converted to memories
-7. Keywords extracted using keyword-extractor (via markdown.ts)
-8. Memories created with deduplication (via occurred_at + content_hash)
-9. Index refreshed
+1. MCP server daemon loop runs every 5 minutes
+2. Transcript Collector syncs from ~/.claude/projects/<project>/transcripts/
+3. Processed Log Manager checks for new/modified transcripts
+4. For each transcript needing processing:
+   a. Old memories deleted (if re-processing)
+   b. Claude CLI called with extraction prompt
+   c. Response parsed for memory objects
+   d. Memories created with deduplication
+   e. Processed log updated with memory IDs
+5. Index refreshed
 ```
 
-**Filtering**: Only assistant messages with multiple lines are saved. User messages are never saved. Duplicate memories are prevented using the `occurred_at` timestamp and `content_hash` fields.
+**Benefits over Stop Hook**:
+- Non-blocking (doesn't slow down Claude responses)
+- Intelligent extraction using Claude CLI
+- Batch processing efficiency
+- Change detection (only processes modified transcripts)
 
 ## Concurrency Considerations
 

@@ -73,7 +73,8 @@ key: value
         keywords: ['keyword1', 'keyword2'],
         applies_to: 'global',
         created_at: '2024-01-01T00:00:00.000Z',
-        updated_at: '2024-01-02T00:00:00.000Z',
+        occurred_at: '2024-01-02T00:00:00.000Z',
+        content_hash: 'abc123def456',
         content: 'Test content here.',
       };
 
@@ -94,7 +95,8 @@ key: value
         keywords: ['file'],
         applies_to: 'file:/src/test.ts',
         created_at: '2024-01-01T00:00:00.000Z',
-        updated_at: '2024-01-01T00:00:00.000Z',
+        occurred_at: '2024-01-01T00:00:00.000Z',
+        content_hash: 'file123hash',
         content: 'File-specific content.',
       };
 
@@ -111,7 +113,8 @@ key: value
         keywords: ['area'],
         applies_to: 'area:authentication',
         created_at: '2024-01-01T00:00:00.000Z',
-        updated_at: '2024-01-01T00:00:00.000Z',
+        occurred_at: '2024-01-01T00:00:00.000Z',
+        content_hash: 'area456hash',
         content: 'Area-specific content.',
       };
 
@@ -128,7 +131,8 @@ key: value
         keywords: ['round', 'trip'],
         applies_to: 'global',
         created_at: '2024-01-01T00:00:00.000Z',
-        updated_at: '2024-01-01T00:00:00.000Z',
+        occurred_at: '2024-01-01T00:00:00.000Z',
+        content_hash: 'roundtrip789',
         content: 'Content for round trip.',
       };
 
@@ -202,7 +206,8 @@ key: value
         keywords: ['display', 'test'],
         applies_to: 'global',
         created_at: '2024-01-01T00:00:00.000Z',
-        updated_at: '2024-01-02T00:00:00.000Z',
+        occurred_at: '2024-01-02T00:00:00.000Z',
+        content_hash: 'display123hash',
         content: 'This is the memory content.',
       };
 
@@ -212,7 +217,7 @@ key: value
       expect(result).toContain('**ID:** display-id');
       expect(result).toContain('**Scope:** global');
       expect(result).toContain('**Keywords:** display, test');
-      expect(result).toContain('**Updated:** 2024-01-02T00:00:00.000Z');
+      expect(result).toContain('**Occurred:** 2024-01-02T00:00:00.000Z');
       expect(result).toContain('This is the memory content.');
     });
 
@@ -223,7 +228,8 @@ key: value
         keywords: ['sep'],
         applies_to: 'global',
         created_at: '2024-01-01T00:00:00.000Z',
-        updated_at: '2024-01-01T00:00:00.000Z',
+        occurred_at: '2024-01-01T00:00:00.000Z',
+        content_hash: 'sep123hash',
         content: 'Content.',
       };
 

@@ -193,39 +193,6 @@ recall.log
   }
 
   /**
-   * Update an existing memory
-   */
-  async updateMemory(update: {
-    id: string;
-    subject?: string;
-    keywords?: string[];
-    applies_to?: MemoryScope;
-    content?: string;
-  }): Promise<Memory> {
-    const existing = await this.getMemory(update.id);
-    if (!existing) {
-      throw new Error(`Memory with ID ${update.id} not found`);
-    }
-
-    const newContent = update.content ?? existing.content;
-    const contentHash = computeContentHash(newContent);
-
-    const updated: Memory = {
-      ...existing,
-      subject: update.subject ?? existing.subject,
-      keywords: update.keywords ?? existing.keywords,
-      applies_to: update.applies_to ?? existing.applies_to,
-      content: newContent,
-      content_hash: contentHash,
-      // Note: updated_at is not in the schema, but we keep the same created_at
-    };
-
-    await this.writeMemory(updated);
-    logger.memory.info(`Updated memory ${update.id}`);
-    return updated;
-  }
-
-  /**
    * Delete a memory by ID
    */
   async deleteMemory(id: string): Promise<boolean> {

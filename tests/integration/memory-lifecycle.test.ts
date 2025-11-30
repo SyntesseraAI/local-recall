@@ -25,8 +25,8 @@ describe('Memory Lifecycle Integration', () => {
     delete process.env['LOCAL_RECALL_DIR'];
   });
 
-  describe('Full CRUD cycle', () => {
-    it('should create, read, update, and delete a memory', async () => {
+  describe('Full CRD cycle', () => {
+    it('should create, read, and delete a memory', async () => {
       // Create
       const created = await memoryManager.createMemory({
         subject: 'Integration test memory',
@@ -36,23 +36,12 @@ describe('Memory Lifecycle Integration', () => {
       });
 
       expect(created.id).toBeDefined();
+      expect(created.occurred_at).toBeDefined();
 
       // Read
       const read = await memoryManager.getMemory(created.id);
       expect(read).not.toBeNull();
       expect(read?.subject).toBe('Integration test memory');
-
-      // Update
-      const updated = await memoryManager.updateMemory({
-        id: created.id,
-        content: 'This is the updated content.',
-      });
-
-      expect(updated.content).toBe('This is the updated content.');
-
-      // Verify update persisted
-      const readAgain = await memoryManager.getMemory(created.id);
-      expect(readAgain?.content).toBe('This is the updated content.');
 
       // Delete
       const deleted = await memoryManager.deleteMemory(created.id);
@@ -84,7 +73,7 @@ describe('Memory Lifecycle Integration', () => {
       expect(results[0]?.memory.id).toBe(memory.id);
     });
 
-    it('should update search results after memory update', async () => {
+    it('should handle delete and recreate pattern (idempotent memories)', async () => {
       // Create initial memory
       const memory = await memoryManager.createMemory({
         subject: 'Initial subject',
@@ -95,23 +84,30 @@ describe('Memory Lifecycle Integration', () => {
 
       await indexManager.buildIndex();
 
-      // Update memory with new keywords
-      await memoryManager.updateMemory({
-        id: memory.id,
+      // Verify initial search works
+      const initialResults = await searchEngine.searchByKeywords('initial');
+      expect(initialResults.some((r) => r.memory.id === memory.id)).toBe(true);
+
+      // Delete and recreate with new keywords (idempotent pattern)
+      await memoryManager.deleteMemory(memory.id);
+      const newMemory = await memoryManager.createMemory({
+        subject: 'Updated subject',
         keywords: ['updated', 'new', 'keywords'],
+        applies_to: 'global' as const,
+        content: 'Updated content.',
       });
 
       // Rebuild index
       await indexManager.refreshIndex();
 
-      // Old keyword should not find it
+      // Old keyword should not find old memory
       const oldResults = await searchEngine.searchByKeywords('initial');
       const foundWithOld = oldResults.some((r) => r.memory.id === memory.id);
       expect(foundWithOld).toBe(false);
 
-      // New keyword should find it
+      // New keyword should find new memory
       const newResults = await searchEngine.searchByKeywords('updated');
-      const foundWithNew = newResults.some((r) => r.memory.id === memory.id);
+      const foundWithNew = newResults.some((r) => r.memory.id === newMemory.id);
       expect(foundWithNew).toBe(true);
     });
 

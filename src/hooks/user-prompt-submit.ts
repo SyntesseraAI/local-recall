@@ -3,24 +3,20 @@
  * UserPromptSubmit Hook
  *
  * This hook is triggered when a user submits a prompt, before Claude processes it.
- * It extracts keywords from the prompt, searches for relevant memories,
+ * It extracts keywords from the prompt using Claude Haiku, searches for relevant memories,
  * and adds them to the context.
  *
  * Input (via stdin): JSON with session_id, transcript_path, cwd, prompt, etc.
  * Output: stdout text is added to Claude's context
  */
 
+import { spawn } from 'node:child_process';
 import { loadConfig } from '../utils/config.js';
 import { IndexManager } from '../core/index.js';
 import { SearchEngine } from '../core/search.js';
 import { formatMemoryForDisplay } from '../utils/markdown.js';
 import { readStdin } from '../utils/transcript.js';
 import { logger } from '../utils/logger.js';
-
-// Use require for keyword-extractor due to ESM compatibility
-const keywordExtractor = require('keyword-extractor') as {
-  extract: (str: string, options?: Record<string, unknown>) => string[];
-};
 
 interface UserPromptSubmitInput {
   session_id: string;
@@ -32,18 +28,105 @@ interface UserPromptSubmitInput {
 }
 
 /**
- * Extract keywords from a user prompt using keyword-extractor
+ * Call Claude CLI with haiku model to extract keywords
  */
-function extractKeywords(prompt: string): string[] {
-  const extracted = keywordExtractor.extract(prompt, {
-    language: 'english',
-    remove_digits: false,
-    return_changed_case: true,
-    remove_duplicates: true,
-  });
+async function callClaudeForKeywords(text: string): Promise<string[]> {
+  return new Promise((resolve) => {
+    const prompt = `Extract keywords from this text and return only the keywords as a JSON array of strings. No explanation, just the JSON array:\n\n${text}`;
+    const args = ['-p', prompt, '--model', 'haiku', '--output-format', 'json'];
 
-  // Filter out very short keywords and limit to reasonable number
-  return extracted.filter((kw: string) => kw.length > 2).slice(0, 10);
+    const child = spawn('claude', args, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 30000,
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout?.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr?.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    child.on('error', (error) => {
+      logger.hooks.warn(`Claude CLI error: ${error.message}`);
+      resolve([]);
+    });
+
+    child.on('close', (code) => {
+      if (code !== 0) {
+        logger.hooks.warn(`Claude CLI exited with code ${code}: ${stderr}`);
+        resolve([]);
+        return;
+      }
+
+      try {
+        // Parse the JSON response
+        let parsed = JSON.parse(stdout);
+
+        // Handle different response formats from Claude CLI
+        if (parsed.result) {
+          if (typeof parsed.result === 'string') {
+            parsed = JSON.parse(parsed.result);
+          } else {
+            parsed = parsed.result;
+          }
+        }
+
+        // Extract array from response
+        if (Array.isArray(parsed)) {
+          resolve(parsed.filter((k: unknown) => typeof k === 'string' && k.length > 2).slice(0, 10));
+        } else if (typeof parsed === 'string') {
+          // Try parsing again if it's a stringified array
+          const inner = JSON.parse(parsed);
+          if (Array.isArray(inner)) {
+            resolve(inner.filter((k: unknown) => typeof k === 'string' && k.length > 2).slice(0, 10));
+          } else {
+            resolve([]);
+          }
+        } else {
+          resolve([]);
+        }
+      } catch (error) {
+        // Try to extract JSON array from response text
+        const match = stdout.match(/\[[\s\S]*?\]/);
+        if (match) {
+          try {
+            const arr = JSON.parse(match[0]);
+            if (Array.isArray(arr)) {
+              resolve(arr.filter((k: unknown) => typeof k === 'string' && k.length > 2).slice(0, 10));
+              return;
+            }
+          } catch {
+            // Ignore parsing error
+          }
+        }
+        logger.hooks.warn(`Failed to parse keywords from Claude response: ${error}`);
+        resolve([]);
+      }
+    });
+
+    // Set timeout
+    const timeoutId = setTimeout(() => {
+      child.kill('SIGTERM');
+      logger.hooks.warn('Claude CLI timed out for keyword extraction');
+      resolve([]);
+    }, 30000);
+
+    child.on('close', () => {
+      clearTimeout(timeoutId);
+    });
+  });
+}
+
+/**
+ * Extract keywords from a user prompt using Claude Haiku
+ */
+async function extractKeywords(prompt: string): Promise<string[]> {
+  return callClaudeForKeywords(prompt);
 }
 
 async function main(): Promise<void> {
@@ -82,8 +165,8 @@ async function main(): Promise<void> {
     await loadConfig();
     logger.hooks.debug('UserPromptSubmit: Configuration loaded');
 
-    // Extract keywords from the prompt
-    const keywords = extractKeywords(input.prompt);
+    // Extract keywords from the prompt using Claude Haiku
+    const keywords = await extractKeywords(input.prompt);
     logger.hooks.info(`UserPromptSubmit: Extracted keywords: ${keywords.join(', ')}`);
 
     if (keywords.length === 0) {

@@ -20,7 +20,6 @@ Create `.local-recall.json` in your project root:
   "indexRefreshInterval": 300,
   "fuzzyThreshold": 0.6,
   "hooks": {
-    "timeWindow": 30,
     "maxContextMemories": 10
   },
   "mcp": {
@@ -40,11 +39,10 @@ All settings can be overridden via environment variables:
 | `LOCAL_RECALL_MAX_MEMORIES` | `maxMemories` | `1000` | Maximum number of memories |
 | `LOCAL_RECALL_INDEX_REFRESH` | `indexRefreshInterval` | `300` | Index refresh interval (seconds) |
 | `LOCAL_RECALL_FUZZY_THRESHOLD` | `fuzzyThreshold` | `0.6` | Fuzzy match threshold (0-1) |
-| `LOCAL_RECALL_TIME_WINDOW` | `hooks.timeWindow` | `30` | Stop hook time window (seconds) |
 | `LOCAL_RECALL_MAX_CONTEXT` | `hooks.maxContextMemories` | `10` | Max memories at session start |
+| `LOCAL_RECALL_LOG_LEVEL` | - | `debug` | Log level: debug, info, warn, error |
 | `MCP_PORT` | `mcp.port` | `3000` | MCP server port |
 | `MCP_HOST` | `mcp.host` | `localhost` | MCP server host |
-| `LOCAL_RECALL_DEBUG` | - | `false` | Enable debug logging |
 
 ## Configuration Options
 
@@ -86,13 +84,6 @@ Minimum score for fuzzy search matches:
 - `0.6` = Moderate fuzzy matching (default)
 - `0.4` = Loose matching
 - `0.0` = Match everything
-
-### hooks.timeWindow
-
-**Type**: `number` (seconds)
-**Default**: `30`
-
-*Note*: This setting is currently not used. The stop hook processes all messages in the transcript, using deduplication (via `occurred_at` + `content_hash`) to avoid creating duplicate memories.
 
 ### hooks.maxContextMemories
 
@@ -189,7 +180,7 @@ const recall = new LocalRecall({
   memoryDir: './custom-memories',
   fuzzyThreshold: 0.7,
   hooks: {
-    timeWindow: 60
+    maxContextMemories: 15
   }
 });
 ```
@@ -221,7 +212,6 @@ npx local-recall config:validate
   "memoryDir": "./local-recall",
   "fuzzyThreshold": 0.5,
   "hooks": {
-    "timeWindow": 60,
     "maxContextMemories": 20
   },
   "logging": {

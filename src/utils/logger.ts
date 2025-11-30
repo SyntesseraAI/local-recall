@@ -22,8 +22,8 @@ function getMinLogLevel(): LogLevel {
   if (envLevel && envLevel in LOG_LEVELS) {
     return envLevel as LogLevel;
   }
-  // Default to 'info' unless debug mode is enabled
-  return process.env['LOCAL_RECALL_DEBUG'] === '1' ? 'debug' : 'info';
+  // Default to 'debug' for development - change to 'info' for production
+  return 'debug';
 }
 
 /**

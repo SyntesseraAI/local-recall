@@ -16,7 +16,6 @@ describe('config utilities', () => {
     delete process.env['LOCAL_RECALL_MAX_MEMORIES'];
     delete process.env['LOCAL_RECALL_INDEX_REFRESH'];
     delete process.env['LOCAL_RECALL_FUZZY_THRESHOLD'];
-    delete process.env['LOCAL_RECALL_TIME_WINDOW'];
     delete process.env['LOCAL_RECALL_MAX_CONTEXT'];
     delete process.env['MCP_PORT'];
     delete process.env['MCP_HOST'];
@@ -84,12 +83,10 @@ describe('config utilities', () => {
     });
 
     it('should load hook configuration from env', async () => {
-      process.env['LOCAL_RECALL_TIME_WINDOW'] = '60';
       process.env['LOCAL_RECALL_MAX_CONTEXT'] = '20';
 
       const config = await loadConfig(path.join(testDir, 'nonexistent.json'));
 
-      expect(config.hooks.timeWindow).toBe(60);
       expect(config.hooks.maxContextMemories).toBe(20);
     });
 
@@ -181,7 +178,6 @@ describe('config utilities', () => {
     it('should validate nested hooks config', () => {
       const result = validateConfig({
         hooks: {
-          timeWindow: 60,
           maxContextMemories: 15,
         },
       });
@@ -192,7 +188,7 @@ describe('config utilities', () => {
     it('should reject invalid hooks config', () => {
       const result = validateConfig({
         hooks: {
-          timeWindow: -10,
+          maxContextMemories: -10,
         },
       });
 
