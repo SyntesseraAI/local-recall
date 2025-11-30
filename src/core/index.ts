@@ -95,6 +95,9 @@ export class IndexManager {
     const config = getConfig();
     const cacheAge = (Date.now() - this.cacheTime) / 1000;
 
+    // Always ensure .gitignore exists
+    await this.ensureGitignore();
+
     // Return cached index if still fresh
     if (this.cachedIndex && cacheAge < config.indexRefreshInterval) {
       logger.index.debug('Using cached index');
@@ -203,7 +206,8 @@ recall.log
       await fs.access(gitignorePath);
       // File exists, don't overwrite
     } catch {
-      // File doesn't exist, create it
+      // File doesn't exist, create base directory and .gitignore
+      await fs.mkdir(this.baseDir, { recursive: true });
       await fs.writeFile(gitignorePath, gitignoreContent, 'utf-8');
       logger.index.debug('Created .gitignore in local-recall directory');
     }

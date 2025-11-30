@@ -1,3 +1,0 @@
-# This file ensures the memories directory is tracked by git
-# Memory files (*.md) in this directory are version-controlled
-# The index.json in the parent directory is gitignored

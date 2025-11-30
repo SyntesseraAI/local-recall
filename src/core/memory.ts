@@ -24,19 +24,47 @@ function computeContentHash(content: string): string {
  * Memory Manager - handles CRUD operations for memory files
  */
 export class MemoryManager {
+  private baseDir: string;
   private memoriesDir: string;
 
   constructor(baseDir?: string) {
     const config = getConfig();
-    const base = baseDir ?? config.memoryDir;
-    this.memoriesDir = path.join(base, 'memories');
+    this.baseDir = baseDir ?? config.memoryDir;
+    this.memoriesDir = path.join(this.baseDir, 'memories');
   }
 
   /**
-   * Ensure the memories directory exists
+   * Ensure the memories directory exists and .gitignore is present
    */
   private async ensureDir(): Promise<void> {
     await fs.mkdir(this.memoriesDir, { recursive: true });
+    await this.ensureGitignore();
+  }
+
+  /**
+   * Ensure .gitignore exists with proper exclusions
+   */
+  private async ensureGitignore(): Promise<void> {
+    const gitignorePath = path.join(this.baseDir, '.gitignore');
+    const gitignoreContent = `# Local Recall - auto-generated
+# These files are regenerated and should not be committed
+
+# Index cache (rebuilt automatically)
+index.json
+
+# Debug log
+recall.log
+`;
+
+    try {
+      await fs.access(gitignorePath);
+      // File exists, don't overwrite
+    } catch {
+      // File doesn't exist, create it
+      await fs.mkdir(this.baseDir, { recursive: true });
+      await fs.writeFile(gitignorePath, gitignoreContent, 'utf-8');
+      logger.memory.debug('Created .gitignore in local-recall directory');
+    }
   }
 
   /**
