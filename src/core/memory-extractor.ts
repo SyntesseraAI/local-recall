@@ -3,6 +3,7 @@ import { MemoryManager } from "./memory.js";
 import { IndexManager } from "./index.js";
 import { ProcessedLogManager } from "./processed-log.js";
 import { TranscriptCollector, type TranscriptInfo } from "./transcript-collector.js";
+import { condenseTranscriptForExtraction } from "./transcript-condenser.js";
 import type { MemoryScope } from "./types.js";
 import { buildMemoryExtractionPrompt, extractedMemoriesSchema, type ExtractedMemory } from "../prompts/memory-extraction.js";
 import { logger } from "../utils/logger.js";
@@ -76,6 +77,8 @@ export class MemoryExtractor {
       const args = [
         "-p",
         "-", // Read prompt from stdin
+        "--model",
+        "haiku",
         "--output-format",
         "json",
         "--max-turns",
@@ -329,11 +332,14 @@ export class MemoryExtractor {
         await this.deleteMemories(oldMemoryIds);
       }
 
-      // Read transcript content
-      const content = await this.transcriptCollector.readTranscript(transcript);
+      // Read transcript content and condense it for extraction
+      const rawContent = await this.transcriptCollector.readTranscript(transcript);
+      const condensedContent = condenseTranscriptForExtraction(rawContent);
 
-      // Build prompt
-      const prompt = buildMemoryExtractionPrompt(content, this.projectPath);
+      logger.extractor.debug(`Condensed transcript from ${rawContent.length} to ${condensedContent.length} chars (${Math.round((condensedContent.length / rawContent.length) * 100)}%)`);
+
+      // Build prompt with condensed content
+      const prompt = buildMemoryExtractionPrompt(condensedContent, this.projectPath);
 
       // Call Claude CLI
       const response = await this.callClaudeCLIWithRetry(prompt);

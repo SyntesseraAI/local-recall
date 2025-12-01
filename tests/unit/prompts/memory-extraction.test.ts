@@ -31,10 +31,10 @@ describe('memory-extraction', () => {
     it('should include memory extraction guidelines', () => {
       const prompt = buildMemoryExtractionPrompt('content', '/project');
 
-      expect(prompt).toContain('What have you learnt');
-      expect(prompt).toContain('What do you know now');
-      expect(prompt).toContain('What is specific to this codebase');
-      expect(prompt).toContain('What problems did you solve');
+      expect(prompt).toContain('What was learned?');
+      expect(prompt).toContain('What is now known?');
+      expect(prompt).toContain('What is specific to this codebase?');
+      expect(prompt).toContain('What problems were solved?');
     });
 
     it('should include scope documentation', () => {

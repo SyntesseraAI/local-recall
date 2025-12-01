@@ -55,23 +55,30 @@ export const MEMORY_EXTRACTION_JSON_SCHEMA = {
 
 /**
  * Build the memory extraction prompt
- * @param transcriptContent - The raw transcript content (JSONL)
+ * @param condensedTranscript - The condensed transcript content (from transcript-condenser)
  * @param projectPath - The path to the project for context
  */
-export function buildMemoryExtractionPrompt(transcriptContent: string, projectPath: string): string {
+export function buildMemoryExtractionPrompt(condensedTranscript: string, projectPath: string): string {
   // Prefix with [LOCAL_RECALL_INTERNAL] to prevent UserPromptSubmit hook recursion
   return `[LOCAL_RECALL_INTERNAL] You are analyzing a Claude Code session transcript to extract valuable memories that will help future AI assistants working on this codebase.
 
 ## Project Context
 Working directory: ${projectPath}
 
+## Transcript Format
+The transcript is condensed into events:
+- \`[User]\` - What the user asked or requested
+- \`[Assistant]\` - What Claude said or explained
+- \`[Tool: Name]\` - Tool invocations (Read, Edit, Write, Bash, Grep, etc.)
+- \`[Result: OK/ERROR]\` - Outcome of tool invocations
+
 ## Your Task
 Analyze the following transcript and extract memories based on these questions:
 
-1. **What have you learnt?** - New knowledge or insights gained during this session
-2. **What do you know now?** - Important facts about the codebase, architecture, or conventions
+1. **What was learned?** - New knowledge or insights gained during this session
+2. **What is now known?** - Important facts about the codebase, architecture, or conventions
 3. **What is specific to this codebase?** - Unique patterns, configurations, or quirks discovered
-4. **What problems did you solve?** - Bugs fixed, issues resolved, and how they were solved
+4. **What problems were solved?** - Bugs fixed, issues resolved, and how they were solved
 
 ## Guidelines for Memory Extraction
 
@@ -113,9 +120,9 @@ The JSON object must have a "memories" array. Each memory should have:
 
 If no valuable memories can be extracted, return: { "memories": [] }
 
-## Transcript to Analyze
+## Condensed Transcript
 
-${transcriptContent}
+${condensedTranscript}
 
 Return ONLY the JSON object now:`;
 }
