@@ -27,7 +27,7 @@ export class IndexManager {
     const config = getConfig();
     this.baseDir = baseDir ?? config.memoryDir;
     this.indexPath = path.join(this.baseDir, 'index.json');
-    this.memoriesDir = path.join(this.baseDir, 'memories');
+    this.memoriesDir = path.join(this.baseDir, 'episodic-memory');
   }
 
   /**

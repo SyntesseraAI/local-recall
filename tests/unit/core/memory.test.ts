@@ -51,7 +51,7 @@ describe('MemoryManager', () => {
       };
 
       const memory = await memoryManager.createMemory(input);
-      const filePath = path.join(testDir, 'memories', `${memory.id}.md`);
+      const filePath = path.join(testDir, 'episodic-memory', `${memory.id}.md`);
 
       const exists = await fs.access(filePath).then(() => true).catch(() => false);
       expect(exists).toBe(true);

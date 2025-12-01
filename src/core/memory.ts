@@ -31,7 +31,7 @@ export class MemoryManager {
   constructor(baseDir?: string) {
     const config = getConfig();
     this.baseDir = baseDir ?? config.memoryDir;
-    this.memoriesDir = path.join(this.baseDir, 'memories');
+    this.memoriesDir = path.join(this.baseDir, 'episodic-memory');
   }
 
   /**

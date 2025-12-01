@@ -48,7 +48,7 @@ local-recall/                    # Project root IS the plugin root
 │   ├── .gitignore               # Auto-generated, excludes index.json and recall.log
 │   ├── index.json               # Keyword index cache (gitignored)
 │   ├── recall.log               # Debug log file (gitignored)
-│   └── memories/                # Individual memory files (tracked in git)
+│   └── episodic-memory/         # Individual memory files (tracked in git)
 │       └── *.md                 # Memory markdown files
 ├── package.json
 ├── tsconfig.json

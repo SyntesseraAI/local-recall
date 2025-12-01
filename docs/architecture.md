@@ -41,7 +41,7 @@ Local Recall is built with a modular architecture that separates concerns into d
 │                      Storage Layer                           │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │                  File System                          │  │
-│  │   local-recall/memories/*.md    local-recall/index.json │
+│  │   local-recall/episodic-memory/*.md    local-recall/index.json │
 │  │   local-recall/transcripts/     processed-log.json      │
 │  └──────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
@@ -178,7 +178,7 @@ local-recall/
 ├── .gitignore           # Auto-generated, excludes index.json and recall.log
 ├── index.json           # Keyword index (auto-generated, gitignored)
 ├── recall.log           # Debug log (gitignored)
-└── memories/
+└── episodic-memory/
     ├── <uuid-1>.md      # Individual memory files
     ├── <uuid-2>.md
     └── ...

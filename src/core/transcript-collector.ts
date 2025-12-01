@@ -213,6 +213,11 @@ export class TranscriptCollector {
   /**
    * Copy all new or modified transcripts
    * Returns list of transcripts that were copied
+   *
+   * A transcript is considered unchanged if:
+   * - Local file exists AND
+   * - Local mtime >= source mtime AND
+   * - Local size === source size
    */
   async syncTranscripts(): Promise<TranscriptInfo[]> {
     const sourceTranscripts = await this.listSourceTranscripts();
@@ -223,10 +228,14 @@ export class TranscriptCollector {
         // Check if local copy exists and is up to date
         const localStats = await fs.stat(transcript.localPath);
 
-        if (localStats.mtime >= transcript.lastModified) {
+        // Skip if mtime is current AND size matches
+        if (localStats.mtime >= transcript.lastModified && localStats.size === transcript.size) {
           // Local copy is up to date
           continue;
         }
+
+        // File exists but changed - will be copied and reprocessed via content hash check
+        logger.transcript.debug(`Transcript changed (mtime or size): ${transcript.filename}`);
       } catch {
         // Local file doesn't exist, needs to be copied
       }

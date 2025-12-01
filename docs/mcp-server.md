@@ -232,7 +232,7 @@ local-recall/
 ├── transcripts/          # Copied transcripts from Claude cache
 │   └── *.jsonl
 ├── processed-log.json    # Tracks processed transcripts and their memory IDs
-├── memories/             # Extracted memories
+├── episodic-memory/      # Extracted memories
 │   └── *.md
 └── index.json            # Keyword index
 ```
