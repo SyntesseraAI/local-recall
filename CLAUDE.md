@@ -25,10 +25,16 @@ local-recall/                    # Project root
 │   │   ├── transcript-collector.ts  # Collect transcripts from Claude cache
 │   │   ├── transcript-condenser.ts  # Condense transcripts for processing
 │   │   ├── memory-extractor.ts  # Extract memories from transcripts
-│   │   └── processed-log.ts     # Track processed transcripts
+│   │   ├── processed-log.ts     # Track processed transcripts
+│   │   ├── thinking-memory.ts   # CRUD for thinking memories (experimental)
+│   │   ├── thinking-vector-store.ts # Vector store for thinking memories
+│   │   ├── thinking-extractor.ts # Extract thinking blocks (20 parallel)
+│   │   ├── thinking-processed-log.ts # Track thinking extraction
+│   │   └── thinking-search.ts   # Search thinking memories
 │   ├── hooks/                   # Claude Code hooks (source)
 │   │   ├── session-start.ts     # Load recent memories on session start
 │   │   ├── user-prompt-submit.ts # Semantic search on user prompt
+│   │   ├── user-prompt-submit-thinking.ts # Inject thinking memories
 │   │   └── stop.ts              # Parse transcript and create memories
 │   ├── mcp-server/              # MCP server implementation
 │   │   ├── server.ts            # Main MCP server
@@ -54,8 +60,10 @@ local-recall/                    # Project root
 │   ├── .gitignore               # Auto-generated, excludes memory.sqlite and recall.log
 │   ├── memory.sqlite            # SQLite database with vector embeddings (gitignored)
 │   ├── recall.log               # Debug log file (gitignored)
-│   └── episodic-memory/         # Individual memory files (tracked in git)
-│       └── *.md                 # Memory markdown files
+│   ├── episodic-memory/         # Individual memory files (tracked in git)
+│   │   └── *.md                 # Memory markdown files
+│   └── thinking-memories/       # Thinking memories (experimental, tracked in git)
+│       └── *.md                 # Thinking memory files (no keywords)
 ├── local_cache/                 # Embedding model cache (gitignored)
 │   └── fast-bge-small-en-v1.5/  # BGE embedding model files
 ├── package.json

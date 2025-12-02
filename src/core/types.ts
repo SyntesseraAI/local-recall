@@ -50,12 +50,52 @@ export const createMemoryInputSchema = z.object({
 export type CreateMemoryInput = z.infer<typeof createMemoryInputSchema>;
 
 /**
+ * Thinking memory frontmatter schema (no keywords)
+ */
+export const thinkingMemoryFrontmatterSchema = z.object({
+  id: z.string().uuid(),
+  subject: z.string().min(1).max(200),
+  applies_to: memoryScopeSchema,
+  occurred_at: z.string().datetime(),
+  content_hash: z.string(),
+});
+
+export type ThinkingMemoryFrontmatter = z.infer<typeof thinkingMemoryFrontmatterSchema>;
+
+/**
+ * Complete thinking memory structure (no keywords)
+ */
+export interface ThinkingMemory extends ThinkingMemoryFrontmatter {
+  content: string;
+}
+
+/**
+ * Input for creating a new thinking memory
+ */
+export const createThinkingMemoryInputSchema = z.object({
+  subject: z.string().min(1).max(200),
+  applies_to: memoryScopeSchema,
+  content: z.string().min(10),
+  occurred_at: z.string().datetime().optional(),
+});
+
+export type CreateThinkingMemoryInput = z.infer<typeof createThinkingMemoryInputSchema>;
+
+/**
  * Search result with relevance score
  */
 export interface SearchResult {
   memory: Memory;
   score: number;
   matchedKeywords: string[];
+}
+
+/**
+ * Thinking memory search result (no keywords)
+ */
+export interface ThinkingSearchResult {
+  memory: ThinkingMemory;
+  score: number;
 }
 
 /**

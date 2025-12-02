@@ -14,8 +14,11 @@ recall.log
 # Synced transcripts (local copies, originals in ~/.claude)
 transcripts/
 
-# Processed transcript tracking
+# Processed transcript tracking (memories)
 processed-log.jsonl
+
+# Processed transcript tracking (thinking memories)
+thinking-processed-log.jsonl
 
 # Vector database (SQLite)
 *.sqlite

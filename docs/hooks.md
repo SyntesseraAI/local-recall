@@ -124,6 +124,70 @@ Found 2 memories related to your query.
 ...
 ```
 
+### UserPromptSubmit Thinking Hook (Experimental)
+
+**Trigger**: When a user submits a prompt, before Claude processes it
+
+**Purpose**: Search for relevant thinking memories (Claude's previous thought processes) and add them to the context as "Previous Thoughts"
+
+**Input Fields**:
+- `session_id`: Unique session identifier
+- `transcript_path`: Path to the JSONL transcript file
+- `cwd`: Current working directory
+- `prompt`: The user's submitted prompt text
+
+**Output**: Stdout text is injected into Claude's context
+
+**Flow**:
+1. Receives JSON input via stdin (includes `prompt` field)
+2. Initializes thinking vector store (separate tables from main memories)
+3. Performs semantic search on thinking memories
+4. Outputs formatted matching thinking excerpts to stdout
+5. Exit code 0 indicates success
+
+**Configuration**: Add to `.claude/settings.json` alongside the main UserPromptSubmit hook:
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./dist/hooks/user-prompt-submit.js",
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "node ./dist/hooks/user-prompt-submit-thinking.js",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Example Output**:
+```
+# Local Recall: Previous Thoughts
+
+Found 2 relevant thinking excerpts from previous sessions.
+
+## Auto-generated subject from thinking content...
+**ID:** abc123
+**Scope:** global
+**Occurred:** 2025-01-01T00:00:00.000Z
+
+---
+Thinking content here...
+*Similarity: 85%*
+```
+
+See [Thinking Memories documentation](./thinking-memories.md) for details.
+
 ### Stop Hook (Disabled)
 
 > **Note**: The Stop hook is currently disabled. Memory extraction is handled by the MCP server daemon which processes transcripts asynchronously every 5 minutes.

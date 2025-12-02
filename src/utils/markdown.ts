@@ -1,5 +1,5 @@
 import matter from 'gray-matter';
-import type { Memory, MemoryFrontmatter } from '../core/types.js';
+import type { Memory, MemoryFrontmatter, ThinkingMemory, ThinkingMemoryFrontmatter } from '../core/types.js';
 
 /**
  * Common English stop words to filter out from keyword extraction
@@ -111,6 +111,40 @@ export function formatMemoryForDisplay(memory: Memory): string {
     `**ID:** ${memory.id}`,
     `**Scope:** ${memory.applies_to}`,
     `**Keywords:** ${memory.keywords.join(', ')}`,
+    `**Occurred:** ${memory.occurred_at}`,
+    '',
+    '---',
+    '',
+    memory.content,
+  ];
+
+  return lines.join('\n');
+}
+
+/**
+ * Serialize a thinking memory to markdown with frontmatter (no keywords)
+ */
+export function serializeThinkingMemory(memory: ThinkingMemory): string {
+  const frontmatter: ThinkingMemoryFrontmatter = {
+    id: memory.id,
+    subject: memory.subject,
+    applies_to: memory.applies_to,
+    occurred_at: memory.occurred_at,
+    content_hash: memory.content_hash,
+  };
+
+  return matter.stringify(memory.content, frontmatter);
+}
+
+/**
+ * Format thinking memory content for display (no keywords)
+ */
+export function formatThinkingMemoryForDisplay(memory: ThinkingMemory): string {
+  const lines: string[] = [
+    `## ${memory.subject}`,
+    '',
+    `**ID:** ${memory.id}`,
+    `**Scope:** ${memory.applies_to}`,
     `**Occurred:** ${memory.occurred_at}`,
     '',
     '---',
