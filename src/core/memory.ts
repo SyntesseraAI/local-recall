@@ -12,6 +12,8 @@ import {
 import { getConfig } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
 import { serializeMemory, parseMarkdown } from '../utils/markdown.js';
+import { ensureGitignore } from '../utils/gitignore.js';
+import { getVectorStore } from './vector-store.js';
 
 /**
  * Compute SHA-256 hash of content
@@ -30,7 +32,7 @@ export class MemoryManager {
   constructor(baseDir?: string) {
     const config = getConfig();
     this.baseDir = baseDir ?? config.memoryDir;
-    this.memoriesDir = path.join(this.baseDir, 'memories');
+    this.memoriesDir = path.join(this.baseDir, 'episodic-memory');
   }
 
   /**
@@ -38,33 +40,7 @@ export class MemoryManager {
    */
   private async ensureDir(): Promise<void> {
     await fs.mkdir(this.memoriesDir, { recursive: true });
-    await this.ensureGitignore();
-  }
-
-  /**
-   * Ensure .gitignore exists with proper exclusions
-   */
-  private async ensureGitignore(): Promise<void> {
-    const gitignorePath = path.join(this.baseDir, '.gitignore');
-    const gitignoreContent = `# Local Recall - auto-generated
-# These files are regenerated and should not be committed
-
-# Index cache (rebuilt automatically)
-index.json
-
-# Debug log
-recall.log
-`;
-
-    try {
-      await fs.access(gitignorePath);
-      // File exists, don't overwrite
-    } catch {
-      // File doesn't exist, create it
-      await fs.mkdir(this.baseDir, { recursive: true });
-      await fs.writeFile(gitignorePath, gitignoreContent, 'utf-8');
-      logger.memory.debug('Created .gitignore in local-recall directory');
-    }
+    await ensureGitignore(this.baseDir);
   }
 
   /**
@@ -102,16 +78,17 @@ recall.log
     const validated = createMemoryInputSchema.parse(input);
     await this.ensureDir();
 
+    const now = new Date().toISOString();
+    const occurredAt = validated.occurred_at ?? now;
     const contentHash = computeContentHash(validated.content);
 
     // Check for existing duplicate
-    const existing = await this.findDuplicate(validated.occurred_at, contentHash);
+    const existing = await this.findDuplicate(occurredAt, contentHash);
     if (existing) {
       logger.memory.info(`Duplicate memory found (${existing.id}), skipping creation`);
       return existing;
     }
 
-    const now = new Date().toISOString();
     const id = uuidv4();
 
     const memory: Memory = {
@@ -119,13 +96,22 @@ recall.log
       subject: validated.subject,
       keywords: validated.keywords,
       applies_to: validated.applies_to as MemoryScope,
-      created_at: now,
-      occurred_at: validated.occurred_at,
+      occurred_at: occurredAt,
       content_hash: contentHash,
       content: validated.content,
     };
 
     await this.writeMemory(memory);
+
+    // Add to vector store for immediate searchability
+    try {
+      const vectorStore = getVectorStore(this.baseDir);
+      await vectorStore.add(memory);
+    } catch (error) {
+      // Log but don't fail - vector store will sync on next startup
+      logger.memory.warn(`Failed to add memory to vector store: ${error}`);
+    }
+
     logger.memory.info(`Created memory ${id}: "${memory.subject}"`);
     return memory;
   }
@@ -189,6 +175,32 @@ recall.log
     const limit = filter?.limit ?? memories.length;
 
     return memories.slice(offset, offset + limit);
+  }
+
+  /**
+   * Delete a memory by ID
+   */
+  async deleteMemory(id: string): Promise<boolean> {
+    const filePath = this.getFilePath(id);
+    try {
+      await fs.unlink(filePath);
+
+      // Remove from vector store
+      try {
+        const vectorStore = getVectorStore(this.baseDir);
+        await vectorStore.remove(id);
+      } catch (error) {
+        logger.memory.warn(`Failed to remove memory from vector store: ${error}`);
+      }
+
+      logger.memory.info(`Deleted memory ${id}`);
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return false;
+      }
+      throw error;
+    }
   }
 
   /**

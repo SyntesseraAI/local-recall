@@ -60,9 +60,6 @@ export async function loadConfig(configPath?: string): Promise<Config> {
     ...envConfig,
     hooks: {
       ...(fileConfig as Partial<Config>).hooks,
-      ...(process.env['LOCAL_RECALL_TIME_WINDOW'] && {
-        timeWindow: parseInt(process.env['LOCAL_RECALL_TIME_WINDOW'], 10),
-      }),
       ...(process.env['LOCAL_RECALL_MAX_CONTEXT'] && {
         maxContextMemories: parseInt(process.env['LOCAL_RECALL_MAX_CONTEXT'], 10),
       }),

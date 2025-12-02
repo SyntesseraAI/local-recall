@@ -10,11 +10,10 @@
  */
 
 import { loadConfig } from '../utils/config.js';
-import { IndexManager } from '../core/index.js';
-import { SearchEngine } from '../core/search.js';
 import { formatMemoryForDisplay } from '../utils/markdown.js';
 import { readStdin } from '../utils/transcript.js';
 import { logger } from '../utils/logger.js';
+import { MemoryManager } from '../core/memory.js';
 
 interface SessionStartInput {
   session_id: string;
@@ -53,28 +52,16 @@ async function main(): Promise<void> {
     await loadConfig();
     logger.hooks.debug('SessionStart: Configuration loaded');
 
-    const indexManager = new IndexManager();
-    // Intentionally omitting memoryManager as session-start only needs index-based searches
-    // to load relevant memories, not memory CRUD operations
-    const searchEngine = new SearchEngine(indexManager);
+    // Load recent memories directly (skip vector store to avoid slow initialization)
+    // Vector store will be initialized lazily by MCP server or user-prompt-submit
+    const memoryManager = new MemoryManager();
+    const allMemories = await memoryManager.listMemories();
 
-    // Get context from environment if available
-    const context: { files?: string[]; area?: string } = {};
-
-    const contextFiles = process.env['LOCAL_RECALL_CONTEXT_FILES'];
-    if (contextFiles) {
-      context.files = contextFiles.split(',').map((f) => f.trim());
-    }
-
-    const contextArea = process.env['LOCAL_RECALL_CONTEXT_AREA'];
-    if (contextArea) {
-      context.area = contextArea;
-    }
-
-    // Get relevant memories for this session
-    logger.hooks.debug('SessionStart: Searching for relevant memories');
-    const memories = await searchEngine.getRelevantForSession(context);
-    logger.hooks.info(`SessionStart: Found ${memories.length} relevant memories`);
+    // Get the 5 most recent memories for session context
+    const memories = allMemories
+      .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())
+      .slice(0, 5);
+    logger.hooks.info(`SessionStart: Found ${memories.length} recent memories`);
 
     if (memories.length === 0) {
       // Output context for Claude
@@ -98,13 +85,10 @@ async function main(): Promise<void> {
       console.log('');
     }
 
-    // Output index stats
-    const stats = await indexManager.getStats();
-    console.log('## Memory Index Status');
+    // Output memory stats
+    console.log('## Memory Status');
     console.log('');
-    console.log(`- Total memories: ${stats.memoriesIndexed}`);
-    console.log(`- Total keywords: ${stats.keywordsIndexed}`);
-    console.log(`- Last indexed: ${stats.builtAt}`);
+    console.log(`- Total memories: ${allMemories.length}`);
 
     // Exit 0 for success
     logger.hooks.info('SessionStart hook completed successfully');

@@ -48,7 +48,7 @@ local-recall/                    # Project root IS the plugin root
 │   ├── .gitignore               # Auto-generated, excludes index.json and recall.log
 │   ├── index.json               # Keyword index cache (gitignored)
 │   ├── recall.log               # Debug log file (gitignored)
-│   └── memories/                # Individual memory files (tracked in git)
+│   └── episodic-memory/         # Individual memory files (tracked in git)
 │       └── *.md                 # Memory markdown files
 ├── package.json
 ├── tsconfig.json
@@ -68,8 +68,8 @@ keywords:
   - keyword2
   - keyword3
 applies_to: global | file:/path/to/file | area:component-name
-created_at: ISO-8601 timestamp
-updated_at: ISO-8601 timestamp
+occurred_at: ISO-8601 timestamp
+content_hash: SHA-256 prefix (16 chars)
 ---
 
 # Content
@@ -90,19 +90,19 @@ The actual memory content goes here. This can include:
 | `subject` | Brief one-line description |
 | `keywords` | Array of searchable keywords |
 | `applies_to` | Scope: `global`, `file:<path>`, or `area:<name>` |
-| `created_at` | Creation timestamp |
-| `updated_at` | Last modification timestamp |
+| `occurred_at` | When the original event occurred (for deduplication and sorting) |
+| `content_hash` | SHA-256 hash prefix of content (for deduplication) |
 
 ## Core Components
 
 ### Memory Manager (`src/core/memory.ts`)
 
-CRUD operations for memory files:
-- `createMemory(data)` - Create a new memory file
-- `updateMemory(id, data)` - Update an existing memory
+CRD operations for memory files (no update - memories are idempotent):
+- `createMemory(data)` - Create a new memory file (returns existing if duplicate)
 - `deleteMemory(id)` - Delete a memory by ID
 - `getMemory(id)` - Retrieve a specific memory
 - `listMemories(filter?)` - List all memories with optional filtering
+- `findDuplicate(occurredAt, contentHash)` - Check for existing duplicate
 
 ### Index Manager (`src/core/index.ts`)
 
@@ -136,17 +136,12 @@ Triggered when a Claude Code session begins:
 #### UserPromptSubmit Hook
 Triggered when a user submits a prompt, before Claude processes it:
 1. Receives JSON input with `session_id`, `transcript_path`, `cwd`, `prompt`
-2. Extracts keywords from the prompt using keyword-extractor
+2. Extracts keywords from the prompt using Claude Haiku (`claude -p --model haiku`)
 3. Searches the memory index for matching keywords (fuzzy matching)
 4. Outputs matching memories to stdout (injected into Claude's context)
 
-#### Stop Hook
-Triggered when Claude stops processing:
-1. Receives JSON input with `session_id`, `transcript_path`, `cwd`
-2. Reads the transcript file (JSONL format)
-3. Identifies new messages (within last 30 seconds)
-4. Analyzes messages for memory-worthy information
-5. Creates memories and refreshes the index
+#### Stop Hook (Disabled)
+The Stop hook is currently disabled. Memory extraction is handled by the MCP server daemon which processes transcripts asynchronously every 5 minutes. See the MCP Server section for details.
 
 ### Plugin Structure
 
@@ -353,12 +348,20 @@ node dist/mcp-server/server.js
 
 | Tool | Description |
 |------|-------------|
-| `memory_create` | Create a new memory |
-| `memory_update` | Update an existing memory |
+| `memory_create` | Create a new memory (idempotent) |
 | `memory_delete` | Delete a memory |
 | `memory_search` | Search memories by keywords |
 | `memory_list` | List all memories |
 | `index_rebuild` | Rebuild the memory index |
+
+### Background Daemon
+
+The MCP server runs a background daemon that:
+- Syncs transcripts from Claude's cache (`~/.claude/projects/<project>/transcripts/`)
+- Processes transcripts using `claude -p` to extract memories
+- Tracks processed transcripts with content hashes for change detection
+- Deletes and recreates memories when transcripts change
+- Runs every 5 minutes
 
 ## Development
 
@@ -371,6 +374,12 @@ node dist/mcp-server/server.js
 npm install
 npm run build
 ```
+
+### Embedding Model
+
+Local Recall uses the `fastembed` library with the BGE-small-en-v1.5 model (~133MB) for semantic search. The model is automatically downloaded to `local_cache/` on first use.
+
+**First run:** The initial startup may take 30-60 seconds while the model downloads. Subsequent runs load from cache.
 
 ### Scripts
 ```bash
@@ -433,3 +442,24 @@ When working with this codebase:
 - Documentation must be placed in the `docs/` folder
 - Update existing docs when modifying functionality
 - Tests should cover both happy paths and edge cases
+
+## Troubleshooting
+
+### Tokenizer file not found error
+
+```
+Error: Tokenizer file not found at local_cache/fast-bge-small-en-v1.5/tokenizer.json
+```
+
+This error occurs when the embedding model cache is corrupted or incomplete (usually from an interrupted download). To fix:
+
+```bash
+# Remove the corrupted cache
+rm -rf local_cache/fast-bge-small-en-v1.5*
+
+# The model will re-download automatically on next run
+```
+
+### Slow first startup
+
+The first run downloads the BGE-small-en-v1.5 embedding model (~133MB). This is normal and only happens once. The model is cached in `local_cache/` for subsequent runs.

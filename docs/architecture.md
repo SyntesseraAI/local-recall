@@ -7,26 +7,36 @@ Local Recall is built with a modular architecture that separates concerns into d
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    External Interfaces                       │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │ Claude Hooks │  │  MCP Server  │  │   CLI (future)   │  │
-│  └──────┬───────┘  └──────┬───────┘  └────────┬─────────┘  │
-└─────────┼─────────────────┼───────────────────┼─────────────┘
-          │                 │                   │
-          ▼                 ▼                   ▼
+│  ┌──────────────┐  ┌────────────────────────────────────┐  │
+│  │ Claude Hooks │  │  MCP Server + Daemon Loop          │  │
+│  │  (Session &  │  │  (Tools + Transcript Processing)   │  │
+│  │   Prompt)    │  │                                    │  │
+│  └──────┬───────┘  └──────────────┬─────────────────────┘  │
+└─────────┼──────────────────────────┼────────────────────────┘
+          │                          │
+          ▼                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                       Core Layer                             │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
 │  │    Memory    │  │    Index     │  │      Search      │  │
 │  │   Manager    │  │   Manager    │  │      Engine      │  │
 │  └──────┬───────┘  └──────┬───────┘  └────────┬─────────┘  │
-└─────────┼─────────────────┼───────────────────┼─────────────┘
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
+│  │  Transcript  │  │   Memory     │  │   Processed      │  │
+│  │  Collector   │  │  Extractor   │  │   Log Manager    │  │
+│  └──────────────┘  └──────────────┘  └──────────────────┘  │
+│  ┌──────────────┐  ┌──────────────┐                        │
+│  │   Vector     │  │  Embedding   │                        │
+│  │   Store      │  │   Service    │                        │
+│  └──────────────┘  └──────────────┘                        │
+└─────────────────────────────────────────────────────────────┘
           │                 │                   │
           ▼                 ▼                   ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                     Utilities Layer                          │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │   Markdown   │  │  Transcript  │  │     Config       │  │
-│  │  (keywords)  │  │  (analysis)  │  │    (settings)    │  │
+│  │   Markdown   │  │    Logger    │  │     Config       │  │
+│  │  (keywords)  │  │ (recall.log) │  │    (settings)    │  │
 │  └──────────────┘  └──────────────┘  └──────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
           │                 │                   │
@@ -35,7 +45,9 @@ Local Recall is built with a modular architecture that separates concerns into d
 │                      Storage Layer                           │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │                  File System                          │  │
-│  │   local-recall/memories/*.md    local-recall/index.json │
+│  │   local-recall/episodic-memory/*.md  local-recall/index.json │
+│  │   local-recall/memory.sqlite         processed-log.json │
+│  │   local_cache/fast-bge-small-en-v1.5/  (model cache)    │
 │  └──────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -51,9 +63,36 @@ Handles memory file operations:
 - **createMemory()**: Creates new memory files with unique IDs (idempotent - returns existing if duplicate)
 - **getMemory()**: Retrieves a memory by ID, parsing markdown with YAML frontmatter
 - **listMemories()**: Lists all memories with optional filtering by scope or keyword
+- **deleteMemory()**: Deletes a memory by ID
 - **findDuplicate()**: Checks for existing memories with same `occurred_at` and `content_hash`
 
 Memory creation is idempotent: if a memory with the same timestamp and content hash already exists, the existing memory is returned instead of creating a duplicate.
+
+#### Transcript Collector (`src/core/transcript-collector.ts`)
+
+Collects transcripts from Claude's cache:
+
+- **findClaudeProjectDir()**: Auto-detects the Claude project directory for the current project
+- **listSourceTranscripts()**: Lists all transcripts in Claude's cache
+- **syncTranscripts()**: Copies new/modified transcripts to local storage
+- **computeTranscriptHash()**: Computes content hash for change detection
+
+#### Memory Extractor (`src/core/memory-extractor.ts`)
+
+Extracts memories from transcripts using Claude CLI:
+
+- **processTranscript()**: Processes a single transcript to extract memories
+- **processAllTranscripts()**: Processes all unprocessed transcripts
+- Uses `claude -p` with intelligent prompts to identify memory-worthy content
+- Handles retry logic with exponential backoff
+
+#### Processed Log Manager (`src/core/processed-log.ts`)
+
+Tracks which transcripts have been processed:
+
+- **needsProcessing()**: Checks if a transcript needs processing (new or modified)
+- **recordProcessed()**: Records a transcript as processed with its memory IDs
+- **getMemoryIds()**: Gets memory IDs created from a transcript (for cleanup on re-processing)
 
 #### Index Manager (`src/core/index.ts`)
 
@@ -66,12 +105,31 @@ Maintains the keyword index for fast lookups:
 
 #### Search Engine (`src/core/search.ts`)
 
-Provides fuzzy search capabilities:
+Provides semantic and fuzzy search capabilities:
 
-- Uses configurable fuzzy matching algorithm
+- **Semantic search**: Uses vector embeddings for meaning-based similarity
+- **Fuzzy search**: Configurable string matching algorithm for keyword queries
 - Supports multi-keyword queries
 - Ranks results by relevance score
 - Filters by scope (global/file/area)
+
+#### Vector Store (`src/core/vector-store.ts`)
+
+Manages SQLite database with vector embeddings for semantic search:
+
+- Uses `better-sqlite3` with `sqlite-vec` extension
+- Stores memory metadata and vector embeddings
+- Provides fast similarity search using cosine distance
+- Auto-syncs with file-based memories
+
+#### Embedding Service (`src/core/embedding.ts`)
+
+Generates vector embeddings using the fastembed library:
+
+- Uses BGE-small-en-v1.5 model (384 dimensions)
+- Model downloaded automatically on first use (~133MB)
+- Cached in `local_cache/fast-bge-small-en-v1.5/`
+- Singleton pattern for efficient model loading
 
 ### External Interfaces
 
@@ -111,7 +169,6 @@ The `extractKeywordsFromText()` function uses the [keyword-extractor](https://ww
 Functions for processing Claude Code transcripts:
 
 - **parseTranscript()**: Parse and validate JSON transcript input
-- **extractNewMessages()**: Filter messages by time window
 - **analyzeForMemories()**: Convert messages to memories (no filtering or summarization)
 - **readStdin()**: Read input from stdin for hooks with timeout handling
 
@@ -145,13 +202,23 @@ local-recall/
 ├── .gitignore           # Auto-generated, excludes index.json and recall.log
 ├── index.json           # Keyword index (auto-generated, gitignored)
 ├── recall.log           # Debug log (gitignored)
-└── memories/
+├── memory.sqlite        # Vector store database (gitignored)
+└── episodic-memory/
     ├── <uuid-1>.md      # Individual memory files
     ├── <uuid-2>.md
     └── ...
+
+local_cache/
+└── fast-bge-small-en-v1.5/   # Embedding model cache (gitignored)
+    ├── config.json
+    ├── model_optimized.onnx
+    ├── tokenizer.json
+    └── ...
 ```
 
-The `.gitignore` file is automatically created when the index is first built, ensuring that generated files (`index.json`, `recall.log`) are not committed while memory files are tracked.
+The `.gitignore` file is automatically created when the index is first built, ensuring that generated files (`index.json`, `recall.log`, `memory.sqlite`) are not committed while memory files are tracked.
+
+The embedding model cache (`local_cache/`) is stored at the project root and downloaded automatically on first use.
 
 ## Data Flow
 
@@ -198,21 +265,26 @@ The `.gitignore` file is automatically created when the index is first built, en
 6. Context injected before Claude processes prompt
 ```
 
-### Stop Flow
+### Daemon Processing Flow (replaces Stop Hook)
 
 ```
-1. Claude processing ends
-2. Stop hook receives transcript JSON via stdin
-3. Transcript file read (JSONL format)
-4. All messages parsed from transcript
-5. User messages and single-line assistant messages filtered out
-6. Multi-line assistant messages converted to memories
-7. Keywords extracted using keyword-extractor (via markdown.ts)
-8. Memories created with deduplication (via occurred_at + content_hash)
-9. Index refreshed
+1. MCP server daemon loop runs every 5 minutes
+2. Transcript Collector syncs from ~/.claude/projects/<project>/transcripts/
+3. Processed Log Manager checks for new/modified transcripts
+4. For each transcript needing processing:
+   a. Old memories deleted (if re-processing)
+   b. Claude CLI called with extraction prompt
+   c. Response parsed for memory objects
+   d. Memories created with deduplication
+   e. Processed log updated with memory IDs
+5. Index refreshed
 ```
 
-**Filtering**: Only assistant messages with multiple lines are saved. User messages are never saved. Duplicate memories are prevented using the `occurred_at` timestamp and `content_hash` fields.
+**Benefits over Stop Hook**:
+- Non-blocking (doesn't slow down Claude responses)
+- Intelligent extraction using Claude CLI
+- Batch processing efficiency
+- Change detection (only processes modified transcripts)
 
 ## Concurrency Considerations
 

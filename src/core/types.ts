@@ -23,7 +23,6 @@ export const memoryFrontmatterSchema = z.object({
   subject: z.string().min(1).max(200),
   keywords: z.array(z.string().min(1).max(50)).min(1).max(20),
   applies_to: memoryScopeSchema,
-  created_at: z.string().datetime(),
   occurred_at: z.string().datetime(),
   content_hash: z.string(),
 });
@@ -45,32 +44,10 @@ export const createMemoryInputSchema = z.object({
   keywords: z.array(z.string().min(1).max(50)).min(1).max(20),
   applies_to: memoryScopeSchema,
   content: z.string().min(10),
-  occurred_at: z.string().datetime(),
+  occurred_at: z.string().datetime().optional(),
 });
 
 export type CreateMemoryInput = z.infer<typeof createMemoryInputSchema>;
-
-/**
- * Memory index structure - maps keywords to memory IDs
- */
-export interface MemoryIndex {
-  version: number;
-  built_at: string;
-  keywords: Record<string, string[]>; // keyword -> memory IDs
-  memories: Record<string, MemoryIndexEntry>; // memory ID -> metadata
-}
-
-/**
- * Index entry for a single memory
- */
-export interface MemoryIndexEntry {
-  id: string;
-  subject: string;
-  keywords: string[];
-  applies_to: MemoryScope;
-  occurred_at: string;
-  content_hash: string;
-}
 
 /**
  * Search result with relevance score

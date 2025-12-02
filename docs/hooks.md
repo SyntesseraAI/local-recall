@@ -100,16 +100,17 @@ All hooks receive JSON via stdin with these common fields:
 
 **Flow**:
 1. Receives JSON input via stdin (includes `prompt` field)
-2. Extracts keywords from the prompt using keyword-extractor
+2. Extracts keywords from the prompt using Claude Haiku (`claude -p --model haiku`)
 3. Searches memory index for matching keywords (fuzzy matching)
 4. Outputs formatted matching memories to stdout
 5. Exit code 0 indicates success
 
 **Keyword Extraction**:
-- Uses the `keyword-extractor` library
-- Removes common stopwords (the, a, is, etc.)
+- Uses Claude Haiku via CLI (`claude -p --model haiku`)
+- Prompt: "Extract keywords from this text and return only the keywords as a JSON array"
 - Filters out very short keywords (< 3 characters)
 - Limits to 10 keywords per prompt
+- Falls back gracefully to empty keywords on error
 
 **Example Output**:
 ```
@@ -124,38 +125,19 @@ Found 2 memories related to your query.
 ...
 ```
 
-### Stop Hook
+### Stop Hook (Disabled)
 
-**Trigger**: When Claude stops processing (after each response)
+> **Note**: The Stop hook is currently disabled. Memory extraction is handled by the MCP server daemon which processes transcripts asynchronously every 5 minutes.
 
-**Purpose**: Store conversation messages as memories for future retrieval
+**Original Purpose**: Store conversation messages as memories after each response
 
-**Input Fields**:
-- `session_id`: Unique session identifier
-- `transcript_path`: Path to the JSONL transcript file (contains full conversation)
-- `cwd`: Current working directory
+**Current Approach**: Memory extraction has been moved to the MCP server which runs as a background daemon. This provides:
+- Non-blocking operation (doesn't slow down Claude responses)
+- Batch processing of transcripts
+- Change detection (only re-processes modified transcripts)
+- Claude CLI-based intelligent memory extraction
 
-**Transcript File Format** (JSONL):
-```json
-{"type": "user", "message": {"role": "user", "content": "..."}, "timestamp": "2025-01-15T10:30:00Z"}
-{"type": "assistant", "message": {"role": "assistant", "content": "..."}, "timestamp": "2025-01-15T10:30:05Z"}
-```
-
-**Flow**:
-1. Receives JSON input via stdin
-2. Reads the transcript file (JSONL format)
-3. Parses all messages from the transcript
-4. Filters to multi-line assistant messages only
-5. Creates memories with deduplication check (via occurred_at + content_hash)
-6. Refreshes the index
-7. Exit code 0 indicates success (non-blocking)
-
-**Filtering Rules**:
-- **User messages are not saved** - only assistant messages are stored
-- **Single-line messages are skipped** - assistant messages must have multiple lines to be saved
-- **No summarization** - qualifying messages are stored in full without modification
-
-Duplicate prevention is handled via the `occurred_at` timestamp and `content_hash` fields - if a memory with the same values already exists, it is skipped rather than creating a duplicate.
+See [MCP Server documentation](./mcp-server.md) for details on the daemon-based memory extraction.
 
 ## Exit Codes
 
@@ -173,8 +155,7 @@ Available to hook commands:
 |----------|-------------|
 | `CLAUDE_PROJECT_DIR` | Project root directory |
 | `LOCAL_RECALL_DIR` | Memory storage directory (default: `${CLAUDE_PROJECT_DIR}/local-recall`) |
-| `LOCAL_RECALL_DEBUG` | Enable debug logging when set to "1" |
-| `LOCAL_RECALL_TIME_WINDOW` | Seconds to look back in stop hook (default: 30) |
+| `LOCAL_RECALL_LOG_LEVEL` | Log level: debug, info, warn, error (default: debug) |
 | `LOCAL_RECALL_MAX_CONTEXT` | Max memories at session start (default: 10) |
 
 ## Debugging

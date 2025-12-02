@@ -39,8 +39,7 @@ describe('MemoryManager', () => {
       expect(memory.keywords).toEqual(input.keywords);
       expect(memory.applies_to).toBe(input.applies_to);
       expect(memory.content).toBe(input.content);
-      expect(memory.created_at).toBeDefined();
-      expect(memory.updated_at).toBeDefined();
+      expect(memory.occurred_at).toBeDefined();
     });
 
     it('should create memory file on disk', async () => {
@@ -52,7 +51,7 @@ describe('MemoryManager', () => {
       };
 
       const memory = await memoryManager.createMemory(input);
-      const filePath = path.join(testDir, 'memories', `${memory.id}.md`);
+      const filePath = path.join(testDir, 'episodic-memory', `${memory.id}.md`);
 
       const exists = await fs.access(filePath).then(() => true).catch(() => false);
       expect(exists).toBe(true);
@@ -129,71 +128,6 @@ describe('MemoryManager', () => {
     it('should return null for non-existent memory', async () => {
       const result = await memoryManager.getMemory('non-existent-id');
       expect(result).toBeNull();
-    });
-  });
-
-  describe('updateMemory', () => {
-    it('should update memory subject', async () => {
-      const created = await memoryManager.createMemory({
-        subject: 'Original subject',
-        keywords: ['update'],
-        applies_to: 'global' as const,
-        content: 'Original content.',
-      });
-
-      const updated = await memoryManager.updateMemory({
-        id: created.id,
-        subject: 'Updated subject',
-      });
-
-      expect(updated.subject).toBe('Updated subject');
-      expect(updated.content).toBe('Original content.'); // Unchanged
-      expect(new Date(updated.updated_at).getTime()).toBeGreaterThanOrEqual(
-        new Date(created.updated_at).getTime()
-      );
-    });
-
-    it('should update memory keywords', async () => {
-      const created = await memoryManager.createMemory({
-        subject: 'Keyword update test',
-        keywords: ['original'],
-        applies_to: 'global' as const,
-        content: 'Test content with sufficient length.',
-      });
-
-      const updated = await memoryManager.updateMemory({
-        id: created.id,
-        keywords: ['updated', 'new', 'keywords'],
-      });
-
-      expect(updated.keywords).toEqual(['updated', 'new', 'keywords']);
-    });
-
-    it('should update memory content', async () => {
-      const created = await memoryManager.createMemory({
-        subject: 'Content update test',
-        keywords: ['content'],
-        applies_to: 'global' as const,
-        content: 'Original content.',
-      });
-
-      const updated = await memoryManager.updateMemory({
-        id: created.id,
-        content: 'Updated content with more details.',
-      });
-
-      expect(updated.content).toBe('Updated content with more details.');
-    });
-
-    it('should throw for non-existent memory', async () => {
-      // Use a valid UUID format that doesn't exist
-      const nonExistentId = '00000000-0000-0000-0000-000000000000';
-      await expect(
-        memoryManager.updateMemory({
-          id: nonExistentId,
-          subject: 'New subject',
-        })
-      ).rejects.toThrow(`Memory with ID ${nonExistentId} not found`);
     });
   });
 

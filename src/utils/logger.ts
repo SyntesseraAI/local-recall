@@ -1,11 +1,11 @@
-import { appendFileSync, mkdirSync, existsSync } from 'node:fs';
-import path from 'node:path';
-import { getConfig } from './config.js';
+import { appendFileSync, mkdirSync, existsSync } from "node:fs";
+import path from "node:path";
+import { getConfig } from "./config.js";
 
 /**
  * Log levels for filtering output
  */
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogLevel = "debug" | "info" | "warn" | "error";
 
 const LOG_LEVELS: Record<LogLevel, number> = {
   debug: 0,
@@ -18,12 +18,13 @@ const LOG_LEVELS: Record<LogLevel, number> = {
  * Get the minimum log level from environment
  */
 function getMinLogLevel(): LogLevel {
-  const envLevel = process.env['LOCAL_RECALL_LOG_LEVEL']?.toLowerCase();
+  const envLevel = process.env["LOCAL_RECALL_LOG_LEVEL"]?.toLowerCase();
   if (envLevel && envLevel in LOG_LEVELS) {
     return envLevel as LogLevel;
   }
-  // Default to 'info' unless debug mode is enabled
-  return process.env['LOCAL_RECALL_DEBUG'] === '1' ? 'debug' : 'info';
+  // Default to 'info' for production, 'debug' otherwise
+  const nodeEnv = process.env["NODE_ENV"]?.toLowerCase();
+  return nodeEnv === "production" ? "info" : "debug";
 }
 
 /**
@@ -40,11 +41,11 @@ function formatMessage(level: LogLevel, component: string, message: string): str
 function getLogPath(): string {
   try {
     const config = getConfig();
-    return path.join(config.memoryDir, 'recall.log');
+    return path.join(config.memoryDir, "recall.log");
   } catch {
     // Config not loaded yet, use default
-    const baseDir = process.env['LOCAL_RECALL_DIR'] ?? './local-recall';
-    return path.join(baseDir, 'recall.log');
+    const baseDir = process.env["LOCAL_RECALL_DIR"] ?? "./local-recall";
+    return path.join(baseDir, "recall.log");
   }
 }
 
@@ -74,7 +75,7 @@ function writeLog(level: LogLevel, component: string, message: string): void {
     ensureLogDir(logPath);
 
     const formattedMessage = formatMessage(level, component, message);
-    appendFileSync(logPath, formattedMessage + '\n', 'utf-8');
+    appendFileSync(logPath, formattedMessage + "\n", "utf-8");
   } catch {
     // Silently fail - logging should never break the application
   }
@@ -85,10 +86,25 @@ function writeLog(level: LogLevel, component: string, message: string): void {
  */
 export function createLogger(component: string) {
   return {
-    debug: (message: string) => writeLog('debug', component, message),
-    info: (message: string) => writeLog('info', component, message),
-    warn: (message: string) => writeLog('warn', component, message),
-    error: (message: string) => writeLog('error', component, message),
+    debug: (message: string) => writeLog("debug", component, message),
+    info: (message: string) => writeLog("info", component, message),
+    warn: (message: string) => writeLog("warn", component, message),
+    error: (message: string) => writeLog("error", component, message),
+  };
+}
+
+/**
+ * Create a logger instance for a specific component with error object support
+ */
+export function createLoggerWithErrors(component: string) {
+  return {
+    debug: (message: string) => writeLog("debug", component, message),
+    info: (message: string) => writeLog("info", component, message),
+    warn: (message: string) => writeLog("warn", component, message),
+    error: (message: string, error?: unknown) => {
+      const errorDetails = error instanceof Error ? `: ${error.message}` : "";
+      writeLog("error", component, message + errorDetails);
+    },
   };
 }
 
@@ -96,10 +112,12 @@ export function createLogger(component: string) {
  * Pre-configured loggers for common components
  */
 export const logger = {
-  hooks: createLogger('hooks'),
-  memory: createLogger('memory'),
-  index: createLogger('index'),
-  search: createLogger('search'),
-  mcp: createLogger('mcp'),
-  config: createLogger('config'),
+  hooks: createLogger("hooks"),
+  memory: createLogger("memory"),
+  index: createLogger("index"),
+  search: createLogger("search"),
+  mcp: createLogger("mcp"),
+  config: createLogger("config"),
+  transcript: createLoggerWithErrors("transcript"),
+  extractor: createLoggerWithErrors("extractor"),
 };

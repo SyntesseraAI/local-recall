@@ -3,30 +3,32 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { MemoryManager } from '../../src/core/memory.js';
-import { IndexManager } from '../../src/core/index.js';
 import { SearchEngine } from '../../src/core/search.js';
+import { getVectorStore, resetVectorStore } from '../../src/core/vector-store.js';
 
 describe('Memory Lifecycle Integration', () => {
   let testDir: string;
   let memoryManager: MemoryManager;
-  let indexManager: IndexManager;
   let searchEngine: SearchEngine;
 
   beforeEach(async () => {
+    // Reset singleton before each test to ensure clean state
+    resetVectorStore();
     testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'local-recall-integration-'));
     process.env['LOCAL_RECALL_DIR'] = testDir;
     memoryManager = new MemoryManager(testDir);
-    indexManager = new IndexManager(testDir);
-    searchEngine = new SearchEngine(indexManager, memoryManager);
+    searchEngine = new SearchEngine(memoryManager);
   });
 
   afterEach(async () => {
+    // Reset singleton and cleanup
+    resetVectorStore();
     await fs.rm(testDir, { recursive: true, force: true });
     delete process.env['LOCAL_RECALL_DIR'];
   });
 
-  describe('Full CRUD cycle', () => {
-    it('should create, read, update, and delete a memory', async () => {
+  describe('Full CRD cycle', () => {
+    it('should create, read, and delete a memory', async () => {
       // Create
       const created = await memoryManager.createMemory({
         subject: 'Integration test memory',
@@ -36,23 +38,12 @@ describe('Memory Lifecycle Integration', () => {
       });
 
       expect(created.id).toBeDefined();
+      expect(created.occurred_at).toBeDefined();
 
       // Read
       const read = await memoryManager.getMemory(created.id);
       expect(read).not.toBeNull();
       expect(read?.subject).toBe('Integration test memory');
-
-      // Update
-      const updated = await memoryManager.updateMemory({
-        id: created.id,
-        content: 'This is the updated content.',
-      });
-
-      expect(updated.content).toBe('This is the updated content.');
-
-      // Verify update persisted
-      const readAgain = await memoryManager.getMemory(created.id);
-      expect(readAgain?.content).toBe('This is the updated content.');
 
       // Delete
       const deleted = await memoryManager.deleteMemory(created.id);
@@ -64,9 +55,9 @@ describe('Memory Lifecycle Integration', () => {
     });
   });
 
-  describe('Index and Search integration', () => {
-    it('should index new memories and make them searchable', async () => {
-      // Create memory
+  describe('Vector Search integration', () => {
+    it('should make new memories searchable via vector search', async () => {
+      // Create memory - automatically added to vector store
       const memory = await memoryManager.createMemory({
         subject: 'Database optimization techniques',
         keywords: ['database', 'optimization', 'performance', 'sql'],
@@ -74,44 +65,43 @@ describe('Memory Lifecycle Integration', () => {
         content: 'Various techniques for optimizing database queries.',
       });
 
-      // Build index
-      await indexManager.buildIndex();
-
-      // Search should find it
-      const results = await searchEngine.searchByKeywords('database optimization');
+      // Search should find it via semantic similarity
+      const results = await searchEngine.search('database optimization');
 
       expect(results.length).toBeGreaterThan(0);
       expect(results[0]?.memory.id).toBe(memory.id);
     });
 
-    it('should update search results after memory update', async () => {
+    it('should handle delete and recreate pattern (idempotent memories)', async () => {
       // Create initial memory
       const memory = await memoryManager.createMemory({
         subject: 'Initial subject',
         keywords: ['initial', 'original'],
         applies_to: 'global' as const,
-        content: 'Original content.',
+        content: 'Original content about initial setup.',
       });
 
-      await indexManager.buildIndex();
+      // Verify initial search works
+      const initialResults = await searchEngine.search('initial setup');
+      expect(initialResults.some((r) => r.memory.id === memory.id)).toBe(true);
 
-      // Update memory with new keywords
-      await memoryManager.updateMemory({
-        id: memory.id,
+      // Delete and recreate with new keywords (idempotent pattern)
+      await memoryManager.deleteMemory(memory.id);
+      const newMemory = await memoryManager.createMemory({
+        subject: 'Updated subject',
         keywords: ['updated', 'new', 'keywords'],
+        applies_to: 'global' as const,
+        content: 'Updated content with new information.',
       });
 
-      // Rebuild index
-      await indexManager.refreshIndex();
-
-      // Old keyword should not find it
-      const oldResults = await searchEngine.searchByKeywords('initial');
+      // Old memory should not be found
+      const oldResults = await searchEngine.search('initial setup');
       const foundWithOld = oldResults.some((r) => r.memory.id === memory.id);
       expect(foundWithOld).toBe(false);
 
-      // New keyword should find it
-      const newResults = await searchEngine.searchByKeywords('updated');
-      const foundWithNew = newResults.some((r) => r.memory.id === memory.id);
+      // New memory should be found
+      const newResults = await searchEngine.search('updated information');
+      const foundWithNew = newResults.some((r) => r.memory.id === newMemory.id);
       expect(foundWithNew).toBe(true);
     });
 
@@ -120,21 +110,18 @@ describe('Memory Lifecycle Integration', () => {
         subject: 'To be deleted',
         keywords: ['deletable'],
         applies_to: 'global' as const,
-        content: 'This will be deleted.',
+        content: 'This content will be deleted soon.',
       });
 
-      await indexManager.buildIndex();
-
       // Verify searchable
-      const beforeDelete = await searchEngine.searchByKeywords('deletable');
+      const beforeDelete = await searchEngine.search('content deleted');
       expect(beforeDelete.some((r) => r.memory.id === memory.id)).toBe(true);
 
-      // Delete and refresh
+      // Delete memory - automatically removed from vector store
       await memoryManager.deleteMemory(memory.id);
-      await indexManager.refreshIndex();
 
       // Verify not searchable
-      const afterDelete = await searchEngine.searchByKeywords('deletable');
+      const afterDelete = await searchEngine.search('content deleted');
       expect(afterDelete.some((r) => r.memory.id === memory.id)).toBe(false);
     });
   });
@@ -163,16 +150,14 @@ describe('Memory Lifecycle Integration', () => {
         content: 'Auth config.',
       });
 
-      await indexManager.buildIndex();
-
       // Search with scope filter
-      const globalResults = await searchEngine.searchByKeywords('config', {
+      const globalResults = await searchEngine.search('config', {
         scope: 'global',
       });
-      const fileResults = await searchEngine.searchByKeywords('config', {
+      const fileResults = await searchEngine.search('config', {
         scope: 'file:/src/config.ts',
       });
-      const areaResults = await searchEngine.searchByKeywords('config', {
+      const areaResults = await searchEngine.search('config', {
         scope: 'area:authentication',
       });
 
@@ -252,28 +237,25 @@ describe('Memory Lifecycle Integration', () => {
       }
     });
 
-    it('should handle index rebuild while creating memories', async () => {
+    it('should handle vector store sync while creating memories', async () => {
       // Start creating memories
       const createPromises = [];
       for (let i = 0; i < 5; i++) {
         createPromises.push(
           memoryManager.createMemory({
-            subject: `Index test ${i}`,
-            keywords: ['indextest'],
+            subject: `Sync test ${i}`,
+            keywords: ['synctest'],
             applies_to: 'global' as const,
             content: `Content ${i}.`,
           })
         );
       }
 
-      // Rebuild index concurrently
-      const indexPromise = indexManager.buildIndex();
+      await Promise.all(createPromises);
 
-      await Promise.all([...createPromises, indexPromise]);
-
-      // Final index should have all memories
-      const finalIndex = await indexManager.refreshIndex();
-      expect(Object.keys(finalIndex.memories).length).toBeGreaterThanOrEqual(5);
+      // All memories should be searchable
+      const results = await searchEngine.search('sync test');
+      expect(results.length).toBeGreaterThanOrEqual(5);
     });
   });
 
@@ -287,12 +269,9 @@ describe('Memory Lifecycle Integration', () => {
         content: 'This should persist.',
       });
 
-      await indexManager.buildIndex();
-
       // Create new managers
       const newMemoryManager = new MemoryManager(testDir);
-      const newIndexManager = new IndexManager(testDir);
-      const newSearchEngine = new SearchEngine(newIndexManager, newMemoryManager);
+      const newSearchEngine = new SearchEngine(newMemoryManager);
 
       // Read memory with new manager
       const read = await newMemoryManager.getMemory(created.id);
@@ -300,31 +279,41 @@ describe('Memory Lifecycle Integration', () => {
       expect(read?.subject).toBe('Persistent memory');
 
       // Search with new engine
-      const results = await newSearchEngine.searchByKeywords('persistent');
+      const results = await newSearchEngine.search('persistent');
       expect(results.some((r) => r.memory.id === created.id)).toBe(true);
     });
 
-    it('should recover from missing index', async () => {
+    it('should recover from missing vector store by rebuilding', async () => {
       // Create some memories
-      await memoryManager.createMemory({
+      const memory = await memoryManager.createMemory({
         subject: 'Memory for recovery',
         keywords: ['recovery'],
         applies_to: 'global' as const,
         content: 'Test content for recovery test.',
       });
 
-      await indexManager.buildIndex();
+      // Close vector store
+      const vectorStore = getVectorStore(testDir);
+      vectorStore.close();
 
-      // Delete the index file
-      const indexPath = path.join(testDir, 'index.json');
-      await fs.unlink(indexPath);
+      // Delete the sqlite file
+      const dbPath = path.join(testDir, 'memory.sqlite');
+      try {
+        await fs.unlink(dbPath);
+      } catch {
+        // File may not exist
+      }
 
-      // New index manager should rebuild
-      const newIndexManager = new IndexManager(testDir);
-      const index = await newIndexManager.getIndex();
+      // Sync should rebuild
+      const allMemories = await memoryManager.listMemories();
+      const newVectorStore = getVectorStore(testDir);
+      await newVectorStore.initialize();
+      await newVectorStore.sync(allMemories);
 
-      // Should have rebuilt with the memory
-      expect(Object.keys(index.memories).length).toBe(1);
+      // Should be searchable again
+      const newSearchEngine = new SearchEngine(memoryManager);
+      const results = await newSearchEngine.search('recovery');
+      expect(results.some((r) => r.memory.id === memory.id)).toBe(true);
     });
   });
 
@@ -376,16 +365,12 @@ describe('Memory Lifecycle Integration', () => {
         subject: 'Many keywords test',
         keywords,
         applies_to: 'global' as const,
-        content: 'Testing many keywords.',
+        content: 'Testing many keywords in this document.',
       });
 
-      await indexManager.buildIndex();
-
-      // Should be findable by any keyword
-      for (const keyword of keywords.slice(0, 5)) {
-        const results = await searchEngine.searchByKeywords(keyword);
-        expect(results.some((r) => r.memory.id === memory.id)).toBe(true);
-      }
+      // Should be findable by semantic search
+      const results = await searchEngine.search('many keywords test');
+      expect(results.some((r) => r.memory.id === memory.id)).toBe(true);
     });
   });
 });
