@@ -53,6 +53,12 @@ export async function loadConfig(configPath?: string): Promise<Config> {
       process.env['LOCAL_RECALL_FUZZY_THRESHOLD']
     );
   }
+  if (process.env['LOCAL_RECALL_EPISODIC_ENABLED']) {
+    envConfig.episodicEnabled = process.env['LOCAL_RECALL_EPISODIC_ENABLED'] === 'true';
+  }
+  if (process.env['LOCAL_RECALL_THINKING_ENABLED']) {
+    envConfig.thinkingEnabled = process.env['LOCAL_RECALL_THINKING_ENABLED'] === 'true';
+  }
 
   // Merge configs: env > file > defaults
   const merged = {

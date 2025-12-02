@@ -9,7 +9,7 @@
  * Output: stdout text is added to Claude's context
  */
 
-import { loadConfig } from "../utils/config.js";
+import { loadConfig, getConfig } from "../utils/config.js";
 import { SearchEngine } from "../core/search.js";
 import { formatMemoryForDisplay } from "../utils/markdown.js";
 import { readStdin } from "../utils/transcript.js";
@@ -65,6 +65,13 @@ async function main(): Promise<void> {
     process.env["LOCAL_RECALL_DIR"] = `${projectDir}/local-recall`;
     await loadConfig();
     logger.hooks.debug("UserPromptSubmit: Configuration loaded");
+
+    // Check if episodic memory is enabled
+    const config = getConfig();
+    if (!config.episodicEnabled) {
+      logger.hooks.debug("UserPromptSubmit: Episodic memory disabled, skipping");
+      process.exit(0);
+    }
 
     // Search for relevant memories using vector similarity
     const searchEngine = new SearchEngine();

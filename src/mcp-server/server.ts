@@ -12,12 +12,15 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { loadConfig } from '../utils/config.js';
+import { loadConfig, getConfig } from '../utils/config.js';
 import { createTools, handleToolCall } from './tools.js';
 import { logger } from '../utils/logger.js';
 import { runTranscriptProcessing } from '../core/memory-extractor.js';
+import { runThinkingExtraction } from '../core/thinking-extractor.js';
 import { getVectorStore } from '../core/vector-store.js';
+import { getThinkingVectorStore } from '../core/thinking-vector-store.js';
 import { MemoryManager } from '../core/memory.js';
+import { ThinkingMemoryManager } from '../core/thinking-memory.js';
 
 /** Transcript processing interval in milliseconds (5 minutes) */
 const PROCESSING_INTERVAL_MS = 5 * 60 * 1000;
@@ -25,16 +28,28 @@ const PROCESSING_INTERVAL_MS = 5 * 60 * 1000;
 /** Vector store sync interval in milliseconds (10 minutes) */
 const VECTOR_SYNC_INTERVAL_MS = 10 * 60 * 1000;
 
-/** Flag to prevent concurrent processing runs */
+/** Flag to prevent concurrent episodic processing runs */
 let isProcessing = false;
 
-/** Flag to prevent concurrent vector sync runs */
+/** Flag to prevent concurrent thinking processing runs */
+let isThinkingProcessing = false;
+
+/** Flag to prevent concurrent episodic vector sync runs */
 let isSyncing = false;
+
+/** Flag to prevent concurrent thinking vector sync runs */
+let isThinkingSyncing = false;
 
 /**
  * Run transcript processing in the background
  */
 async function runDaemonProcessing(): Promise<void> {
+  const config = getConfig();
+  if (!config.episodicEnabled) {
+    logger.mcp.debug('Skipping episodic processing - disabled');
+    return;
+  }
+
   if (isProcessing) {
     logger.mcp.debug('Skipping processing run - already in progress');
     return;
@@ -58,6 +73,12 @@ async function runDaemonProcessing(): Promise<void> {
  * Sync vector store with file-based memories
  */
 async function runVectorSync(): Promise<void> {
+  const config = getConfig();
+  if (!config.episodicEnabled) {
+    logger.mcp.debug('Skipping vector sync - episodic disabled');
+    return;
+  }
+
   if (isSyncing) {
     logger.mcp.debug('Skipping vector sync - already in progress');
     return;
@@ -80,37 +101,121 @@ async function runVectorSync(): Promise<void> {
 }
 
 /**
+ * Run thinking memory extraction in the background
+ */
+async function runThinkingDaemonProcessing(): Promise<void> {
+  const config = getConfig();
+  if (!config.thinkingEnabled) {
+    logger.mcp.debug('Skipping thinking processing - disabled');
+    return;
+  }
+
+  if (isThinkingProcessing) {
+    logger.mcp.debug('Skipping thinking processing run - already in progress');
+    return;
+  }
+
+  isThinkingProcessing = true;
+  logger.mcp.info('Starting scheduled thinking memory extraction');
+
+  try {
+    const results = await runThinkingExtraction();
+    const memoriesCreated = results.reduce((sum, r) => sum + r.memoriesCreated.length, 0);
+    logger.mcp.info(`Thinking extraction complete: ${memoriesCreated} thinking memories created`);
+  } catch (error) {
+    logger.mcp.error(`Thinking extraction failed: ${String(error)}`);
+  } finally {
+    isThinkingProcessing = false;
+  }
+}
+
+/**
+ * Sync thinking vector store with file-based thinking memories
+ */
+async function runThinkingVectorSync(): Promise<void> {
+  const config = getConfig();
+  if (!config.thinkingEnabled) {
+    logger.mcp.debug('Skipping thinking vector sync - disabled');
+    return;
+  }
+
+  if (isThinkingSyncing) {
+    logger.mcp.debug('Skipping thinking vector sync - already in progress');
+    return;
+  }
+
+  isThinkingSyncing = true;
+  logger.mcp.info('Starting thinking vector store sync');
+
+  try {
+    const memoryManager = new ThinkingMemoryManager();
+    const memories = await memoryManager.listMemories();
+    const vectorStore = getThinkingVectorStore();
+    const result = await vectorStore.sync(memories);
+    logger.mcp.info(`Thinking vector sync complete: ${result.added} added, ${result.removed} removed`);
+  } catch (error) {
+    logger.mcp.error(`Thinking vector sync failed: ${String(error)}`);
+  } finally {
+    isThinkingSyncing = false;
+  }
+}
+
+/**
  * Start the daemon loop for periodic transcript processing and vector sync
  */
 function startDaemonLoop(): void {
   logger.mcp.info(`Starting daemon loop (transcript: ${PROCESSING_INTERVAL_MS / 1000}s, vector: ${VECTOR_SYNC_INTERVAL_MS / 1000}s)`);
 
-  // Run initial vector sync immediately on startup (after short delay for server init)
+  // Run initial vector syncs immediately on startup (after short delay for server init)
   setTimeout(() => {
-    runVectorSync().catch((error) => {
-      logger.mcp.error(`Initial vector sync failed: ${String(error)}`);
-    });
+    // Run both episodic and thinking vector syncs in parallel
+    Promise.all([
+      runVectorSync().catch((error) => {
+        logger.mcp.error(`Initial vector sync failed: ${String(error)}`);
+      }),
+      runThinkingVectorSync().catch((error) => {
+        logger.mcp.error(`Initial thinking vector sync failed: ${String(error)}`);
+      }),
+    ]);
   }, 2000);
 
   // Run initial transcript processing after a short delay
   setTimeout(() => {
-    runDaemonProcessing().catch((error) => {
-      logger.mcp.error(`Initial processing failed: ${String(error)}`);
-    });
+    // Run both episodic and thinking extraction in parallel
+    Promise.all([
+      runDaemonProcessing().catch((error) => {
+        logger.mcp.error(`Initial processing failed: ${String(error)}`);
+      }),
+      runThinkingDaemonProcessing().catch((error) => {
+        logger.mcp.error(`Initial thinking processing failed: ${String(error)}`);
+      }),
+    ]);
   }, 5000);
 
   // Schedule periodic transcript processing (every 5 minutes)
   setInterval(() => {
-    runDaemonProcessing().catch((error) => {
-      logger.mcp.error(`Scheduled processing failed: ${String(error)}`);
-    });
+    // Run both episodic and thinking extraction in parallel
+    Promise.all([
+      runDaemonProcessing().catch((error) => {
+        logger.mcp.error(`Scheduled processing failed: ${String(error)}`);
+      }),
+      runThinkingDaemonProcessing().catch((error) => {
+        logger.mcp.error(`Scheduled thinking processing failed: ${String(error)}`);
+      }),
+    ]);
   }, PROCESSING_INTERVAL_MS);
 
   // Schedule periodic vector sync (every 10 minutes)
   setInterval(() => {
-    runVectorSync().catch((error) => {
-      logger.mcp.error(`Scheduled vector sync failed: ${String(error)}`);
-    });
+    // Run both episodic and thinking vector syncs in parallel
+    Promise.all([
+      runVectorSync().catch((error) => {
+        logger.mcp.error(`Scheduled vector sync failed: ${String(error)}`);
+      }),
+      runThinkingVectorSync().catch((error) => {
+        logger.mcp.error(`Scheduled thinking vector sync failed: ${String(error)}`);
+      }),
+    ]);
   }, VECTOR_SYNC_INTERVAL_MS);
 }
 

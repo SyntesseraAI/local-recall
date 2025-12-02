@@ -10,7 +10,7 @@
  * Output: stdout text is added to Claude's context
  */
 
-import { loadConfig } from "../utils/config.js";
+import { loadConfig, getConfig } from "../utils/config.js";
 import { ThinkingSearchEngine } from "../core/thinking-search.js";
 import { formatThinkingMemoryForDisplay } from "../utils/markdown.js";
 import { readStdin } from "../utils/transcript.js";
@@ -66,6 +66,13 @@ async function main(): Promise<void> {
     process.env["LOCAL_RECALL_DIR"] = `${projectDir}/local-recall`;
     await loadConfig();
     logger.hooks.debug("UserPromptSubmit thinking: Configuration loaded");
+
+    // Check if thinking memory is enabled
+    const config = getConfig();
+    if (!config.thinkingEnabled) {
+      logger.hooks.debug("UserPromptSubmit thinking: Thinking memory disabled, skipping");
+      process.exit(0);
+    }
 
     // Search for relevant thinking memories using vector similarity
     const searchEngine = new ThinkingSearchEngine();

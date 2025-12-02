@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/user-prompt-submit.js",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/user-prompt-submit-thinking.js",
             "timeout": 60
           }
         ]

@@ -9,7 +9,7 @@
  * Output: stdout text is added to Claude's context
  */
 
-import { loadConfig } from '../utils/config.js';
+import { loadConfig, getConfig } from '../utils/config.js';
 import { formatMemoryForDisplay } from '../utils/markdown.js';
 import { readStdin } from '../utils/transcript.js';
 import { logger } from '../utils/logger.js';
@@ -51,6 +51,13 @@ async function main(): Promise<void> {
     process.env['LOCAL_RECALL_DIR'] = `${projectDir}/local-recall`;
     await loadConfig();
     logger.hooks.debug('SessionStart: Configuration loaded');
+
+    // Check if episodic memory is enabled
+    const config = getConfig();
+    if (!config.episodicEnabled) {
+      logger.hooks.debug('SessionStart: Episodic memory disabled, skipping');
+      process.exit(0);
+    }
 
     // Load recent memories directly (skip vector store to avoid slow initialization)
     // Vector store will be initialized lazily by MCP server or user-prompt-submit
