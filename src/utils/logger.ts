@@ -22,8 +22,9 @@ function getMinLogLevel(): LogLevel {
   if (envLevel && envLevel in LOG_LEVELS) {
     return envLevel as LogLevel;
   }
-  // Default to 'debug' for development - change to 'info' for production
-  return 'debug';
+  // Default to 'info' for production, 'debug' otherwise
+  const nodeEnv = process.env['NODE_ENV']?.toLowerCase();
+  return nodeEnv === 'production' ? 'info' : 'debug';
 }
 
 /**
