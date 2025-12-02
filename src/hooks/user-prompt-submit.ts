@@ -84,6 +84,14 @@ async function main(): Promise<void> {
 
     logger.hooks.info(`UserPromptSubmit: Found ${results.length} relevant memories`);
 
+    // Log each memory's details for debugging
+    for (const result of results) {
+      const similarity = (result.score * 100).toFixed(0);
+      logger.hooks.debug(
+        `  - ${result.memory.id}.md | ${similarity}% | "${result.memory.subject}"`
+      );
+    }
+
     // Build context string for Claude
     const contextParts: string[] = [
       "# Local Recall: Relevant Memories",

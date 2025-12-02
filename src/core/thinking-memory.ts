@@ -56,7 +56,7 @@ export class ThinkingMemoryManager {
   constructor(baseDir?: string) {
     const config = getConfig();
     this.baseDir = baseDir ?? config.memoryDir;
-    this.memoriesDir = path.join(this.baseDir, 'thinking-memories');
+    this.memoriesDir = path.join(this.baseDir, 'thinking-memory');
   }
 
   /**

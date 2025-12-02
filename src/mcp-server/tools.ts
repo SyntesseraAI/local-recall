@@ -5,8 +5,10 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { MemoryManager } from '../core/memory.js';
 import { SearchEngine } from '../core/search.js';
-import { getVectorStore } from '../core/vector-store.js';
+import { ThinkingMemoryManager } from '../core/thinking-memory.js';
+import { ThinkingSearchEngine } from '../core/thinking-search.js';
 import type { MemoryScope } from '../core/types.js';
+// Note: Vector store syncing is handled by the MCP server daemon, not exposed as a tool
 
 /**
  * Singleton instances for tool handlers.
@@ -15,15 +17,18 @@ import type { MemoryScope } from '../core/types.js';
  */
 const memoryManager = new MemoryManager();
 const searchEngine = new SearchEngine(memoryManager);
+const thinkingMemoryManager = new ThinkingMemoryManager();
+const thinkingSearchEngine = new ThinkingSearchEngine(thinkingMemoryManager);
 
 /**
  * Create tool definitions for MCP
  */
 export function createTools(): Tool[] {
   return [
+    // Episodic memory tools
     {
-      name: 'memory_create',
-      description: 'Create a new memory with subject, keywords, scope, and content',
+      name: 'episodic_create',
+      description: 'Create a new episodic memory with subject, keywords, scope, and content',
       inputSchema: {
         type: 'object',
         properties: {
@@ -49,8 +54,8 @@ export function createTools(): Tool[] {
       },
     },
     {
-      name: 'memory_get',
-      description: 'Retrieve a specific memory by ID',
+      name: 'episodic_get',
+      description: 'Retrieve a specific episodic memory by ID',
       inputSchema: {
         type: 'object',
         properties: {
@@ -63,8 +68,8 @@ export function createTools(): Tool[] {
       },
     },
     {
-      name: 'memory_search',
-      description: 'Search memories using semantic vector similarity',
+      name: 'episodic_search',
+      description: 'Search episodic memories using semantic vector similarity',
       inputSchema: {
         type: 'object',
         properties: {
@@ -84,33 +89,41 @@ export function createTools(): Tool[] {
         required: ['query'],
       },
     },
+    // Thinking memory tools
     {
-      name: 'memory_list',
-      description: 'List all memories with optional filtering',
+      name: 'thinking_get',
+      description: 'Retrieve a specific thinking memory by ID',
       inputSchema: {
         type: 'object',
         properties: {
-          scope: {
+          id: {
             type: 'string',
-            description: 'Filter by scope',
-          },
-          limit: {
-            type: 'number',
-            description: 'Maximum results',
-          },
-          offset: {
-            type: 'number',
-            description: 'Pagination offset',
+            description: 'Thinking memory UUID',
           },
         },
+        required: ['id'],
       },
     },
     {
-      name: 'index_rebuild',
-      description: 'Resync the vector store with memory files',
+      name: 'thinking_search',
+      description: 'Search thinking memories using semantic vector similarity',
       inputSchema: {
         type: 'object',
-        properties: {},
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Search query (natural language)',
+          },
+          scope: {
+            type: 'string',
+            description: 'Optional scope filter',
+          },
+          limit: {
+            type: 'number',
+            description: 'Maximum results (default: 10)',
+          },
+        },
+        required: ['query'],
       },
     },
   ];
@@ -162,7 +175,8 @@ async function executeToolCall(
   args: Record<string, unknown>
 ): Promise<unknown> {
   switch (name) {
-    case 'memory_create': {
+    // Episodic memory tools
+    case 'episodic_create': {
       // Use current time as occurred_at for MCP-created memories
       const occurredAt = new Date().toISOString();
       const memory = await memoryManager.createMemory({
@@ -175,19 +189,19 @@ async function executeToolCall(
       return {
         success: true,
         id: memory.id,
-        message: 'Memory created successfully',
+        message: 'Episodic memory created successfully',
       };
     }
 
-    case 'memory_get': {
+    case 'episodic_get': {
       const memory = await memoryManager.getMemory(args['id'] as string);
       if (!memory) {
-        throw new Error(`Memory with ID ${args['id']} not found`);
+        throw new Error(`Episodic memory with ID ${args['id']} not found`);
       }
       return memory;
     }
 
-    case 'memory_search': {
+    case 'episodic_search': {
       const results = await searchEngine.search(
         args['query'] as string,
         {
@@ -207,35 +221,31 @@ async function executeToolCall(
       };
     }
 
-    case 'memory_list': {
-      const memories = await memoryManager.listMemories({
-        scope: args['scope'] as MemoryScope | undefined,
-        limit: args['limit'] as number | undefined,
-        offset: args['offset'] as number | undefined,
-      });
-      return {
-        memories: memories.map((m) => ({
-          id: m.id,
-          subject: m.subject,
-          keywords: m.keywords,
-          applies_to: m.applies_to,
-          occurred_at: m.occurred_at,
-        })),
-        total: memories.length,
-      };
+    // Thinking memory tools
+    case 'thinking_get': {
+      const memory = await thinkingMemoryManager.getMemory(args['id'] as string);
+      if (!memory) {
+        throw new Error(`Thinking memory with ID ${args['id']} not found`);
+      }
+      return memory;
     }
 
-    case 'index_rebuild': {
-      // Sync vector store with memory files
-      const memories = await memoryManager.listMemories();
-      const vectorStore = getVectorStore();
-      await vectorStore.initialize();
-      const syncResult = await vectorStore.sync(memories);
+    case 'thinking_search': {
+      const results = await thinkingSearchEngine.search(
+        args['query'] as string,
+        {
+          scope: args['scope'] as MemoryScope | undefined,
+          limit: args['limit'] as number | undefined,
+        }
+      );
       return {
-        success: true,
-        memories_synced: memories.length,
-        vector_added: syncResult.added,
-        vector_removed: syncResult.removed,
+        results: results.map((r) => ({
+          id: r.memory.id,
+          subject: r.memory.subject,
+          similarity: r.score,
+          applies_to: r.memory.applies_to,
+        })),
+        total: results.length,
       };
     }
 

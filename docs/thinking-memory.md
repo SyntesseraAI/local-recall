@@ -144,7 +144,7 @@ Add the thinking hook to your `.claude/settings.json`:
 | Processing | Claude Haiku extraction | Direct content extraction |
 | Keywords | Required (1-20) | None |
 | Concurrency | 5 files | 20 files |
-| Storage | `episodic-memory/` | `thinking-memories/` |
+| Storage | `episodic-memory/` | `thinking-memory/` |
 | Processed Log | `processed-log.jsonl` | `thinking-processed-log.jsonl` |
 | SQLite Tables | `memories`, `memory_embeddings` | `thinking_memories`, `thinking_embeddings` |
 | Hook Output | "Relevant Memories" | "Previous Thoughts" |
@@ -162,7 +162,7 @@ console.log(`Processed ${results.length} transcripts`);
 
 ## Git Tracking
 
-- **Tracked**: `local-recall/thinking-memories/*.md` (version-controlled)
+- **Tracked**: `local-recall/thinking-memory/*.md` (version-controlled)
 - **Ignored**: `thinking-processed-log.jsonl` (auto-generated)
 - **Ignored**: `memory.sqlite` (contains both memory and thinking embeddings)
 

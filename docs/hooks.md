@@ -186,7 +186,7 @@ Thinking content here...
 *Similarity: 85%*
 ```
 
-See [Thinking Memories documentation](./thinking-memories.md) for details.
+See [Thinking Memories documentation](./thinking-memory.md) for details.
 
 ### Stop Hook (Disabled)
 

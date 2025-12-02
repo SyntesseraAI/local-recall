@@ -75,15 +75,35 @@ async function main(): Promise<void> {
     }
 
     // Search for relevant thinking memories using vector similarity
+    // Fetch up to 25, but only return:
+    // - First 10 items (default)
+    // - Additional items (up to 25) only if similarity >= 90%
     const searchEngine = new ThinkingSearchEngine();
-    const results = await searchEngine.search(input.prompt, { limit: 5 });
+    const allResults = await searchEngine.search(input.prompt, { limit: 25 });
 
-    if (results.length === 0) {
+    if (allResults.length === 0) {
       logger.hooks.info("UserPromptSubmit thinking: No matching thinking memories found");
       process.exit(0);
     }
 
-    logger.hooks.info(`UserPromptSubmit thinking: Found ${results.length} relevant thinking memories`);
+    // Filter results: first 10 always, then only high-similarity (>=90%) up to 25
+    const DEFAULT_LIMIT = 10;
+    const HIGH_SIMILARITY_THRESHOLD = 0.90;
+
+    const results = allResults.filter((result, index) => {
+      if (index < DEFAULT_LIMIT) return true;
+      return result.score >= HIGH_SIMILARITY_THRESHOLD;
+    });
+
+    logger.hooks.info(`UserPromptSubmit thinking: Found ${results.length} relevant thinking memories (${allResults.length} searched)`);
+
+    // Log each memory's details for debugging
+    for (const result of results) {
+      const similarity = (result.score * 100).toFixed(0);
+      logger.hooks.debug(
+        `  - ${result.memory.id}.md | ${similarity}% | "${result.memory.subject}"`
+      );
+    }
 
     // Build context string for Claude
     const contextParts: string[] = [

@@ -16,9 +16,11 @@ node ./dist/mcp-server/server.js
 
 ## Available Tools
 
-### memory_create
+### Episodic Memory Tools
 
-Create a new memory.
+#### episodic_create
+
+Create a new episodic memory.
 
 **Input Schema**:
 ```json
@@ -27,12 +29,12 @@ Create a new memory.
   "properties": {
     "subject": {
       "type": "string",
-      "description": "Brief description of the memory"
+      "description": "Brief description of the memory (1-200 chars)"
     },
     "keywords": {
       "type": "array",
       "items": { "type": "string" },
-      "description": "Searchable keywords"
+      "description": "Searchable keywords (1-20 keywords)"
     },
     "applies_to": {
       "type": "string",
@@ -40,7 +42,7 @@ Create a new memory.
     },
     "content": {
       "type": "string",
-      "description": "The memory content (markdown)"
+      "description": "The memory content in markdown"
     }
   },
   "required": ["subject", "keywords", "applies_to", "content"]
@@ -62,13 +64,13 @@ Create a new memory.
 {
   "success": true,
   "id": "550e8400-e29b-41d4-a716-446655440000",
-  "message": "Memory created successfully"
+  "message": "Episodic memory created successfully"
 }
 ```
 
-### memory_get
+#### episodic_get
 
-Retrieve a specific memory by ID.
+Retrieve a specific episodic memory by ID.
 
 **Input Schema**:
 ```json
@@ -97,9 +99,9 @@ Retrieve a specific memory by ID.
 }
 ```
 
-### memory_search
+#### episodic_search
 
-Search memories using fuzzy keyword matching.
+Search episodic memories using semantic vector similarity.
 
 **Input Schema**:
 ```json
@@ -108,7 +110,7 @@ Search memories using fuzzy keyword matching.
   "properties": {
     "query": {
       "type": "string",
-      "description": "Search query (keywords)"
+      "description": "Search query (natural language)"
     },
     "scope": {
       "type": "string",
@@ -139,75 +141,85 @@ Search memories using fuzzy keyword matching.
     {
       "id": "...",
       "subject": "JWT authentication setup",
-      "score": 0.95,
+      "similarity": 0.85,
       "keywords": ["auth", "jwt", "tokens"],
-      "applies_to": "area:api",
-      "matchedKeywords": ["auth", "jwt"]
+      "applies_to": "area:api"
     }
   ],
   "total": 1
 }
 ```
 
-### memory_list
+### Thinking Memory Tools
 
-List all memories with optional filtering.
+#### thinking_get
+
+Retrieve a specific thinking memory by ID.
 
 **Input Schema**:
 ```json
 {
   "type": "object",
   "properties": {
-    "scope": {
+    "id": {
       "type": "string",
-      "description": "Filter by scope"
-    },
-    "limit": {
-      "type": "number",
-      "description": "Maximum results"
-    },
-    "offset": {
-      "type": "number",
-      "description": "Pagination offset"
+      "description": "Thinking memory UUID"
     }
-  }
+  },
+  "required": ["id"]
 }
 ```
 
 **Response**:
 ```json
 {
-  "memories": [
-    {
-      "id": "...",
-      "subject": "...",
-      "keywords": ["..."],
-      "applies_to": "...",
-      "occurred_at": "..."
-    }
-  ],
-  "total": 42
+  "id": "...",
+  "subject": "...",
+  "applies_to": "...",
+  "content": "...",
+  "occurred_at": "...",
+  "content_hash": "..."
 }
 ```
 
-### index_rebuild
+#### thinking_search
 
-Force a rebuild of the memory index.
+Search thinking memories using semantic vector similarity.
 
 **Input Schema**:
 ```json
 {
   "type": "object",
-  "properties": {}
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "Search query (natural language)"
+    },
+    "scope": {
+      "type": "string",
+      "description": "Optional scope filter"
+    },
+    "limit": {
+      "type": "number",
+      "description": "Maximum results (default: 10)"
+    }
+  },
+  "required": ["query"]
 }
 ```
 
 **Response**:
 ```json
 {
-  "success": true,
-  "memories_indexed": 42,
-  "keywords_indexed": 156
+  "results": [
+    {
+      "id": "...",
+      "subject": "Analyzing the authentication flow...",
+      "similarity": 0.82,
+      "applies_to": "global"
+    }
+  ],
+  "total": 1
 }
 ```
 
@@ -226,9 +238,11 @@ The MCP server includes a daemon loop that automatically processes Claude Code t
 
 ```
 local-recall/
-├── episodic-memory/      # Extracted memories
+├── episodic-memory/      # Extracted episodic memories
 │   └── *.md
-├── memory.sqlite         # Vector store database
+├── thinking-memory/      # Extracted thinking memories
+│   └── *.md
+├── memory.sqlite         # Vector store database (both types)
 └── recall.log            # Debug log
 ```
 

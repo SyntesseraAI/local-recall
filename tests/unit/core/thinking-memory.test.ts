@@ -50,7 +50,7 @@ describe('ThinkingMemoryManager', () => {
       };
 
       const memory = await memoryManager.createMemory(input);
-      const filePath = path.join(testDir, 'thinking-memories', `${memory.id}.md`);
+      const filePath = path.join(testDir, 'thinking-memory', `${memory.id}.md`);
 
       const exists = await fs.access(filePath).then(() => true).catch(() => false);
       expect(exists).toBe(true);

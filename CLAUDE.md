@@ -62,7 +62,7 @@ local-recall/                    # Project root
 │   ├── recall.log               # Debug log file (gitignored)
 │   ├── episodic-memory/         # Individual memory files (tracked in git)
 │   │   └── *.md                 # Memory markdown files
-│   └── thinking-memories/       # Thinking memories (experimental, tracked in git)
+│   └── thinking-memory/         # Thinking memories (experimental, tracked in git)
 │       └── *.md                 # Thinking memory files (no keywords)
 ├── local_cache/                 # Embedding model cache (gitignored)
 │   └── fast-bge-small-en-v1.5/  # BGE embedding model files
@@ -344,11 +344,11 @@ node ./dist/mcp-server/server.js
 
 | Tool | Description |
 |------|-------------|
-| `memory_create` | Create a new memory (idempotent) |
-| `memory_get` | Retrieve a specific memory by ID |
-| `memory_search` | Semantic search using vector embeddings |
-| `memory_list` | List all memories with optional filtering |
-| `index_rebuild` | Sync vector store with memory files |
+| `episodic_create` | Create a new episodic memory (idempotent) |
+| `episodic_get` | Retrieve a specific episodic memory by ID |
+| `episodic_search` | Search episodic memories using vector embeddings |
+| `thinking_get` | Retrieve a specific thinking memory by ID |
+| `thinking_search` | Search thinking memories using vector embeddings |
 
 ### Background Daemon
 
