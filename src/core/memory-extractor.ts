@@ -145,7 +145,7 @@ const DEFAULT_OPTIONS: Required<ExtractorOptions> = {
   maxRetries: 3,
   baseDelay: 2000,
   timeout: 600000, // 10 minutes
-  concurrency: 20,
+  concurrency: 5,
 };
 
 /**

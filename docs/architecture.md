@@ -18,16 +18,16 @@ Local Recall is built with a modular architecture that separates concerns into d
 ┌─────────────────────────────────────────────────────────────┐
 │                       Core Layer                             │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │    Memory    │  │    Index     │  │      Search      │  │
-│  │   Manager    │  │   Manager    │  │      Engine      │  │
+│  │    Memory    │  │   Vector     │  │      Search      │  │
+│  │   Manager    │  │   Store      │  │      Engine      │  │
 │  └──────┬───────┘  └──────┬───────┘  └────────┬─────────┘  │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
 │  │  Transcript  │  │   Memory     │  │   Processed      │  │
 │  │  Collector   │  │  Extractor   │  │   Log Manager    │  │
 │  └──────────────┘  └──────────────┘  └──────────────────┘  │
 │  ┌──────────────┐  ┌──────────────┐                        │
-│  │   Vector     │  │  Embedding   │                        │
-│  │   Store      │  │   Service    │                        │
+│  │  Transcript  │  │  Embedding   │                        │
+│  │  Condenser   │  │   Service    │                        │
 │  └──────────────┘  └──────────────┘                        │
 └─────────────────────────────────────────────────────────────┘
           │                 │                   │
@@ -36,7 +36,11 @@ Local Recall is built with a modular architecture that separates concerns into d
 │                     Utilities Layer                          │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
 │  │   Markdown   │  │    Logger    │  │     Config       │  │
-│  │  (keywords)  │  │ (recall.log) │  │    (settings)    │  │
+│  │  (parsing)   │  │ (recall.log) │  │    (settings)    │  │
+│  └──────────────┘  └──────────────┘  └──────────────────┘  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
+│  │  Transcript  │  │  Summarize   │  │   Gitignore      │  │
+│  │  (parsing)   │  │  (text proc) │  │   (management)   │  │
 │  └──────────────┘  └──────────────┘  └──────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
           │                 │                   │
@@ -45,9 +49,9 @@ Local Recall is built with a modular architecture that separates concerns into d
 │                      Storage Layer                           │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │                  File System                          │  │
-│  │   local-recall/episodic-memory/*.md  local-recall/index.json │
-│  │   local-recall/memory.sqlite         processed-log.json │
-│  │   local_cache/fast-bge-small-en-v1.5/  (model cache)    │
+│  │   local-recall/episodic-memory/*.md  (memory files)   │  │
+│  │   local-recall/memory.sqlite         (vector store)   │  │
+│  │   local_cache/fast-bge-small-en-v1.5/ (model cache)   │  │
 │  └──────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -94,14 +98,12 @@ Tracks which transcripts have been processed:
 - **recordProcessed()**: Records a transcript as processed with its memory IDs
 - **getMemoryIds()**: Gets memory IDs created from a transcript (for cleanup on re-processing)
 
-#### Index Manager (`src/core/index.ts`)
+#### Transcript Condenser (`src/core/transcript-condenser.ts`)
 
-Maintains the keyword index for fast lookups:
+Condenses transcripts for efficient processing:
 
-- Scans all memory files in the storage directory
-- Extracts keywords from YAML frontmatter
-- Builds an inverted index mapping keywords to memory IDs
-- Persists index to `local-recall/index.json`
+- Reduces transcript size while preserving key information
+- Prepares content for memory extraction
 
 #### Search Engine (`src/core/search.ts`)
 
@@ -199,8 +201,7 @@ Low-level fuzzy string matching algorithms:
 
 ```
 local-recall/
-├── .gitignore           # Auto-generated, excludes index.json and recall.log
-├── index.json           # Keyword index (auto-generated, gitignored)
+├── .gitignore           # Auto-generated, excludes memory.sqlite and recall.log
 ├── recall.log           # Debug log (gitignored)
 ├── memory.sqlite        # Vector store database (gitignored)
 └── episodic-memory/
@@ -216,7 +217,7 @@ local_cache/
     └── ...
 ```
 
-The `.gitignore` file is automatically created when the index is first built, ensuring that generated files (`index.json`, `recall.log`, `memory.sqlite`) are not committed while memory files are tracked.
+The `.gitignore` file is automatically created, ensuring that generated files (`recall.log`, `memory.sqlite`) are not committed while memory files are tracked.
 
 The embedding model cache (`local_cache/`) is stored at the project root and downloaded automatically on first use.
 
@@ -229,19 +230,18 @@ The embedding model cache (`local_cache/`) is stored at the project root and dow
 2. Memory Manager validates input
 3. UUID generated for new memory
 4. Markdown file created with YAML frontmatter
-5. Index Manager updates keyword index
-6. Index persisted to disk
+5. Vector store updated with embedding
 ```
 
 ### Memory Search
 
 ```
 1. Search query received
-2. Query tokenized into keywords
-3. Fuzzy matching against index
-4. Matching memory IDs retrieved
-5. Full memory content loaded
-6. Results ranked and returned
+2. Query converted to embedding vector
+3. Vector similarity search in SQLite
+4. Matching memories retrieved with scores
+5. Results ranked by similarity
+6. Full memory content returned
 ```
 
 ### Session Start Flow
@@ -249,8 +249,8 @@ The embedding model cache (`local_cache/`) is stored at the project root and dow
 ```
 1. Claude Code session begins
 2. SessionStart hook triggered
-3. Index loaded from disk
-4. Relevant memories identified
+3. Recent memories loaded from disk
+4. Top 5 most recent memories selected
 5. Context injected into session
 ```
 
@@ -259,8 +259,8 @@ The embedding model cache (`local_cache/`) is stored at the project root and dow
 ```
 1. User submits a prompt
 2. UserPromptSubmit hook triggered
-3. Keywords extracted from prompt text
-4. Fuzzy search against memory index
+3. Vector store initialized (lazy, cached)
+4. Semantic search using embeddings
 5. Matching memories output to stdout
 6. Context injected before Claude processes prompt
 ```
@@ -277,7 +277,7 @@ The embedding model cache (`local_cache/`) is stored at the project root and dow
    c. Response parsed for memory objects
    d. Memories created with deduplication
    e. Processed log updated with memory IDs
-5. Index refreshed
+5. Vector store synced with new memories
 ```
 
 **Benefits over Stop Hook**:
@@ -288,7 +288,7 @@ The embedding model cache (`local_cache/`) is stored at the project root and dow
 
 ## Concurrency Considerations
 
-- Index operations use file locking to prevent corruption
 - Memory writes are atomic (write to temp, then rename)
+- SQLite handles concurrent access to vector store
 - Read operations can proceed concurrently
-- Index is cached in memory with periodic refresh
+- Embedding service uses singleton pattern for efficiency

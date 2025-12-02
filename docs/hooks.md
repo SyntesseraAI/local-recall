@@ -6,7 +6,7 @@ Local Recall integrates with Claude Code through hooks - automated scripts that 
 
 ## Hook Configuration
 
-Hooks are defined in `hooks.json` following Claude Code's hook format:
+Hooks are configured in `.claude/settings.json`:
 
 ```json
 {
@@ -16,7 +16,7 @@ Hooks are defined in `hooks.json` following Claude Code's hook format:
         "hooks": [
           {
             "type": "command",
-            "command": "node ${CLAUDE_PROJECT_DIR}/node_modules/local-recall/dist/hooks/session-start.js",
+            "command": "node ./node_modules/local-recall/dist/hooks/session-start.js",
             "timeout": 30
           }
         ]
@@ -27,7 +27,7 @@ Hooks are defined in `hooks.json` following Claude Code's hook format:
         "hooks": [
           {
             "type": "command",
-            "command": "node ${CLAUDE_PROJECT_DIR}/node_modules/local-recall/dist/hooks/user-prompt-submit.js",
+            "command": "node ./node_modules/local-recall/dist/hooks/user-prompt-submit.js",
             "timeout": 30
           }
         ]
@@ -38,7 +38,7 @@ Hooks are defined in `hooks.json` following Claude Code's hook format:
         "hooks": [
           {
             "type": "command",
-            "command": "node ${CLAUDE_PROJECT_DIR}/node_modules/local-recall/dist/hooks/stop.js",
+            "command": "node ./node_modules/local-recall/dist/hooks/stop.js",
             "timeout": 60
           }
         ]
@@ -79,8 +79,8 @@ All hooks receive JSON via stdin with these common fields:
 
 **Flow**:
 1. Receives JSON input via stdin
-2. Loads memory index from `local-recall/index.json`
-3. Identifies relevant memories based on context
+2. Loads all memories from disk via MemoryManager
+3. Sorts by `occurred_at` and selects 5 most recent
 4. Outputs formatted memory content to stdout
 5. Exit code 0 indicates success
 
@@ -100,17 +100,16 @@ All hooks receive JSON via stdin with these common fields:
 
 **Flow**:
 1. Receives JSON input via stdin (includes `prompt` field)
-2. Extracts keywords from the prompt using Claude Haiku (`claude -p --model haiku`)
-3. Searches memory index for matching keywords (fuzzy matching)
+2. Initializes vector store (lazy initialization, cached)
+3. Performs semantic search using vector embeddings
 4. Outputs formatted matching memories to stdout
 5. Exit code 0 indicates success
 
-**Keyword Extraction**:
-- Uses Claude Haiku via CLI (`claude -p --model haiku`)
-- Prompt: "Extract keywords from this text and return only the keywords as a JSON array"
-- Filters out very short keywords (< 3 characters)
-- Limits to 10 keywords per prompt
-- Falls back gracefully to empty keywords on error
+**Search**:
+- Uses vector similarity search via SQLite + sqlite-vec
+- Embeddings generated using fastembed (BGE-small-en-v1.5)
+- Returns memories ranked by semantic similarity
+- Falls back gracefully on error
 
 **Example Output**:
 ```
@@ -153,10 +152,9 @@ Available to hook commands:
 
 | Variable | Description |
 |----------|-------------|
-| `CLAUDE_PROJECT_DIR` | Project root directory |
-| `LOCAL_RECALL_DIR` | Memory storage directory (default: `${CLAUDE_PROJECT_DIR}/local-recall`) |
+| `LOCAL_RECALL_DIR` | Memory storage directory (default: `./local-recall`) |
 | `LOCAL_RECALL_LOG_LEVEL` | Log level: debug, info, warn, error (default: debug) |
-| `LOCAL_RECALL_MAX_CONTEXT` | Max memories at session start (default: 10) |
+| `LOCAL_RECALL_MAX_CONTEXT` | Max memories at session start (default: 5) |
 
 ## Debugging
 
@@ -191,11 +189,11 @@ echo '{"session_id":"test","cwd":"/path/to/project","transcript_path":"/tmp/tran
 
 | Issue | Solution |
 |-------|----------|
-| Hook not triggering | Check plugin is enabled in Claude Code |
-| No memories loaded | Verify index.json exists and has been built |
+| Hook not triggering | Check hooks are configured in .claude/settings.json |
+| No memories loaded | Verify local-recall/episodic-memory/ has .md files |
 | Memories not being created | Check write permissions on local-recall/ |
-| Slow startup | Reduce `LOCAL_RECALL_MAX_CONTEXT` |
-| Hook timeout | Increase timeout in hooks.json (default: 60s) |
+| Slow startup | First run downloads embedding model (~133MB) |
+| Hook timeout | Increase timeout in settings (default: 30-60s) |
 
 ## Security Considerations
 

@@ -14,25 +14,18 @@ All memories are stored locally within the repository, making them version-contr
 ## Architecture
 
 ```
-local-recall/                    # Project root IS the plugin root
-├── .claude-plugin/
-│   └── plugin.json              # Plugin metadata
-├── hooks.json                   # Hook configuration (SessionStart, UserPromptSubmit, Stop)
-├── .mcp.json                    # MCP server configuration
-├── scripts/                     # Bundled scripts (build output, gitignored)
-│   ├── hooks/
-│   │   ├── session-start.js     # Bundled session-start hook
-│   │   ├── user-prompt-submit.js # Bundled user-prompt-submit hook
-│   │   └── stop.js              # Bundled stop hook
-│   └── mcp-server/
-│       └── server.js            # Bundled MCP server
+local-recall/                    # Project root
 ├── src/
 │   ├── core/                    # Core memory management
 │   │   ├── memory.ts            # CRUD operations for memory files
 │   │   ├── vector-store.ts      # SQLite + vector embeddings for semantic search
 │   │   ├── embedding.ts         # Embedding service (fastembed)
 │   │   ├── search.ts            # Search implementation using vector store
-│   │   └── types.ts             # TypeScript interfaces
+│   │   ├── types.ts             # TypeScript interfaces
+│   │   ├── transcript-collector.ts  # Collect transcripts from Claude cache
+│   │   ├── transcript-condenser.ts  # Condense transcripts for processing
+│   │   ├── memory-extractor.ts  # Extract memories from transcripts
+│   │   └── processed-log.ts     # Track processed transcripts
 │   ├── hooks/                   # Claude Code hooks (source)
 │   │   ├── session-start.ts     # Load recent memories on session start
 │   │   ├── user-prompt-submit.ts # Semantic search on user prompt
@@ -40,17 +33,31 @@ local-recall/                    # Project root IS the plugin root
 │   ├── mcp-server/              # MCP server implementation
 │   │   ├── server.ts            # Main MCP server
 │   │   └── tools.ts             # Exposed memory tools
+│   ├── prompts/                 # Prompt templates
+│   │   └── memory-extraction.ts # Memory extraction prompts
+│   ├── types/                   # Type definitions
+│   │   ├── transcript-schema.ts # Transcript JSON schema
+│   │   └── rake-pos.d.ts        # Type declarations
 │   └── utils/                   # Utility functions
 │       ├── markdown.ts          # Markdown parsing utilities
 │       ├── transcript.ts        # Transcript parsing
 │       ├── logger.ts            # Logging utility (writes to recall.log)
-│       └── fuzzy.ts             # Fuzzy matching utilities
+│       ├── fuzzy.ts             # Fuzzy matching utilities
+│       ├── config.ts            # Configuration loading
+│       ├── gitignore.ts         # Gitignore management
+│       └── summarize.ts         # Text summarization utilities
+├── dist/                        # Build output (gitignored)
+│   ├── hooks/                   # Compiled hooks
+│   ├── mcp-server/              # Compiled MCP server
+│   └── ...
 ├── local-recall/                # Memory storage (version-controlled)
 │   ├── .gitignore               # Auto-generated, excludes memory.sqlite and recall.log
 │   ├── memory.sqlite            # SQLite database with vector embeddings (gitignored)
 │   ├── recall.log               # Debug log file (gitignored)
 │   └── episodic-memory/         # Individual memory files (tracked in git)
 │       └── *.md                 # Memory markdown files
+├── local_cache/                 # Embedding model cache (gitignored)
+│   └── fast-bge-small-en-v1.5/  # BGE embedding model files
 ├── package.json
 ├── tsconfig.json
 └── CLAUDE.md
@@ -155,30 +162,9 @@ Triggered when a user submits a prompt, before Claude processes it:
 #### Stop Hook (Disabled)
 The Stop hook is currently disabled. Memory extraction is handled by the MCP server daemon which processes transcripts asynchronously every 5 minutes. See the MCP Server section for details.
 
-### Plugin Structure
+### Installation
 
-The project root is the plugin root, following Claude Code's plugin format:
-
-```
-local-recall/                    # Plugin root
-├── .claude-plugin/
-│   └── plugin.json              # Plugin metadata (name, version, description)
-├── hooks.json                   # Hook event handlers (uses ${CLAUDE_PLUGIN_ROOT})
-├── .mcp.json                    # MCP server configuration
-└── scripts/                     # Bundled executables (build output)
-    ├── hooks/
-    │   ├── session-start.js
-    │   ├── user-prompt-submit.js
-    │   └── stop.js
-    └── mcp-server/
-        └── server.js
-```
-
-**Important:** The hooks use `${CLAUDE_PLUGIN_ROOT}` to reference scripts relative to the plugin installation, and receive `cwd` via stdin to operate on the user's project directory.
-
-### Installing the Plugin
-
-#### Option 1: Clone and Build
+#### Setup
 
 ```bash
 # Clone the repository
@@ -190,19 +176,9 @@ npm install
 npm run build
 ```
 
-Then add to your project's `.claude/settings.json`:
+#### Configure Hooks
 
-```json
-{
-  "plugins": {
-    "installed": ["/path/to/local-recall"]
-  }
-}
-```
-
-#### Option 2: Direct Hooks Configuration
-
-If you prefer not to use the plugin system, add hooks directly to `.claude/settings.json`:
+Add hooks to your project's `.claude/settings.json`:
 
 **When local-recall is installed as an npm package:**
 
@@ -214,7 +190,7 @@ If you prefer not to use the plugin system, add hooks directly to `.claude/setti
         "hooks": [
           {
             "type": "command",
-            "command": "node ./node_modules/local-recall/scripts/hooks/session-start.js",
+            "command": "node ./node_modules/local-recall/dist/hooks/session-start.js",
             "timeout": 30
           }
         ]
@@ -225,7 +201,7 @@ If you prefer not to use the plugin system, add hooks directly to `.claude/setti
         "hooks": [
           {
             "type": "command",
-            "command": "node ./node_modules/local-recall/scripts/hooks/user-prompt-submit.js",
+            "command": "node ./node_modules/local-recall/dist/hooks/user-prompt-submit.js",
             "timeout": 30
           }
         ]
@@ -236,7 +212,7 @@ If you prefer not to use the plugin system, add hooks directly to `.claude/setti
         "hooks": [
           {
             "type": "command",
-            "command": "node ./node_modules/local-recall/scripts/hooks/stop.js",
+            "command": "node ./node_modules/local-recall/dist/hooks/stop.js",
             "timeout": 60
           }
         ]
@@ -256,7 +232,7 @@ If you prefer not to use the plugin system, add hooks directly to `.claude/setti
         "hooks": [
           {
             "type": "command",
-            "command": "node ./scripts/hooks/session-start.js",
+            "command": "node ./dist/hooks/session-start.js",
             "timeout": 30
           }
         ]
@@ -267,7 +243,7 @@ If you prefer not to use the plugin system, add hooks directly to `.claude/setti
         "hooks": [
           {
             "type": "command",
-            "command": "node ./scripts/hooks/user-prompt-submit.js",
+            "command": "node ./dist/hooks/user-prompt-submit.js",
             "timeout": 30
           }
         ]
@@ -278,7 +254,7 @@ If you prefer not to use the plugin system, add hooks directly to `.claude/setti
         "hooks": [
           {
             "type": "command",
-            "command": "node ./scripts/hooks/stop.js",
+            "command": "node ./dist/hooks/stop.js",
             "timeout": 60
           }
         ]
@@ -303,7 +279,7 @@ Add the MCP server to your Claude Code configuration in `.claude/settings.json`:
   "mcpServers": {
     "local-recall": {
       "command": "node",
-      "args": ["./node_modules/local-recall/scripts/mcp-server/server.js"],
+      "args": ["./node_modules/local-recall/dist/mcp-server/server.js"],
       "env": {
         "LOCAL_RECALL_DIR": "./local-recall"
       }
@@ -319,7 +295,7 @@ Add the MCP server to your Claude Code configuration in `.claude/settings.json`:
   "mcpServers": {
     "local-recall": {
       "command": "node",
-      "args": ["./scripts/mcp-server/server.js"],
+      "args": ["./dist/mcp-server/server.js"],
       "env": {
         "LOCAL_RECALL_DIR": "./local-recall"
       }
@@ -337,7 +313,7 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
   "mcpServers": {
     "local-recall": {
       "command": "node",
-      "args": ["/absolute/path/to/local-recall/scripts/mcp-server/server.js"],
+      "args": ["/absolute/path/to/local-recall/dist/mcp-server/server.js"],
       "env": {
         "LOCAL_RECALL_DIR": "/absolute/path/to/your/project/local-recall"
       }
@@ -353,7 +329,7 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
 npm run mcp:start
 
 # Or directly
-node dist/mcp-server/server.js
+node ./dist/mcp-server/server.js
 ```
 
 ### Available Tools

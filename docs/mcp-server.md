@@ -10,11 +10,8 @@ Local Recall includes an MCP (Model Context Protocol) server that exposes memory
 # Using npm script
 npm run mcp:start
 
-# Direct execution
-npx ts-node src/mcp-server/server.ts
-
-# With custom port
-MCP_PORT=3001 npm run mcp:start
+# Direct execution (after build)
+node ./dist/mcp-server/server.js
 ```
 
 ## Available Tools
@@ -229,12 +226,10 @@ The MCP server includes a daemon loop that automatically processes Claude Code t
 
 ```
 local-recall/
-├── transcripts/          # Copied transcripts from Claude cache
-│   └── *.jsonl
-├── processed-log.json    # Tracks processed transcripts and their memory IDs
 ├── episodic-memory/      # Extracted memories
 │   └── *.md
-└── index.json            # Keyword index
+├── memory.sqlite         # Vector store database
+└── recall.log            # Debug log
 ```
 
 ### Memory Extraction Prompt
@@ -275,44 +270,24 @@ When a transcript changes:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MCP_PORT` | `3000` | Server port |
-| `MCP_HOST` | `localhost` | Server host |
 | `LOCAL_RECALL_DIR` | `./local-recall` | Memory storage path |
-
-### Configuration File
-
-Create `.mcp-server.json` in the project root:
-
-```json
-{
-  "port": 3000,
-  "host": "localhost",
-  "memoryDir": "./local-recall",
-  "cors": {
-    "enabled": true,
-    "origins": ["*"]
-  },
-  "rateLimit": {
-    "enabled": true,
-    "windowMs": 60000,
-    "max": 100
-  }
-}
-```
+| `LOCAL_RECALL_LOG_LEVEL` | `debug` | Log level: debug, info, warn, error |
 
 ## Client Integration
 
 ### Using with Claude Code
 
-Add to your Claude Code MCP configuration:
+Add to your Claude Code MCP configuration in `.claude/settings.json`:
 
 ```json
 {
   "mcpServers": {
     "local-recall": {
-      "command": "npx",
-      "args": ["ts-node", "src/mcp-server/server.ts"],
-      "cwd": "/path/to/local-recall"
+      "command": "node",
+      "args": ["./dist/mcp-server/server.js"],
+      "env": {
+        "LOCAL_RECALL_DIR": "./local-recall"
+      }
     }
   }
 }
@@ -320,7 +295,7 @@ Add to your Claude Code MCP configuration:
 
 ### Using with Other MCP Clients
 
-Connect to `http://localhost:3000` (or configured host/port) using standard MCP protocol.
+The server uses stdio transport for MCP communication.
 
 ## Error Handling
 
@@ -349,7 +324,9 @@ All tools return errors in this format:
 Enable detailed logging:
 
 ```bash
-MCP_LOG_LEVEL=debug npm run mcp:start
+LOCAL_RECALL_LOG_LEVEL=debug npm run mcp:start
 ```
 
 Log levels: `error`, `warn`, `info`, `debug`
+
+Logs are written to `local-recall/recall.log`.
