@@ -29,12 +29,13 @@ local-recall/                    # Project root IS the plugin root
 ├── src/
 │   ├── core/                    # Core memory management
 │   │   ├── memory.ts            # CRUD operations for memory files
-│   │   ├── index.ts             # Index creation and management
-│   │   ├── search.ts            # Fuzzy search implementation
+│   │   ├── vector-store.ts      # SQLite + vector embeddings for semantic search
+│   │   ├── embedding.ts         # Embedding service (fastembed)
+│   │   ├── search.ts            # Search implementation using vector store
 │   │   └── types.ts             # TypeScript interfaces
 │   ├── hooks/                   # Claude Code hooks (source)
-│   │   ├── session-start.ts     # Load memory index on session start
-│   │   ├── user-prompt-submit.ts # Search memories based on user prompt
+│   │   ├── session-start.ts     # Load recent memories on session start
+│   │   ├── user-prompt-submit.ts # Semantic search on user prompt
 │   │   └── stop.ts              # Parse transcript and create memories
 │   ├── mcp-server/              # MCP server implementation
 │   │   ├── server.ts            # Main MCP server
@@ -45,8 +46,8 @@ local-recall/                    # Project root IS the plugin root
 │       ├── logger.ts            # Logging utility (writes to recall.log)
 │       └── fuzzy.ts             # Fuzzy matching utilities
 ├── local-recall/                # Memory storage (version-controlled)
-│   ├── .gitignore               # Auto-generated, excludes index.json and recall.log
-│   ├── index.json               # Keyword index cache (gitignored)
+│   ├── .gitignore               # Auto-generated, excludes memory.sqlite and recall.log
+│   ├── memory.sqlite            # SQLite database with vector embeddings (gitignored)
 │   ├── recall.log               # Debug log file (gitignored)
 │   └── episodic-memory/         # Individual memory files (tracked in git)
 │       └── *.md                 # Memory markdown files
@@ -104,21 +105,30 @@ CRD operations for memory files (no update - memories are idempotent):
 - `listMemories(filter?)` - List all memories with optional filtering
 - `findDuplicate(occurredAt, contentHash)` - Check for existing duplicate
 
-### Index Manager (`src/core/index.ts`)
+### Vector Store (`src/core/vector-store.ts`)
 
-Maintains a searchable index of all memory keywords:
-- `buildIndex()` - Scan all memory files and build keyword index
-- `getIndex()` - Retrieve the current index
-- `refreshIndex()` - Rebuild the index from scratch
+SQLite-backed vector store for semantic search:
+- `initialize()` - Set up database and load sqlite-vec extension
+- `add(memory)` - Add a memory with its embedding to the store
+- `remove(id)` - Remove a memory from the store
+- `search(query, options)` - Semantic similarity search
+- `sync(memories)` - Sync store with file-based memories (add/remove as needed)
 
-The index is stored at `local-recall/index.json` for fast access.
+The store uses `better-sqlite3` with the `sqlite-vec` extension for vector similarity search. Embeddings are generated using `fastembed` with the BGE-small-en-v1.5 model.
+
+#### Scoring and Ranking
+
+Search results use a **cosine distance** similarity score:
+- Score range: 0.0 (no match) to 1.0 (identical)
+- Scores are rounded to 2 decimal places (e.g., 0.65)
+- Results are sorted by score descending
+- **Recency tie-breaker**: When scores are equal, more recent memories (`occurred_at`) are ranked first
 
 ### Search (`src/core/search.ts`)
 
-Fuzzy search implementation for finding relevant memories:
-- `searchByKeywords(query)` - Find memories matching keywords (fuzzy)
-- `searchBySubject(query)` - Search by subject line
-- `searchByScope(scope)` - Find all memories for a specific scope
+Search implementation using the vector store:
+- `search(query, options)` - Semantic search using vector embeddings
+- Returns memories ranked by similarity score
 
 ## Claude Code Integration
 
@@ -129,15 +139,17 @@ Hooks are configured in `hooks.json` and execute as shell commands that receive 
 #### SessionStart Hook
 Triggered when a Claude Code session begins:
 1. Receives JSON input with `session_id`, `transcript_path`, `cwd`
-2. Loads the memory index from `local-recall/index.json`
-3. Retrieves relevant memories based on the current context
+2. Loads all memories from disk via `MemoryManager.listMemories()`
+3. Returns the 5 most recent memories (sorted by `occurred_at`)
 4. Outputs memory content to stdout (injected into Claude's context)
+
+Note: This is a full reload, not incremental. The vector store is not used here to avoid slow initialization on every session start.
 
 #### UserPromptSubmit Hook
 Triggered when a user submits a prompt, before Claude processes it:
 1. Receives JSON input with `session_id`, `transcript_path`, `cwd`, `prompt`
-2. Extracts keywords from the prompt using Claude Haiku (`claude -p --model haiku`)
-3. Searches the memory index for matching keywords (fuzzy matching)
+2. Initializes the vector store (lazy initialization, cached after first use)
+3. Performs semantic search using vector embeddings
 4. Outputs matching memories to stdout (injected into Claude's context)
 
 #### Stop Hook (Disabled)
@@ -349,10 +361,10 @@ node dist/mcp-server/server.js
 | Tool | Description |
 |------|-------------|
 | `memory_create` | Create a new memory (idempotent) |
-| `memory_delete` | Delete a memory |
-| `memory_search` | Search memories by keywords |
-| `memory_list` | List all memories |
-| `index_rebuild` | Rebuild the memory index |
+| `memory_get` | Retrieve a specific memory by ID |
+| `memory_search` | Semantic search using vector embeddings |
+| `memory_list` | List all memories with optional filtering |
+| `index_rebuild` | Sync vector store with memory files |
 
 ### Background Daemon
 
@@ -404,9 +416,7 @@ Configuration can be set via environment variables or a `.local-recall.json` fil
 ```json
 {
   "memoryDir": "./local-recall",
-  "maxMemories": 1000,
-  "indexRefreshInterval": 300,
-  "fuzzyThreshold": 0.6
+  "maxMemories": 1000
 }
 ```
 
@@ -414,8 +424,6 @@ Configuration can be set via environment variables or a `.local-recall.json` fil
 |--------|---------|-------------|
 | `memoryDir` | `./local-recall` | Directory for memory storage |
 | `maxMemories` | `1000` | Maximum number of memories |
-| `indexRefreshInterval` | `300` | Seconds between index refreshes |
-| `fuzzyThreshold` | `0.6` | Minimum fuzzy match score (0-1) |
 
 ## Contributing
 
@@ -429,8 +437,9 @@ Configuration can be set via environment variables or a `.local-recall.json` fil
 When working with this codebase:
 - Memory files are markdown with YAML frontmatter
 - Memory files ARE version-controlled - they will be committed to git
-- The index (`local-recall/index.json`) is gitignored and auto-generated
-- Use the provided tools rather than direct file manipulation
+- The SQLite database (`local-recall/memory.sqlite`) is gitignored and auto-generated
+- Vector embeddings are generated automatically when memories are added to the store
+- Use the provided MCP tools rather than direct file manipulation
 - New memories should have relevant, specific keywords
 - Consider scope carefully: `global` vs `file:` vs `area:`
 

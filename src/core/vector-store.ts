@@ -254,8 +254,18 @@ export class VectorStore {
       },
       // Convert distance to similarity score (lower distance = higher similarity)
       // Using cosine distance, so 0 = identical, 2 = opposite
-      score: 1 - row.distance / 2,
+      // Round to 2 decimal places for cleaner display
+      score: Math.round((1 - row.distance / 2) * 100) / 100,
     }));
+
+    // Sort by score descending, then by recency (occurred_at) for equivalent scores
+    results.sort((a, b) => {
+      if (a.score !== b.score) {
+        return b.score - a.score;
+      }
+      // For equal scores, prefer more recent memories
+      return new Date(b.memory.occurred_at).getTime() - new Date(a.memory.occurred_at).getTime();
+    });
 
     // Filter by scope if specified (done in code since sqlite-vec applies k limit before JOINs)
     if (options.scope) {
