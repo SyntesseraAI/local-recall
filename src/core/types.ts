@@ -50,28 +50,6 @@ export const createMemoryInputSchema = z.object({
 export type CreateMemoryInput = z.infer<typeof createMemoryInputSchema>;
 
 /**
- * Memory index structure - maps keywords to memory IDs
- */
-export interface MemoryIndex {
-  version: number;
-  built_at: string;
-  keywords: Record<string, string[]>; // keyword -> memory IDs
-  memories: Record<string, MemoryIndexEntry>; // memory ID -> metadata
-}
-
-/**
- * Index entry for a single memory
- */
-export interface MemoryIndexEntry {
-  id: string;
-  subject: string;
-  keywords: string[];
-  applies_to: MemoryScope;
-  occurred_at: string;
-  content_hash: string;
-}
-
-/**
  * Search result with relevance score
  */
 export interface SearchResult {

@@ -4,8 +4,8 @@
 
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { MemoryManager } from '../core/memory.js';
-import { IndexManager } from '../core/index.js';
 import { SearchEngine } from '../core/search.js';
+import { getVectorStore } from '../core/vector-store.js';
 import type { MemoryScope } from '../core/types.js';
 
 /**
@@ -14,8 +14,7 @@ import type { MemoryScope } from '../core/types.js';
  * and avoid performance overhead of repeated instantiation.
  */
 const memoryManager = new MemoryManager();
-const indexManager = new IndexManager();
-const searchEngine = new SearchEngine(indexManager, memoryManager);
+const searchEngine = new SearchEngine(memoryManager);
 
 /**
  * Create tool definitions for MCP
@@ -65,13 +64,13 @@ export function createTools(): Tool[] {
     },
     {
       name: 'memory_search',
-      description: 'Search memories using fuzzy keyword matching',
+      description: 'Search memories using semantic vector similarity',
       inputSchema: {
         type: 'object',
         properties: {
           query: {
             type: 'string',
-            description: 'Search query (keywords)',
+            description: 'Search query (natural language)',
           },
           scope: {
             type: 'string',
@@ -108,7 +107,7 @@ export function createTools(): Tool[] {
     },
     {
       name: 'index_rebuild',
-      description: 'Force a rebuild of the memory index',
+      description: 'Resync the vector store with memory files',
       inputSchema: {
         type: 'object',
         properties: {},
@@ -173,8 +172,6 @@ async function executeToolCall(
         content: args['content'] as string,
         occurred_at: occurredAt,
       });
-      // Refresh index after creation
-      await indexManager.refreshIndex();
       return {
         success: true,
         id: memory.id,
@@ -191,7 +188,7 @@ async function executeToolCall(
     }
 
     case 'memory_search': {
-      const results = await searchEngine.searchByKeywords(
+      const results = await searchEngine.search(
         args['query'] as string,
         {
           scope: args['scope'] as MemoryScope | undefined,
@@ -202,10 +199,9 @@ async function executeToolCall(
         results: results.map((r) => ({
           id: r.memory.id,
           subject: r.memory.subject,
-          score: r.score,
+          similarity: r.score,
           keywords: r.memory.keywords,
           applies_to: r.memory.applies_to,
-          matchedKeywords: r.matchedKeywords,
         })),
         total: results.length,
       };
@@ -230,11 +226,16 @@ async function executeToolCall(
     }
 
     case 'index_rebuild': {
-      const index = await indexManager.buildIndex();
+      // Sync vector store with memory files
+      const memories = await memoryManager.listMemories();
+      const vectorStore = getVectorStore();
+      await vectorStore.initialize();
+      const syncResult = await vectorStore.sync(memories);
       return {
         success: true,
-        memories_indexed: Object.keys(index.memories).length,
-        keywords_indexed: Object.keys(index.keywords).length,
+        memories_synced: memories.length,
+        vector_added: syncResult.added,
+        vector_removed: syncResult.removed,
       };
     }
 

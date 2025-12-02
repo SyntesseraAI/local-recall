@@ -1,150 +1,70 @@
-import Fuse from 'fuse.js';
 import {
   type Memory,
   type SearchResult,
   type SearchOptions,
   type MemoryScope,
 } from './types.js';
-import { IndexManager } from './index.js';
 import { MemoryManager } from './memory.js';
+import { getVectorStore } from './vector-store.js';
 import { getConfig } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
 
 /**
- * Search Engine - fuzzy search implementation for memories
+ * Search Engine - vector-based semantic search for memories
  */
 export class SearchEngine {
-  private indexManager: IndexManager;
   private memoryManager: MemoryManager;
 
-  constructor(indexManager?: IndexManager, memoryManager?: MemoryManager) {
+  constructor(memoryManager?: MemoryManager) {
     const config = getConfig();
-    this.indexManager = indexManager ?? new IndexManager(config.memoryDir);
     this.memoryManager = memoryManager ?? new MemoryManager(config.memoryDir);
   }
 
   /**
-   * Search memories by keywords using fuzzy matching
+   * Search memories using vector similarity
+   */
+  async search(
+    query: string,
+    options: SearchOptions = {}
+  ): Promise<SearchResult[]> {
+    logger.search.debug(`Vector search: "${query}"`);
+    const limit = options.limit ?? 10;
+
+    const vectorStore = getVectorStore();
+    const results = await vectorStore.search(query, {
+      limit,
+      scope: options.scope,
+    });
+
+    // Convert to SearchResult format
+    const searchResults: SearchResult[] = results.map((r) => ({
+      memory: r.memory,
+      score: r.score,
+      matchedKeywords: [], // Vector search doesn't use keywords
+    }));
+
+    logger.search.info(`Vector search found ${searchResults.length} results for "${query}"`);
+    return searchResults;
+  }
+
+  /**
+   * @deprecated Use search() instead. Kept for backwards compatibility.
    */
   async searchByKeywords(
     query: string,
     options: SearchOptions = {}
   ): Promise<SearchResult[]> {
-    logger.search.debug(`Searching by keywords: "${query}"`);
-    const config = getConfig();
-    const threshold = options.threshold ?? config.fuzzyThreshold;
-    const limit = options.limit ?? 10;
-
-    const index = await this.indexManager.getIndex();
-    const allKeywords = Object.keys(index.keywords);
-
-    // Configure Fuse for fuzzy matching
-    const fuse = new Fuse(allKeywords, {
-      threshold: 1 - threshold, // Fuse uses 0 = exact, 1 = match anything
-      includeScore: true,
-    });
-
-    // Parse query into individual keywords
-    const queryKeywords = query.toLowerCase().split(/\s+/).filter(Boolean);
-
-    // Find matching keywords
-    const matchedKeywordMap = new Map<string, number>();
-
-    for (const queryKeyword of queryKeywords) {
-      const results = fuse.search(queryKeyword);
-      for (const result of results) {
-        const keyword = result.item;
-        const score = 1 - (result.score ?? 0);
-        const existing = matchedKeywordMap.get(keyword) ?? 0;
-        matchedKeywordMap.set(keyword, Math.max(existing, score));
-      }
-    }
-
-    // Get memory IDs from matched keywords
-    const memoryScores = new Map<string, { score: number; keywords: string[] }>();
-
-    for (const [keyword, keywordScore] of matchedKeywordMap) {
-      const memoryIds = index.keywords[keyword] ?? [];
-      for (const memoryId of memoryIds) {
-        const existing = memoryScores.get(memoryId);
-        if (existing) {
-          existing.score += keywordScore;
-          existing.keywords.push(keyword);
-        } else {
-          memoryScores.set(memoryId, { score: keywordScore, keywords: [keyword] });
-        }
-      }
-    }
-
-    // Sort by score and get top results
-    const sortedIds = [...memoryScores.entries()]
-      .sort((a, b) => b[1].score - a[1].score)
-      .slice(0, limit);
-
-    // Load full memories
-    const results: SearchResult[] = [];
-
-    for (const [memoryId, { score, keywords }] of sortedIds) {
-      const memory = await this.memoryManager.getMemory(memoryId);
-      if (memory) {
-        // Apply scope filter if specified
-        if (options.scope && memory.applies_to !== options.scope) {
-          continue;
-        }
-        results.push({
-          memory,
-          score: score / queryKeywords.length, // Normalize score
-          matchedKeywords: keywords,
-        });
-      }
-    }
-
-    // Sort by occurred_at descending (most recent first)
-    results.sort((a, b) =>
-      new Date(b.memory.occurred_at).getTime() - new Date(a.memory.occurred_at).getTime()
-    );
-
-    logger.search.info(`Keyword search found ${results.length} results for "${query}" (sorted by occurred_at desc)`);
-    return results;
+    return this.search(query, options);
   }
 
   /**
-   * Search memories by subject line
+   * @deprecated Use search() instead. Kept for backwards compatibility.
    */
   async searchBySubject(
     query: string,
     options: SearchOptions = {}
   ): Promise<SearchResult[]> {
-    logger.search.debug(`Searching by subject: "${query}"`);
-    const config = getConfig();
-    const threshold = options.threshold ?? config.fuzzyThreshold;
-    const limit = options.limit ?? 10;
-
-    const memories = await this.memoryManager.listMemories({
-      scope: options.scope,
-    });
-
-    const fuse = new Fuse(memories, {
-      keys: ['subject'],
-      threshold: 1 - threshold,
-      includeScore: true,
-    });
-
-    const fuseResults = fuse.search(query);
-
-    const results = fuseResults.slice(0, limit).map((result) => ({
-      memory: result.item,
-      score: 1 - (result.score ?? 0),
-      matchedKeywords: [],
-    }));
-
-    // Sort by occurred_at descending (most recent first)
-    results.sort((a, b) =>
-      new Date(b.memory.occurred_at).getTime() - new Date(a.memory.occurred_at).getTime()
-    );
-
-    logger.search.info(`Subject search found ${results.length} results for "${query}" (sorted by occurred_at desc)`);
-    return results;
+    return this.search(query, options);
   }
 
   /**

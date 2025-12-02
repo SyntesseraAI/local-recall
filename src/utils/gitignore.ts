@@ -16,6 +16,12 @@ transcripts/
 
 # Processed transcript tracking
 processed-log.jsonl
+
+# Vector database (SQLite)
+*.sqlite
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
 `;
 
 /**
@@ -25,13 +31,10 @@ processed-log.jsonl
 export async function ensureGitignore(baseDir: string): Promise<void> {
   const gitignorePath = path.join(baseDir, '.gitignore');
 
-  try {
-    await fs.access(gitignorePath);
-    // File exists, don't overwrite
-  } catch {
-    // File doesn't exist, create directory and .gitignore
-    await fs.mkdir(baseDir, { recursive: true });
-    await fs.writeFile(gitignorePath, GITIGNORE_CONTENT, 'utf-8');
-    logger.memory.debug('Created .gitignore in local-recall directory');
-  }
+  await fs.mkdir(baseDir, { recursive: true });
+
+  // Always write the gitignore to ensure it has latest patterns
+  // This file is auto-generated so safe to overwrite
+  await fs.writeFile(gitignorePath, GITIGNORE_CONTENT, 'utf-8');
+  logger.memory.debug('Updated .gitignore in local-recall directory');
 }

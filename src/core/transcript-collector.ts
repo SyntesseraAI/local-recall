@@ -6,6 +6,20 @@ import { getConfig } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
 
 /**
+ * UUID v4 regex pattern for validating transcript filenames
+ * Format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+ */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * Check if a filename (without extension) is a valid UUID
+ */
+function isUuidFilename(filename: string): boolean {
+  const nameWithoutExt = path.parse(filename).name;
+  return UUID_REGEX.test(nameWithoutExt);
+}
+
+/**
  * Information about a transcript file
  */
 export interface TranscriptInfo {
@@ -78,9 +92,9 @@ export class TranscriptCollector {
 
     try {
       await fs.access(expectedDir);
-      // Transcripts are stored directly in the project folder as .jsonl files
+      // Transcripts are stored directly in the project folder as .jsonl files with UUID names
       const files = await fs.readdir(expectedDir);
-      const hasTranscripts = files.some((f) => f.endsWith('.jsonl'));
+      const hasTranscripts = files.some((f) => f.endsWith('.jsonl') && isUuidFilename(f));
       if (hasTranscripts) {
         logger.transcript.debug(`Found Claude project via path convention: ${expectedFolderName}`);
         return expectedDir;
@@ -99,9 +113,9 @@ export class TranscriptCollector {
       const projectDir = path.join(this.claudeProjectsDir, dir.name);
 
       try {
-        // Transcripts are stored directly in the project folder
+        // Transcripts are stored directly in the project folder with UUID filenames
         const files = await fs.readdir(projectDir);
-        const jsonlFiles = files.filter((f) => f.endsWith('.jsonl'));
+        const jsonlFiles = files.filter((f) => f.endsWith('.jsonl') && isUuidFilename(f));
 
         if (jsonlFiles.length > 0) {
           const firstFile = jsonlFiles[0];
@@ -134,7 +148,7 @@ export class TranscriptCollector {
       if (dir.name.endsWith('-' + path.basename(this.projectPath))) {
         try {
           const files = await fs.readdir(projectDir);
-          const hasTranscripts = files.some((f) => f.endsWith('.jsonl'));
+          const hasTranscripts = files.some((f) => f.endsWith('.jsonl') && isUuidFilename(f));
           if (hasTranscripts) {
             logger.transcript.debug(`Found Claude project via basename match: ${dir.name}`);
             return projectDir;
@@ -170,7 +184,8 @@ export class TranscriptCollector {
     try {
       // Transcripts are stored directly in the project folder
       const files = await fs.readdir(projectDir);
-      const jsonlFiles = files.filter((f) => f.endsWith('.jsonl'));
+      // Only include .jsonl files with UUID filenames (proper transcript files)
+      const jsonlFiles = files.filter((f) => f.endsWith('.jsonl') && isUuidFilename(f));
 
       const transcripts: TranscriptInfo[] = [];
 
@@ -259,7 +274,8 @@ export class TranscriptCollector {
 
     try {
       const files = await fs.readdir(this.transcriptsDir);
-      const jsonlFiles = files.filter((f) => f.endsWith('.jsonl'));
+      // Only include .jsonl files with UUID filenames (proper transcript files)
+      const jsonlFiles = files.filter((f) => f.endsWith('.jsonl') && isUuidFilename(f));
 
       const transcripts: TranscriptInfo[] = [];
 

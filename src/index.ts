@@ -6,16 +6,14 @@
 
 // Core exports
 export { MemoryManager } from './core/memory.js';
-export { IndexManager } from './core/index.js';
 export { SearchEngine } from './core/search.js';
+export { VectorStore, getVectorStore } from './core/vector-store.js';
 
 // Type exports
 export type {
   Memory,
   MemoryFrontmatter,
   MemoryScope,
-  MemoryIndex,
-  MemoryIndexEntry,
   CreateMemoryInput,
   SearchResult,
   SearchOptions,

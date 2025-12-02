@@ -9,12 +9,6 @@ vi.mock('../../../src/core/memory.js', () => ({
   })),
 }));
 
-vi.mock('../../../src/core/index.js', () => ({
-  IndexManager: vi.fn().mockImplementation(() => ({
-    buildIndex: vi.fn().mockResolvedValue(undefined),
-  })),
-}));
-
 vi.mock('../../../src/core/processed-log.js', () => ({
   ProcessedLogManager: vi.fn().mockImplementation(() => ({
     needsProcessing: vi.fn().mockResolvedValue(true),
@@ -641,6 +635,143 @@ describe('MemoryExtractor', () => {
     it('should handle result field in single object', () => {
       const input = JSON.stringify({ result: 'test result' });
       expect(extractTextFromClaudeOutput(input)).toBe('test result');
+    });
+  });
+});
+
+// Import rate limit functions for testing
+import {
+  RateLimitError,
+  parseRateLimitResetTime,
+  checkForRateLimit,
+} from '../../../src/core/memory-extractor.js';
+
+describe('Rate Limit Handling', () => {
+  describe('parseRateLimitResetTime', () => {
+    it('should parse "resets 11:30 PM" format', () => {
+      const response = '5-hour limit reached - resets 11:30 PM';
+      const resetTime = parseRateLimitResetTime(response);
+
+      expect(resetTime).not.toBeNull();
+      expect(resetTime?.getHours()).toBe(23);
+      expect(resetTime?.getMinutes()).toBe(30);
+    });
+
+    it('should parse "resets 9:00 AM" format', () => {
+      const response = '5-hour limit reached - resets 9:00 AM';
+      const resetTime = parseRateLimitResetTime(response);
+
+      expect(resetTime).not.toBeNull();
+      expect(resetTime?.getHours()).toBe(9);
+      expect(resetTime?.getMinutes()).toBe(0);
+    });
+
+    it('should parse "resets in 2 hours" format', () => {
+      const response = '5-hour limit reached - resets in 2 hours';
+      const now = new Date();
+      const resetTime = parseRateLimitResetTime(response);
+
+      expect(resetTime).not.toBeNull();
+      // Should be approximately 2 hours from now
+      const expectedTime = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+      const diffMs = Math.abs(resetTime!.getTime() - expectedTime.getTime());
+      expect(diffMs).toBeLessThan(5000); // Within 5 seconds
+    });
+
+    it('should parse "resets in 30 minutes" format', () => {
+      const response = 'Rate limit - resets in 30 minutes';
+      const now = new Date();
+      const resetTime = parseRateLimitResetTime(response);
+
+      expect(resetTime).not.toBeNull();
+      const expectedTime = new Date(now.getTime() + 30 * 60 * 1000);
+      const diffMs = Math.abs(resetTime!.getTime() - expectedTime.getTime());
+      expect(diffMs).toBeLessThan(5000);
+    });
+
+    it('should return null for unrecognized format', () => {
+      const response = 'Some random error message';
+      const resetTime = parseRateLimitResetTime(response);
+
+      expect(resetTime).toBeNull();
+    });
+
+    it('should handle 12:00 PM (noon) correctly', () => {
+      const response = '5-hour limit reached - resets 12:00 PM';
+      const resetTime = parseRateLimitResetTime(response);
+
+      expect(resetTime).not.toBeNull();
+      expect(resetTime?.getHours()).toBe(12);
+    });
+
+    it('should handle 12:00 AM (midnight) correctly', () => {
+      const response = '5-hour limit reached - resets 12:00 AM';
+      const resetTime = parseRateLimitResetTime(response);
+
+      expect(resetTime).not.toBeNull();
+      expect(resetTime?.getHours()).toBe(0);
+    });
+  });
+
+  describe('checkForRateLimit', () => {
+    it('should throw RateLimitError for "5-hour limit reached" message', () => {
+      const response = '5-hour limit reached - resets 11:30 PM';
+
+      expect(() => checkForRateLimit(response)).toThrow(RateLimitError);
+    });
+
+    it('should throw RateLimitError for "rate limit" message', () => {
+      const response = 'Rate limit exceeded - please wait';
+
+      expect(() => checkForRateLimit(response)).toThrow(RateLimitError);
+    });
+
+    it('should throw RateLimitError for "too many requests" message', () => {
+      const response = 'Too many requests, please try again later';
+
+      expect(() => checkForRateLimit(response)).toThrow(RateLimitError);
+    });
+
+    it('should throw RateLimitError for "quota exceeded" message', () => {
+      const response = 'Quota exceeded for this period';
+
+      expect(() => checkForRateLimit(response)).toThrow(RateLimitError);
+    });
+
+    it('should not throw for normal responses', () => {
+      const response = '{"memories": [{"subject": "test", "keywords": ["test"], "applies_to": "global", "content": "test content"}]}';
+
+      expect(() => checkForRateLimit(response)).not.toThrow();
+    });
+
+    it('should include reset time in RateLimitError', () => {
+      const response = '5-hour limit reached - resets 11:30 PM';
+
+      try {
+        checkForRateLimit(response);
+        expect.fail('Should have thrown RateLimitError');
+      } catch (error) {
+        expect(error).toBeInstanceOf(RateLimitError);
+        expect((error as RateLimitError).resetTime).toBeDefined();
+        expect((error as RateLimitError).resetTime.getHours()).toBe(23);
+      }
+    });
+
+    it('should default to 1 hour if reset time cannot be parsed', () => {
+      const response = '5-hour limit reached';
+      const now = new Date();
+
+      try {
+        checkForRateLimit(response);
+        expect.fail('Should have thrown RateLimitError');
+      } catch (error) {
+        expect(error).toBeInstanceOf(RateLimitError);
+        const resetTime = (error as RateLimitError).resetTime;
+        // Should be approximately 1 hour from now
+        const expectedTime = new Date(now.getTime() + 60 * 60 * 1000);
+        const diffMs = Math.abs(resetTime.getTime() - expectedTime.getTime());
+        expect(diffMs).toBeLessThan(5000);
+      }
     });
   });
 });

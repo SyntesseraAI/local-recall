@@ -13,6 +13,7 @@ import { getConfig } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
 import { serializeMemory, parseMarkdown } from '../utils/markdown.js';
 import { ensureGitignore } from '../utils/gitignore.js';
+import { getVectorStore } from './vector-store.js';
 
 /**
  * Compute SHA-256 hash of content
@@ -101,6 +102,16 @@ export class MemoryManager {
     };
 
     await this.writeMemory(memory);
+
+    // Add to vector store for immediate searchability
+    try {
+      const vectorStore = getVectorStore(this.baseDir);
+      await vectorStore.add(memory);
+    } catch (error) {
+      // Log but don't fail - vector store will sync on next startup
+      logger.memory.warn(`Failed to add memory to vector store: ${error}`);
+    }
+
     logger.memory.info(`Created memory ${id}: "${memory.subject}"`);
     return memory;
   }
@@ -173,6 +184,15 @@ export class MemoryManager {
     const filePath = this.getFilePath(id);
     try {
       await fs.unlink(filePath);
+
+      // Remove from vector store
+      try {
+        const vectorStore = getVectorStore(this.baseDir);
+        await vectorStore.remove(id);
+      } catch (error) {
+        logger.memory.warn(`Failed to remove memory from vector store: ${error}`);
+      }
+
       logger.memory.info(`Deleted memory ${id}`);
       return true;
     } catch (error) {

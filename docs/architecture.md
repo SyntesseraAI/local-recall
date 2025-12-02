@@ -25,6 +25,10 @@ Local Recall is built with a modular architecture that separates concerns into d
 │  │  Transcript  │  │   Memory     │  │   Processed      │  │
 │  │  Collector   │  │  Extractor   │  │   Log Manager    │  │
 │  └──────────────┘  └──────────────┘  └──────────────────┘  │
+│  ┌──────────────┐  ┌──────────────┐                        │
+│  │   Vector     │  │  Embedding   │                        │
+│  │   Store      │  │   Service    │                        │
+│  └──────────────┘  └──────────────┘                        │
 └─────────────────────────────────────────────────────────────┘
           │                 │                   │
           ▼                 ▼                   ▼
@@ -41,8 +45,9 @@ Local Recall is built with a modular architecture that separates concerns into d
 │                      Storage Layer                           │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │                  File System                          │  │
-│  │   local-recall/episodic-memory/*.md    local-recall/index.json │
-│  │   local-recall/transcripts/     processed-log.json      │
+│  │   local-recall/episodic-memory/*.md  local-recall/index.json │
+│  │   local-recall/memory.sqlite         processed-log.json │
+│  │   local_cache/fast-bge-small-en-v1.5/  (model cache)    │
 │  └──────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -100,12 +105,31 @@ Maintains the keyword index for fast lookups:
 
 #### Search Engine (`src/core/search.ts`)
 
-Provides fuzzy search capabilities:
+Provides semantic and fuzzy search capabilities:
 
-- Uses configurable fuzzy matching algorithm
+- **Semantic search**: Uses vector embeddings for meaning-based similarity
+- **Fuzzy search**: Configurable string matching algorithm for keyword queries
 - Supports multi-keyword queries
 - Ranks results by relevance score
 - Filters by scope (global/file/area)
+
+#### Vector Store (`src/core/vector-store.ts`)
+
+Manages SQLite database with vector embeddings for semantic search:
+
+- Uses `better-sqlite3` with `sqlite-vec` extension
+- Stores memory metadata and vector embeddings
+- Provides fast similarity search using cosine distance
+- Auto-syncs with file-based memories
+
+#### Embedding Service (`src/core/embedding.ts`)
+
+Generates vector embeddings using the fastembed library:
+
+- Uses BGE-small-en-v1.5 model (384 dimensions)
+- Model downloaded automatically on first use (~133MB)
+- Cached in `local_cache/fast-bge-small-en-v1.5/`
+- Singleton pattern for efficient model loading
 
 ### External Interfaces
 
@@ -178,13 +202,23 @@ local-recall/
 ├── .gitignore           # Auto-generated, excludes index.json and recall.log
 ├── index.json           # Keyword index (auto-generated, gitignored)
 ├── recall.log           # Debug log (gitignored)
+├── memory.sqlite        # Vector store database (gitignored)
 └── episodic-memory/
     ├── <uuid-1>.md      # Individual memory files
     ├── <uuid-2>.md
     └── ...
+
+local_cache/
+└── fast-bge-small-en-v1.5/   # Embedding model cache (gitignored)
+    ├── config.json
+    ├── model_optimized.onnx
+    ├── tokenizer.json
+    └── ...
 ```
 
-The `.gitignore` file is automatically created when the index is first built, ensuring that generated files (`index.json`, `recall.log`) are not committed while memory files are tracked.
+The `.gitignore` file is automatically created when the index is first built, ensuring that generated files (`index.json`, `recall.log`, `memory.sqlite`) are not committed while memory files are tracked.
+
+The embedding model cache (`local_cache/`) is stored at the project root and downloaded automatically on first use.
 
 ## Data Flow
 

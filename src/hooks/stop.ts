@@ -12,7 +12,6 @@
 import { promises as fs } from 'node:fs';
 import { loadConfig } from '../utils/config.js';
 import { MemoryManager } from '../core/memory.js';
-import { IndexManager } from '../core/index.js';
 import { parseTranscriptForMemories, readStdin } from '../utils/transcript.js';
 import { logger } from '../utils/logger.js';
 
@@ -85,8 +84,6 @@ async function main(): Promise<void> {
 
     // Create memories
     const memoryManager = new MemoryManager();
-    const indexManager = new IndexManager();
-
     const created: string[] = [];
 
     for (const memoryData of suggestedMemories) {
@@ -107,10 +104,7 @@ async function main(): Promise<void> {
       }
     }
 
-    // Refresh the index if any memories were created
     if (created.length > 0) {
-      logger.hooks.debug('Stop hook: Refreshing memory index');
-      await indexManager.refreshIndex();
       logger.hooks.info(`Stop hook completed: Created ${created.length} new memories`);
       console.error(`Local Recall: Created ${created.length} new memories`);
     } else {

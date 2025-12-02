@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
 import { MemoryManager } from "./memory.js";
-import { IndexManager } from "./index.js";
 import { ProcessedLogManager } from "./processed-log.js";
 import { TranscriptCollector, type TranscriptInfo } from "./transcript-collector.js";
 import { condenseTranscriptForExtraction } from "./transcript-condenser.js";
@@ -8,6 +7,115 @@ import type { MemoryScope } from "./types.js";
 import { buildMemoryExtractionPrompt, extractedMemoriesSchema, type ExtractedMemory } from "../prompts/memory-extraction.js";
 import { logger } from "../utils/logger.js";
 import { getConfig } from "../utils/config.js";
+
+/**
+ * Error thrown when Claude CLI returns a rate limit message
+ */
+export class RateLimitError extends Error {
+  /** Time when the rate limit resets (UTC) */
+  resetTime: Date;
+
+  constructor(message: string, resetTime: Date) {
+    super(message);
+    this.name = "RateLimitError";
+    this.resetTime = resetTime;
+  }
+}
+
+/**
+ * Parse rate limit reset time from Claude CLI response
+ * Handles formats like "5-hour limit reached - resets 11:30 PM" or "resets in 2 hours"
+ * @internal Exported for testing
+ */
+export function parseRateLimitResetTime(response: string): Date | null {
+  // Pattern: "resets [time]" where time can be "11:30 PM", "in 2 hours", etc.
+  const resetMatch = response.match(/resets?\s+(?:at\s+)?(\d{1,2}:\d{2}\s*(?:AM|PM)?|in\s+\d+\s+(?:hour|minute|min)s?)/i);
+
+  if (!resetMatch || !resetMatch[1]) {
+    return null;
+  }
+
+  const timeStr = resetMatch[1];
+  const now = new Date();
+
+  // Handle "in X hours/minutes" format
+  const relativeMatch = timeStr.match(/in\s+(\d+)\s+(hour|minute|min)s?/i);
+  if (relativeMatch && relativeMatch[1] && relativeMatch[2]) {
+    const amount = parseInt(relativeMatch[1], 10);
+    const unit = relativeMatch[2].toLowerCase();
+    const resetTime = new Date(now);
+
+    if (unit.startsWith("hour")) {
+      resetTime.setHours(resetTime.getHours() + amount);
+    } else {
+      resetTime.setMinutes(resetTime.getMinutes() + amount);
+    }
+
+    return resetTime;
+  }
+
+  // Handle absolute time format like "11:30 PM"
+  const absoluteMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+  if (absoluteMatch && absoluteMatch[1] && absoluteMatch[2]) {
+    let hours = parseInt(absoluteMatch[1], 10);
+    const minutes = parseInt(absoluteMatch[2], 10);
+    const meridiem = absoluteMatch[3]?.toUpperCase();
+
+    // Convert to 24-hour format
+    if (meridiem === "PM" && hours !== 12) {
+      hours += 12;
+    } else if (meridiem === "AM" && hours === 12) {
+      hours = 0;
+    }
+
+    const resetTime = new Date(now);
+    resetTime.setHours(hours, minutes, 0, 0);
+
+    // If the time is in the past, assume it's tomorrow
+    if (resetTime <= now) {
+      resetTime.setDate(resetTime.getDate() + 1);
+    }
+
+    return resetTime;
+  }
+
+  return null;
+}
+
+/**
+ * Check if response indicates a rate limit and throw RateLimitError if so
+ * @internal Exported for testing
+ */
+export function checkForRateLimit(response: string): void {
+  // Check for rate limit indicators
+  const rateLimitPatterns = [
+    /\d+-hour limit reached/i,
+    /rate limit/i,
+    /too many requests/i,
+    /quota exceeded/i,
+  ];
+
+  for (const pattern of rateLimitPatterns) {
+    if (pattern.test(response)) {
+      const resetTime = parseRateLimitResetTime(response);
+
+      if (resetTime) {
+        throw new RateLimitError(
+          `Rate limit reached. Resets at ${resetTime.toISOString()}`,
+          resetTime
+        );
+      } else {
+        // Default to 1 hour if we can't parse the reset time
+        const defaultReset = new Date();
+        defaultReset.setHours(defaultReset.getHours() + 1);
+        throw new RateLimitError(
+          `Rate limit reached. Could not parse reset time, defaulting to 1 hour.`,
+          defaultReset
+        );
+      }
+    }
+  }
+}
 
 /**
  * Result of processing a single transcript
@@ -45,7 +153,6 @@ const DEFAULT_OPTIONS: Required<ExtractorOptions> = {
  */
 export class MemoryExtractor {
   private memoryManager: MemoryManager;
-  private indexManager: IndexManager;
   private processedLog: ProcessedLogManager;
   private transcriptCollector: TranscriptCollector;
   private projectPath: string;
@@ -55,7 +162,6 @@ export class MemoryExtractor {
     const config = getConfig();
     this.projectPath = projectPath ?? process.cwd();
     this.memoryManager = new MemoryManager(config.memoryDir);
-    this.indexManager = new IndexManager(config.memoryDir);
     this.processedLog = new ProcessedLogManager(config.memoryDir);
     this.transcriptCollector = new TranscriptCollector(this.projectPath);
     this.options = { ...DEFAULT_OPTIONS, ...options };
@@ -107,8 +213,23 @@ export class MemoryExtractor {
 
       child.on("close", (code) => {
         if (code === 0) {
+          // Check for rate limit in successful response
+          try {
+            checkForRateLimit(stdout);
+          } catch (error) {
+            reject(error);
+            return;
+          }
           resolve(stdout);
         } else {
+          // Check for rate limit in error output too
+          try {
+            checkForRateLimit(stderr);
+            checkForRateLimit(stdout);
+          } catch (error) {
+            reject(error);
+            return;
+          }
           reject(new Error(`Claude CLI exited with code ${code}: ${stderr}`));
         }
       });
@@ -131,6 +252,7 @@ export class MemoryExtractor {
 
   /**
    * Call Claude CLI with retry logic
+   * Note: RateLimitError is NOT retried - it propagates immediately
    */
   private async callClaudeCLIWithRetry(prompt: string): Promise<string> {
     let lastError: Error | null = null;
@@ -139,6 +261,11 @@ export class MemoryExtractor {
       try {
         return await this.callClaudeCLI(prompt);
       } catch (error) {
+        // Don't retry rate limit errors - propagate immediately
+        if (error instanceof RateLimitError) {
+          throw error;
+        }
+
         lastError = error instanceof Error ? error : new Error(String(error));
         logger.extractor.warn(`Claude CLI attempt ${attempt + 1} failed: ${lastError.message}`);
 
@@ -376,11 +503,6 @@ export class MemoryExtractor {
         }
       }
 
-      // Refresh index
-      if (createdIds.length > 0) {
-        await this.indexManager.buildIndex();
-      }
-
       // Record in processed log
       await this.processedLog.recordProcessed(transcript.filename, transcript.sourcePath, contentHash, transcript.lastModified, createdIds);
 
@@ -406,6 +528,7 @@ export class MemoryExtractor {
 
   /**
    * Process all unprocessed transcripts with concurrent execution
+   * Handles rate limits by pausing and resuming after reset time + 5 minutes
    */
   async processAllTranscripts(): Promise<ProcessingResult[]> {
     logger.extractor.info("Starting transcript processing run");
@@ -421,18 +544,72 @@ export class MemoryExtractor {
       return [];
     }
 
+    const results: ProcessingResult[] = [];
+    let transcriptIndex = 0;
+
+    while (transcriptIndex < transcripts.length) {
+      // Process remaining transcripts with concurrency control
+      const remainingTranscripts = transcripts.slice(transcriptIndex);
+      const batchResults = await this.processBatchWithRateLimitHandling(remainingTranscripts);
+
+      results.push(...batchResults.results);
+      transcriptIndex += batchResults.processedCount;
+
+      // If we hit a rate limit, wait and continue
+      if (batchResults.rateLimitResetTime) {
+        // Add 5 minutes buffer after reset time
+        const waitUntil = new Date(batchResults.rateLimitResetTime.getTime() + 5 * 60 * 1000);
+        const waitMs = waitUntil.getTime() - Date.now();
+
+        if (waitMs > 0) {
+          logger.extractor.info(
+            `Rate limit hit. Pausing until ${waitUntil.toISOString()} (${Math.ceil(waitMs / 60000)} minutes)`
+          );
+          await this.sleep(waitMs);
+          logger.extractor.info("Resuming transcript processing after rate limit pause");
+        }
+      }
+    }
+
+    const successful = results.filter((r) => r.success);
+    const memoriesCreated = results.reduce((sum, r) => sum + r.memoriesCreated.length, 0);
+
+    logger.extractor.info(`Processing complete: ${successful.length}/${results.length} transcripts, ${memoriesCreated} memories created`);
+
+    return results;
+  }
+
+  /**
+   * Process a batch of transcripts, stopping on rate limit
+   * Returns results and rate limit info if encountered
+   */
+  private async processBatchWithRateLimitHandling(
+    transcripts: TranscriptInfo[]
+  ): Promise<{
+    results: ProcessingResult[];
+    processedCount: number;
+    rateLimitResetTime: Date | null;
+  }> {
+    const results: ProcessingResult[] = [];
+    let rateLimitResetTime: Date | null = null;
+    let processedCount = 0;
+
     // Semaphore for controlling concurrency
     let activeCount = 0;
     const maxConcurrency = this.options.concurrency;
     const waitQueue: (() => void)[] = [];
+    let stopProcessing = false;
 
-    const acquire = (): Promise<void> => {
+    const acquire = (): Promise<boolean> => {
+      if (stopProcessing) {
+        return Promise.resolve(false);
+      }
       if (activeCount < maxConcurrency) {
         activeCount++;
-        return Promise.resolve();
+        return Promise.resolve(true);
       }
       return new Promise((resolve) => {
-        waitQueue.push(resolve);
+        waitQueue.push(() => resolve(!stopProcessing));
       });
     };
 
@@ -445,26 +622,55 @@ export class MemoryExtractor {
       }
     };
 
-    // Process with semaphore - spawn all at once, limit concurrent execution
-    logger.extractor.info(`Processing with concurrency: ${maxConcurrency}`);
+    logger.extractor.info(`Processing batch of ${transcripts.length} transcripts with concurrency: ${maxConcurrency}`);
 
-    const promises = transcripts.map(async (transcript) => {
-      await acquire();
-      try {
-        return await this.processTranscript(transcript);
-      } finally {
-        release();
+    // Process transcripts sequentially to properly handle rate limits
+    // (concurrent processing would make it hard to track which transcripts completed before rate limit)
+    for (const transcript of transcripts) {
+      if (stopProcessing) {
+        break;
       }
-    });
 
-    const results = await Promise.all(promises);
+      const acquired = await acquire();
+      if (!acquired) {
+        break;
+      }
 
-    const successful = results.filter((r) => r.success);
-    const memoriesCreated = results.reduce((sum, r) => sum + r.memoriesCreated.length, 0);
+      try {
+        const result = await this.processTranscript(transcript);
+        results.push(result);
+        processedCount++;
+      } catch (error) {
+        if (error instanceof RateLimitError) {
+          logger.extractor.warn(`Rate limit reached: ${error.message}`);
+          rateLimitResetTime = error.resetTime;
+          stopProcessing = true;
 
-    logger.extractor.info(`Processing complete: ${successful.length}/${results.length} transcripts, ${memoriesCreated} memories created`);
+          // Don't count this transcript as processed - it needs to be retried
+          // Clear the wait queue to stop pending requests
+          while (waitQueue.length > 0) {
+            const next = waitQueue.shift();
+            if (next) next();
+          }
+          break;
+        }
 
-    return results;
+        // Other errors - record as failed but continue
+        results.push({
+          filename: transcript.filename,
+          success: false,
+          memoriesCreated: [],
+          error: error instanceof Error ? error.message : String(error),
+        });
+        processedCount++;
+      } finally {
+        if (!stopProcessing) {
+          release();
+        }
+      }
+    }
+
+    return { results, processedCount, rateLimitResetTime };
   }
 }
 

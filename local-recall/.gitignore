@@ -1,0 +1,20 @@
+# Local Recall - auto-generated
+# These files are regenerated and should not be committed
+
+# Index cache (rebuilt automatically)
+index.json
+
+# Debug log
+recall.log
+
+# Synced transcripts (local copies, originals in ~/.claude)
+transcripts/
+
+# Processed transcript tracking
+processed-log.jsonl
+
+# Vector database (SQLite)
+*.sqlite
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal

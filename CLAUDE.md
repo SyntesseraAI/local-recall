@@ -375,6 +375,12 @@ npm install
 npm run build
 ```
 
+### Embedding Model
+
+Local Recall uses the `fastembed` library with the BGE-small-en-v1.5 model (~133MB) for semantic search. The model is automatically downloaded to `local_cache/` on first use.
+
+**First run:** The initial startup may take 30-60 seconds while the model downloads. Subsequent runs load from cache.
+
 ### Scripts
 ```bash
 npm run build        # Compile TypeScript
@@ -436,3 +442,24 @@ When working with this codebase:
 - Documentation must be placed in the `docs/` folder
 - Update existing docs when modifying functionality
 - Tests should cover both happy paths and edge cases
+
+## Troubleshooting
+
+### Tokenizer file not found error
+
+```
+Error: Tokenizer file not found at local_cache/fast-bge-small-en-v1.5/tokenizer.json
+```
+
+This error occurs when the embedding model cache is corrupted or incomplete (usually from an interrupted download). To fix:
+
+```bash
+# Remove the corrupted cache
+rm -rf local_cache/fast-bge-small-en-v1.5*
+
+# The model will re-download automatically on next run
+```
+
+### Slow first startup
+
+The first run downloads the BGE-small-en-v1.5 embedding model (~133MB). This is normal and only happens once. The model is cached in `local_cache/` for subsequent runs.
