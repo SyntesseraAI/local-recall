@@ -3,10 +3,10 @@
  * Session Start Hook
  *
  * This hook is triggered when a Claude Code session begins.
- * It loads relevant memories via the daemon's HTTP API and outputs them for context injection.
+ * It loads recent memories and outputs them for context injection.
  *
- * Uses the daemon to avoid loading sqlite-vec directly, which prevents
- * "mutex lock failed" errors from concurrent native extension loading.
+ * This hook uses file-based memory access only (MemoryManager) and does not
+ * require sqlite-vec since it only needs to list recent memories, not search.
  *
  * Input (via stdin): JSON with session_id, transcript_path, cwd, etc.
  * Output: stdout text is added to Claude's context
@@ -16,7 +16,6 @@ import { loadConfig, getConfig } from '../utils/config.js';
 import { formatMemoryForDisplay } from '../utils/markdown.js';
 import { readStdin } from '../utils/transcript.js';
 import { logger } from '../utils/logger.js';
-import { DaemonClient } from '../utils/daemon-client.js';
 import { MemoryManager } from '../core/memory.js';
 
 interface SessionStartInput {
@@ -63,43 +62,17 @@ async function main(): Promise<void> {
       process.exit(0);
     }
 
-    // Create daemon client
-    const client = new DaemonClient();
-    const daemonAvailable = await client.checkDaemon();
+    // Read memories directly from files (MemoryManager doesn't use sqlite-vec)
+    logger.hooks.debug('SessionStart: Reading memories from files');
+    const memoryManager = new MemoryManager(config.memoryDir);
+    const allMemories = await memoryManager.listMemories();
+    const totalMemories = allMemories.length;
 
-    let memories;
-    let totalMemories = 0;
-
-    if (daemonAvailable) {
-      logger.hooks.debug('SessionStart: Using daemon for memory retrieval');
-      try {
-        // Get recent memories via daemon
-        memories = await client.getRecent(5);
-        // We don't have total count from daemon, estimate from returned
-        totalMemories = memories.length;
-        logger.hooks.info(`SessionStart: Found ${memories.length} recent memories via daemon`);
-      } catch (error) {
-        logger.hooks.warn(`SessionStart: Daemon request failed: ${String(error)}`);
-        // Fall through to file-based fallback
-        memories = undefined;
-      }
-    } else {
-      logger.hooks.debug('SessionStart: Daemon not available');
-    }
-
-    // Fallback: read directly from files (safe - MemoryManager doesn't load sqlite-vec)
-    if (!memories) {
-      logger.hooks.debug('SessionStart: Using file-based fallback');
-      const memoryManager = new MemoryManager();
-      const allMemories = await memoryManager.listMemories();
-      totalMemories = allMemories.length;
-
-      // Get the 5 most recent memories for session context
-      memories = allMemories
-        .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())
-        .slice(0, 5);
-      logger.hooks.info(`SessionStart: Found ${memories.length} recent memories from files`);
-    }
+    // Get the 5 most recent memories for session context
+    const memories = allMemories
+      .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())
+      .slice(0, 5);
+    logger.hooks.info(`SessionStart: Found ${memories.length} recent memories`);
 
     if (memories.length === 0) {
       // Output context for Claude

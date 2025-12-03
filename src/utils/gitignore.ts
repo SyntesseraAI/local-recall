@@ -8,6 +8,10 @@ const GITIGNORE_CONTENT = `# Local Recall - auto-generated
 # Index cache (rebuilt automatically)
 index.json
 
+# Orama vector indexes (rebuilt automatically from memory files)
+orama-episodic-index.json
+orama-thinking-index.json
+
 # Debug log
 recall.log
 
@@ -20,11 +24,14 @@ processed-log.jsonl
 # Processed transcript tracking (thinking memories)
 thinking-processed-log.jsonl
 
-# Vector database (SQLite)
+# Legacy SQLite database (no longer used, kept for cleanup)
 *.sqlite
 *.sqlite-journal
 *.sqlite-shm
 *.sqlite-wal
+
+# Legacy database lock file
+.db-operation.lock
 `;
 
 /**

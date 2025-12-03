@@ -1,15 +1,14 @@
 /**
- * Thinking Vector Store - manages SQLite database with vector embeddings for thinking memories
+ * Thinking Vector Store - manages vector embeddings for thinking memories using Orama
  *
- * Uses the same database as the main vector store but with separate tables.
+ * Uses Orama (pure JavaScript) instead of sqlite-vec to avoid native mutex issues
+ * when multiple processes access the database concurrently.
  *
- * IMPORTANT: Database connections are ephemeral - opened for each operation and
- * closed immediately after. This prevents "mutex lock failed: Invalid argument"
- * errors that occur when sqlite-vec's internal mutexes are accessed after being
- * destroyed during process exit.
+ * The index is persisted to a JSON file and loaded on startup.
  */
 
-import Database from 'better-sqlite3';
+import { create, insert, remove, search, count } from '@orama/orama';
+import { persist, restore } from '@orama/plugin-data-persistence';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { type ThinkingMemory, type MemoryScope } from './types.js';
@@ -17,49 +16,71 @@ import { EmbeddingService, EMBEDDING_DIM, getEmbeddingService } from './embeddin
 import { getConfig } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
 import { ensureGitignore } from '../utils/gitignore.js';
-import { openDatabase } from '../utils/database.js';
 
-/** Database filename (same as main vector store) */
-const DB_FILENAME = 'memory.sqlite';
+import type { Orama, Results } from '@orama/orama';
+
+/** Index filename for persistence */
+const INDEX_FILENAME = 'orama-thinking-index.json';
+
+/** Orama schema for thinking memories */
+const THINKING_SCHEMA = {
+  id: 'string',
+  subject: 'string',
+  applies_to: 'string',
+  occurred_at: 'string',
+  content_hash: 'string',
+  content: 'string',
+  embedding: `vector[${EMBEDDING_DIM}]`,
+} as const;
+
+type ThinkingDocument = {
+  id: string;
+  subject: string;
+  applies_to: string;
+  occurred_at: string;
+  content_hash: string;
+  content: string;
+  embedding: number[];
+};
 
 export interface ThinkingVectorStoreOptions {
   /** Base directory for memory storage */
   baseDir?: string;
-  /** Open in read-only mode (default: false) - avoids write locks for search operations */
+  /** Open in read-only mode (default: false) - skips persistence on changes */
   readonly?: boolean;
 }
 
 /**
- * Thinking Vector Store - manages vector embeddings for thinking memories in SQLite
+ * Thinking Vector Store - manages vector embeddings for thinking memories using Orama
  *
- * Uses ephemeral database connections - each operation opens a fresh connection
- * and closes it when done. This avoids mutex issues on process exit.
+ * Pure JavaScript implementation - no native dependencies, no mutex issues.
  */
 export class ThinkingVectorStore {
   private embeddingService: EmbeddingService;
-  private dbPath: string;
+  private indexPath: string;
   private baseDir: string;
   private readonly: boolean;
   private initialized: boolean = false;
+  private db: Orama<typeof THINKING_SCHEMA> | null = null;
+  private dirty: boolean = false;
 
   constructor(options: ThinkingVectorStoreOptions = {}) {
     const config = getConfig();
     this.baseDir = options.baseDir ?? config.memoryDir;
-    this.dbPath = path.join(this.baseDir, DB_FILENAME);
+    this.indexPath = path.join(this.baseDir, INDEX_FILENAME);
     this.embeddingService = getEmbeddingService();
     this.readonly = options.readonly ?? false;
   }
 
   /**
-   * Initialize the store (ensures directory exists and embedding service is ready)
-   * This does NOT open a persistent database connection.
+   * Initialize the store (loads existing index or creates new one)
    */
   async initialize(): Promise<void> {
     if (this.initialized) {
       return;
     }
 
-    logger.search.info(`Initializing thinking vector store (readonly=${this.readonly})`);
+    logger.search.info(`Initializing Orama thinking vector store (readonly=${this.readonly})`);
 
     // Ensure directory exists and gitignore is set up (only if not readonly)
     if (!this.readonly) {
@@ -67,68 +88,48 @@ export class ThinkingVectorStore {
       await ensureGitignore(this.baseDir);
     }
 
-    // Initialize embedding service (this can be cached)
+    // Initialize embedding service
     await this.embeddingService.initialize();
 
+    // Try to load existing index
+    try {
+      const indexData = await fs.readFile(this.indexPath, 'utf-8');
+      this.db = await restore('json', indexData) as Orama<typeof THINKING_SCHEMA>;
+      const docCount = await count(this.db);
+      logger.search.info(`Loaded existing Orama thinking index with ${docCount} documents`);
+    } catch (error) {
+      // Index doesn't exist or is corrupted, create new one
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        logger.search.info('No existing thinking index found, creating new Orama index');
+      } else {
+        logger.search.warn(`Failed to load thinking index, creating new one: ${error}`);
+      }
+
+      this.db = await create({
+        schema: THINKING_SCHEMA,
+      });
+    }
+
     this.initialized = true;
-    logger.search.info('Thinking vector store initialized');
+    logger.search.info('Orama thinking vector store initialized');
   }
 
   /**
-   * Open a database connection for an operation
-   * MUST be closed after use to prevent mutex issues
+   * Persist the index to disk
    */
-  private openConnection(): Database.Database {
-    const db = openDatabase(this.dbPath, { readonly: this.readonly });
-
-    // Create tables if not readonly
-    if (!this.readonly) {
-      this.createTables(db);
+  private async persistIndex(): Promise<void> {
+    if (this.readonly || !this.db || !this.dirty) {
+      return;
     }
 
-    return db;
-  }
-
-  /**
-   * Create database tables for thinking memories
-   */
-  private createTables(db: Database.Database): void {
-    // Create metadata table for thinking memory info (no keywords column)
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS thinking_memories (
-        id TEXT PRIMARY KEY,
-        subject TEXT NOT NULL,
-        applies_to TEXT NOT NULL,
-        occurred_at TEXT NOT NULL,
-        content_hash TEXT NOT NULL,
-        content TEXT NOT NULL
-      )
-    `);
-
-    // Create virtual table for vector search
-    // Note: vec0 virtual tables can't use IF NOT EXISTS, so we check first
-    const vecTableExists = db
-      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='thinking_embeddings'")
-      .get();
-
-    if (!vecTableExists) {
-      db.exec(`
-        CREATE VIRTUAL TABLE thinking_embeddings USING vec0(
-          id TEXT PRIMARY KEY,
-          embedding float[${EMBEDDING_DIM}]
-        )
-      `);
+    try {
+      const indexData = await persist(this.db, 'json');
+      await fs.writeFile(this.indexPath, indexData as string, 'utf-8');
+      this.dirty = false;
+      logger.search.debug('Orama thinking index persisted to disk');
+    } catch (error) {
+      logger.search.error(`Failed to persist Orama thinking index: ${error}`);
     }
-
-    // Create index on occurred_at for sorting
-    db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_thinking_memories_occurred_at ON thinking_memories(occurred_at DESC)
-    `);
-
-    // Create index on applies_to for filtering
-    db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_thinking_memories_applies_to ON thinking_memories(applies_to)
-    `);
   }
 
   /**
@@ -139,53 +140,44 @@ export class ThinkingVectorStore {
       await this.initialize();
     }
 
-    const db = this.openConnection();
-    try {
-      logger.search.debug(`Adding thinking memory to vector store: ${memory.id}`);
-
-      // Check if memory already exists
-      const existing = db
-        .prepare('SELECT id FROM thinking_memories WHERE id = ?')
-        .get(memory.id);
-
-      if (existing) {
-        logger.search.debug(`Thinking memory ${memory.id} already exists in vector store`);
-        return;
-      }
-
-      // Generate embedding for memory content
-      // Combine subject and content for better semantic representation
-      const textForEmbedding = `${memory.subject}\n\n${memory.content}`;
-      const embedding = await this.embeddingService.embed(textForEmbedding);
-
-      // Insert into both tables in a transaction
-      const insertMemory = db.prepare(`
-        INSERT OR REPLACE INTO thinking_memories (id, subject, applies_to, occurred_at, content_hash, content)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `);
-
-      const insertEmbedding = db.prepare(`
-        INSERT INTO thinking_embeddings (id, embedding)
-        VALUES (?, ?)
-      `);
-
-      const transaction = db.transaction(() => {
-        insertMemory.run(
-          memory.id,
-          memory.subject,
-          memory.applies_to,
-          memory.occurred_at,
-          memory.content_hash,
-          memory.content
-        );
-        insertEmbedding.run(memory.id, JSON.stringify(embedding));
-      });
-
-      transaction();
-      logger.search.info(`Added thinking memory ${memory.id} to vector store`);
-    } finally {
-      db.close();
+    if (!this.db) {
+      throw new Error('Thinking vector store not initialized');
     }
+
+    logger.search.debug(`Adding thinking memory to Orama store: ${memory.id}`);
+
+    // Check if memory already exists by searching for its ID
+    const existing = await search(this.db, {
+      term: memory.id,
+      properties: ['id'],
+      limit: 1,
+    });
+
+    if (existing.hits.length > 0 && existing.hits[0]?.id === memory.id) {
+      logger.search.debug(`Thinking memory ${memory.id} already exists in vector store`);
+      return;
+    }
+
+    // Generate embedding
+    const textForEmbedding = `${memory.subject}\n\n${memory.content}`;
+    const embedding = await this.embeddingService.embed(textForEmbedding);
+
+    // Insert into Orama
+    await insert(this.db, {
+      id: memory.id,
+      subject: memory.subject,
+      applies_to: memory.applies_to,
+      occurred_at: memory.occurred_at,
+      content_hash: memory.content_hash,
+      content: memory.content,
+      embedding,
+    });
+
+    this.dirty = true;
+    logger.search.info(`Added thinking memory ${memory.id} to Orama store`);
+
+    // Persist after each add (could be batched for performance)
+    await this.persistIndex();
   }
 
   /**
@@ -196,24 +188,20 @@ export class ThinkingVectorStore {
       await this.initialize();
     }
 
-    const db = this.openConnection();
+    if (!this.db) {
+      throw new Error('Thinking vector store not initialized');
+    }
+
     try {
-      const deleteMemory = db.prepare('DELETE FROM thinking_memories WHERE id = ?');
-      const deleteEmbedding = db.prepare('DELETE FROM thinking_embeddings WHERE id = ?');
-
-      const transaction = db.transaction(() => {
-        const result = deleteMemory.run(id);
-        deleteEmbedding.run(id);
-        return result.changes > 0;
-      });
-
-      const deleted = transaction();
-      if (deleted) {
-        logger.search.info(`Removed thinking memory ${id} from vector store`);
-      }
-      return deleted;
-    } finally {
-      db.close();
+      await remove(this.db, id);
+      this.dirty = true;
+      logger.search.info(`Removed thinking memory ${id} from Orama store`);
+      await this.persistIndex();
+      return true;
+    } catch (error) {
+      // Document might not exist
+      logger.search.debug(`Failed to remove thinking memory ${id}: ${error}`);
+      return false;
     }
   }
 
@@ -228,77 +216,64 @@ export class ThinkingVectorStore {
       await this.initialize();
     }
 
-    const db = this.openConnection();
-    try {
-      const limit = options.limit ?? 10;
-
-      logger.search.debug(`Thinking vector search for: "${query}"`);
-
-      // Generate query embedding
-      const queryEmbedding = await this.embeddingService.embedQuery(query);
-
-      // Build the query - sqlite-vec requires 'k = ?' constraint for knn queries
-      // Note: scope filtering is done after knn search since sqlite-vec applies k limit before JOINs
-      const searchLimit = options.scope ? limit * 10 : limit; // Get more results when filtering by scope
-      const sql = `
-        SELECT
-          m.id, m.subject, m.applies_to, m.occurred_at, m.content_hash, m.content,
-          e.distance
-        FROM thinking_embeddings e
-        JOIN thinking_memories m ON e.id = m.id
-        WHERE e.embedding MATCH ? AND k = ?
-        ORDER BY e.distance
-      `;
-      const params = [JSON.stringify(queryEmbedding), searchLimit];
-
-      const stmt = db.prepare(sql);
-      const rows = stmt.all(...params) as Array<{
-        id: string;
-        subject: string;
-        applies_to: string;
-        occurred_at: string;
-        content_hash: string;
-        content: string;
-        distance: number;
-      }>;
-
-      let results = rows.map((row) => ({
-        memory: {
-          id: row.id,
-          subject: row.subject,
-          applies_to: row.applies_to as MemoryScope,
-          occurred_at: row.occurred_at,
-          content_hash: row.content_hash,
-          content: row.content,
-        },
-        // Convert distance to similarity score (lower distance = higher similarity)
-        // Using cosine distance, so 0 = identical, 2 = opposite
-        // Round to 2 decimal places for cleaner display
-        score: Math.round((1 - row.distance / 2) * 100) / 100,
-      }));
-
-      // Sort by score descending, then by recency (occurred_at) for equivalent scores
-      results.sort((a, b) => {
-        if (a.score !== b.score) {
-          return b.score - a.score;
-        }
-        // For equal scores, prefer more recent memories
-        return new Date(b.memory.occurred_at).getTime() - new Date(a.memory.occurred_at).getTime();
-      });
-
-      // Filter by scope if specified (done in code since sqlite-vec applies k limit before JOINs)
-      if (options.scope) {
-        results = results.filter((r) => r.memory.applies_to === options.scope);
-      }
-
-      // Apply the original limit
-      results = results.slice(0, limit);
-
-      logger.search.info(`Thinking vector search found ${results.length} results`);
-      return results;
-    } finally {
-      db.close();
+    if (!this.db) {
+      throw new Error('Thinking vector store not initialized');
     }
+
+    const limit = options.limit ?? 10;
+    logger.search.debug(`Orama thinking vector search for: "${query}"`);
+
+    // Generate query embedding
+    const queryEmbedding = await this.embeddingService.embedQuery(query);
+
+    // Build search parameters
+    // Note: Set similarity to 0 to disable Orama's default threshold (~0.8)
+    // We handle our own threshold filtering via config options
+    const searchParams: Parameters<typeof search>[1] = {
+      mode: 'vector',
+      vector: {
+        value: queryEmbedding,
+        property: 'embedding',
+      },
+      similarity: 0, // Disable default threshold, we filter ourselves
+      limit: options.scope ? limit * 10 : limit, // Get more results when filtering by scope
+      includeVectors: false,
+    };
+
+    const results = await search(this.db, searchParams) as Results<ThinkingDocument>;
+
+    let mappedResults = results.hits.map((hit) => ({
+      memory: {
+        id: hit.document.id,
+        subject: hit.document.subject,
+        applies_to: hit.document.applies_to as MemoryScope,
+        occurred_at: hit.document.occurred_at,
+        content_hash: hit.document.content_hash,
+        content: hit.document.content,
+      },
+      // Orama returns similarity score (higher is better, 0-1 range)
+      score: Math.round(hit.score * 100) / 100,
+    }));
+
+    // Sort by score descending, then by recency for equivalent scores
+    mappedResults.sort((a, b) => {
+      if (a.score !== b.score) {
+        return b.score - a.score;
+      }
+      // For equal scores, prefer more recent memories
+      return new Date(b.memory.occurred_at).getTime() - new Date(a.memory.occurred_at).getTime();
+    });
+
+    // Filter by scope if specified
+    if (options.scope) {
+      mappedResults = mappedResults.filter((r) => r.memory.applies_to === options.scope);
+    }
+
+    // Apply the original limit
+    mappedResults = mappedResults.slice(0, limit);
+
+    logger.search.info(`Orama thinking vector search found ${mappedResults.length} results`);
+    return mappedResults;
   }
 
   /**
@@ -309,13 +284,17 @@ export class ThinkingVectorStore {
       await this.initialize();
     }
 
-    const db = this.openConnection();
-    try {
-      const rows = db.prepare('SELECT id FROM thinking_memories').all() as Array<{ id: string }>;
-      return new Set(rows.map((r) => r.id));
-    } finally {
-      db.close();
+    if (!this.db) {
+      throw new Error('Thinking vector store not initialized');
     }
+
+    // Search for all documents (empty term matches all)
+    const allDocs = await search(this.db, {
+      term: '',
+      limit: 100000, // High limit to get all
+    }) as Results<ThinkingDocument>;
+
+    return new Set(allDocs.hits.map((hit) => hit.document.id));
   }
 
   /**
@@ -327,7 +306,7 @@ export class ThinkingVectorStore {
       await this.initialize();
     }
 
-    logger.search.info(`Syncing thinking vector store with ${memories.length} thinking memories`);
+    logger.search.info(`Syncing Orama thinking store with ${memories.length} thinking memories`);
 
     const storedIds = await this.getStoredIds();
     const fileIds = new Set(memories.map((m) => m.id));
@@ -356,23 +335,20 @@ export class ThinkingVectorStore {
   }
 
   /**
-   * Close the vector store (no-op since connections are ephemeral)
-   * Kept for API compatibility
+   * Close the vector store (persists any pending changes)
    */
-  close(): void {
-    // No-op - connections are now ephemeral and closed after each operation
-    logger.search.debug('Thinking vector store close called (no-op with ephemeral connections)');
+  async close(): Promise<void> {
+    if (this.dirty) {
+      await this.persistIndex();
+    }
+    logger.search.debug('Orama thinking vector store closed');
   }
 }
 
 /**
  * Create a new thinking vector store instance
- *
- * Note: Each call creates a new instance. The instance uses ephemeral database
- * connections that are opened and closed for each operation.
  */
 export function getThinkingVectorStore(options: ThinkingVectorStoreOptions = {}): ThinkingVectorStore {
-  // Use baseDir from options or legacy string parameter support
   const baseDir = typeof options === 'string' ? options : options.baseDir;
   const readonly = typeof options === 'string' ? false : (options.readonly ?? false);
 
@@ -384,6 +360,5 @@ export function getThinkingVectorStore(options: ThinkingVectorStoreOptions = {})
  * Kept for API compatibility with tests
  */
 export function resetThinkingVectorStore(): void {
-  // No-op - there's no singleton to reset anymore
-  logger.search.debug('resetThinkingVectorStore called (no-op with ephemeral connections)');
+  logger.search.debug('resetThinkingVectorStore called (no-op)');
 }

@@ -21,7 +21,6 @@ import { getVectorStore } from '../core/vector-store.js';
 import { getThinkingVectorStore } from '../core/thinking-vector-store.js';
 import { MemoryManager } from '../core/memory.js';
 import { ThinkingMemoryManager } from '../core/thinking-memory.js';
-import { startHttpServer } from './http-server.js';
 
 /** Transcript processing interval in milliseconds (5 minutes) */
 const PROCESSING_INTERVAL_MS = 5 * 60 * 1000;
@@ -227,14 +226,7 @@ async function main(): Promise<void> {
   await loadConfig();
   logger.mcp.debug('Configuration loaded');
 
-  // Start HTTP server for hooks to communicate with
-  // This prevents hooks from loading sqlite-vec directly, avoiding mutex errors
-  try {
-    await startHttpServer();
-  } catch (error) {
-    logger.mcp.error(`Failed to start HTTP server: ${String(error)}`);
-    // Continue anyway - MCP server can work without HTTP server
-  }
+  // NOTE: Using Orama (pure JavaScript) for vector search - no native mutex issues
 
   // Create MCP server
   const server = new Server(
