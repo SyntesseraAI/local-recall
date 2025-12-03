@@ -75,28 +75,49 @@ async function main(): Promise<void> {
     }
 
     // Search for relevant thinking memories using vector similarity
-    // Fetch up to 25, but only return:
-    // - First 10 items (default)
-    // - Additional items (up to 25) only if similarity >= 90%
+    // Filter by similarity threshold and token limit (configurable via env vars)
     // Use readonly mode to avoid mutex conflicts with concurrent database access
+    const maxTokens = config.thinkingMaxTokens;
+    const minSimilarity = config.thinkingMinSimilarity;
+
     const searchEngine = new ThinkingSearchEngine({ readonly: true });
-    const allResults = await searchEngine.search(input.prompt, { limit: 25 });
+    const allResults = await searchEngine.search(input.prompt, { limit: 50 });
 
     if (allResults.length === 0) {
       logger.hooks.info("UserPromptSubmit thinking: No matching thinking memories found");
       process.exit(0);
     }
 
-    // Filter results: first 10 always, then only high-similarity (>=90%) up to 25
-    const DEFAULT_LIMIT = 10;
-    const HIGH_SIMILARITY_THRESHOLD = 0.90;
+    // Filter by similarity threshold and token limit
+    // Token estimation: ~4 characters per token
+    const CHARS_PER_TOKEN = 4;
+    let totalTokens = 0;
+    const results: typeof allResults = [];
 
-    const results = allResults.filter((result, index) => {
-      if (index < DEFAULT_LIMIT) return true;
-      return result.score >= HIGH_SIMILARITY_THRESHOLD;
-    });
+    for (const result of allResults) {
+      // Skip if below similarity threshold
+      if (result.score < minSimilarity) {
+        continue;
+      }
 
-    logger.hooks.info(`UserPromptSubmit thinking: Found ${results.length} relevant thinking memories (${allResults.length} searched)`);
+      // Estimate tokens for this memory's content
+      const memoryTokens = Math.ceil(result.memory.content.length / CHARS_PER_TOKEN);
+
+      // Stop if adding this memory would exceed token limit
+      if (totalTokens + memoryTokens > maxTokens) {
+        break;
+      }
+
+      results.push(result);
+      totalTokens += memoryTokens;
+    }
+
+    if (results.length === 0) {
+      logger.hooks.info(`UserPromptSubmit thinking: No memories above ${(minSimilarity * 100).toFixed(0)}% similarity threshold`);
+      process.exit(0);
+    }
+
+    logger.hooks.info(`UserPromptSubmit thinking: Found ${results.length} relevant thinking memories (~${totalTokens} tokens, min ${(minSimilarity * 100).toFixed(0)}% similarity)`);
 
     // Log each memory's details for debugging
     for (const result of results) {

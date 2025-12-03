@@ -59,6 +59,12 @@ export async function loadConfig(configPath?: string): Promise<Config> {
   if (process.env['LOCAL_RECALL_THINKING_ENABLED']) {
     envConfig.thinkingEnabled = process.env['LOCAL_RECALL_THINKING_ENABLED'] === 'true';
   }
+  if (process.env['LOCAL_RECALL_THINKING_MAX_TOKENS']) {
+    envConfig.thinkingMaxTokens = parseInt(process.env['LOCAL_RECALL_THINKING_MAX_TOKENS'], 10);
+  }
+  if (process.env['LOCAL_RECALL_THINKING_MIN_SIMILARITY']) {
+    envConfig.thinkingMinSimilarity = parseFloat(process.env['LOCAL_RECALL_THINKING_MIN_SIMILARITY']);
+  }
 
   // Merge configs: env > file > defaults
   const merged = {

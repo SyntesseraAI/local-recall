@@ -6,10 +6,11 @@ import { logger } from '../utils/logger.js';
 import { getConfig } from '../utils/config.js';
 
 /**
- * Extracted thinking block from a transcript
+ * Extracted thinking block from a transcript with its corresponding output
  */
 interface ExtractedThinking {
-  content: string;
+  thinking: string;
+  output: string;
   timestamp: string;
 }
 
@@ -46,23 +47,51 @@ function extractThinkingFromBlocks(blocks: ContentBlock[]): string {
 }
 
 /**
+ * Extract text content from content blocks array (excludes tool use)
+ */
+function extractTextFromBlocks(blocks: ContentBlock[]): string {
+  return blocks
+    .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
+    .map((block) => block.text)
+    .join('\n');
+}
+
+/**
  * Raw transcript entry structure (JSONL line format from Claude Code)
  */
 interface RawTranscriptEntry {
   type: string;
   timestamp?: string;
   message?: {
+    id?: string;
     role?: string;
     content?: string | ContentBlock[];
   };
 }
 
 /**
- * Parse raw JSONL transcript and extract thinking blocks
+ * Aggregated message content from multiple JSONL lines with the same message.id
+ */
+interface AggregatedMessage {
+  messageId: string;
+  timestamp: string;
+  thinkingParts: string[];
+  textParts: string[];
+}
+
+/**
+ * Parse raw JSONL transcript and extract thinking blocks with their outputs
+ *
+ * Claude Code streams assistant responses as separate JSONL lines - each content block
+ * (thinking, text, tool_use) gets its own line, but they share the same message.id.
+ * This function groups entries by message.id to reconstruct complete messages.
  */
 function parseTranscriptForThinking(rawContent: string): ExtractedThinking[] {
   const lines = rawContent.split('\n').filter((line) => line.trim());
   const thinkingBlocks: ExtractedThinking[] = [];
+
+  // Group entries by message.id to handle streamed responses
+  const messageMap = new Map<string, AggregatedMessage>();
 
   for (const line of lines) {
     try {
@@ -73,6 +102,11 @@ function parseTranscriptForThinking(rawContent: string): ExtractedThinking[] {
         continue;
       }
 
+      const messageId = entry.message?.id;
+      if (!messageId) {
+        continue;
+      }
+
       const timestamp = entry.timestamp ?? new Date().toISOString();
       const rawContentBlock = entry.message?.content;
 
@@ -80,16 +114,45 @@ function parseTranscriptForThinking(rawContent: string): ExtractedThinking[] {
         continue;
       }
 
-      // Extract thinking blocks
-      const thinkingContent = extractThinkingFromBlocks(rawContentBlock);
-      if (thinkingContent.trim()) {
-        thinkingBlocks.push({
-          content: thinkingContent,
+      // Get or create aggregated message for this ID
+      let aggregated = messageMap.get(messageId);
+      if (!aggregated) {
+        aggregated = {
+          messageId,
           timestamp,
-        });
+          thinkingParts: [],
+          textParts: [],
+        };
+        messageMap.set(messageId, aggregated);
+      }
+
+      // Extract thinking and text content from this line's content blocks
+      const thinkingContent = extractThinkingFromBlocks(rawContentBlock);
+      const textOutput = extractTextFromBlocks(rawContentBlock);
+
+      if (thinkingContent.trim()) {
+        aggregated.thinkingParts.push(thinkingContent);
+      }
+      if (textOutput.trim()) {
+        aggregated.textParts.push(textOutput);
       }
     } catch {
       // Skip malformed lines
+    }
+  }
+
+  // Convert aggregated messages to thinking blocks
+  for (const aggregated of messageMap.values()) {
+    const thinking = aggregated.thinkingParts.join('\n');
+    const output = aggregated.textParts.join('\n');
+
+    // Only include if there's both thinking AND text output (skip tool-only responses)
+    if (thinking.trim() && output.trim()) {
+      thinkingBlocks.push({
+        thinking,
+        output,
+        timestamp: aggregated.timestamp,
+      });
     }
   }
 
@@ -190,14 +253,17 @@ export class ThinkingExtractor {
 
       for (const thinking of thinkingBlocks) {
         try {
-          // Generate subject from content
-          const subject = generateSubjectFromContent(thinking.content);
+          // Generate subject from thinking content
+          const subject = generateSubjectFromContent(thinking.thinking);
+
+          // Combine thinking and output into structured content
+          const combinedContent = `## Thought\n\n${thinking.thinking}\n\n## Output\n\n${thinking.output}`;
 
           // Create thinking memory (always global scope)
           const memory = await this.memoryManager.createMemory({
             subject,
             applies_to: 'global' as MemoryScope,
-            content: thinking.content,
+            content: combinedContent,
             occurred_at: thinking.timestamp,
           });
           createdIds.push(memory.id);

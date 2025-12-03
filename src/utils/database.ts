@@ -7,6 +7,8 @@
 
 import Database from 'better-sqlite3';
 import * as sqliteVec from 'sqlite-vec';
+import { openSync, closeSync, unlinkSync, constants, statSync } from 'node:fs';
+import path from 'node:path';
 import { logger } from './logger.js';
 
 /** Default busy timeout in milliseconds */
@@ -16,6 +18,15 @@ const DEFAULT_BUSY_TIMEOUT = 30000; // 30 seconds
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_DELAY_MS = 100;
 const DEFAULT_RETRY_BACKOFF = 2;
+
+/** Lock file name for sqlite-vec loading */
+const SQLITE_VEC_LOCK_FILE = '.sqlite-vec.lock';
+
+/** Maximum time to wait for lock in milliseconds */
+const LOCK_TIMEOUT_MS = 5000;
+
+/** Time between lock acquisition attempts */
+const LOCK_RETRY_DELAY_MS = 50;
 
 export interface DatabaseOptions {
   /** Busy timeout in milliseconds (default: 30000) */
@@ -33,6 +44,62 @@ export interface RetryOptions {
   retryDelayMs?: number;
   /** Backoff multiplier for each retry (default: 2) */
   backoff?: number;
+}
+
+/**
+ * Acquire an exclusive file lock to prevent concurrent sqlite-vec loading
+ * Returns a release function or null if lock couldn't be acquired
+ */
+function acquireLock(lockPath: string): (() => void) | null {
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < LOCK_TIMEOUT_MS) {
+    try {
+      // Try to create lock file with exclusive flag (O_EXCL fails if file exists)
+      const fd = openSync(lockPath, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o644);
+      closeSync(fd);
+
+      // Return release function
+      return () => {
+        try {
+          unlinkSync(lockPath);
+        } catch {
+          // Ignore errors during cleanup
+        }
+      };
+    } catch (error) {
+      // Lock file exists, wait and retry
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+        // Check if lock is stale (older than 30 seconds)
+        try {
+          const stat = statSync(lockPath);
+          const age = Date.now() - stat.mtimeMs;
+          if (age > 30000) {
+            // Stale lock, remove and retry
+            try {
+              unlinkSync(lockPath);
+            } catch {
+              // Ignore
+            }
+          }
+        } catch {
+          // Ignore stat errors
+        }
+
+        // Busy wait
+        const waitUntil = Date.now() + LOCK_RETRY_DELAY_MS;
+        while (Date.now() < waitUntil) {
+          // Spin
+        }
+        continue;
+      }
+      // Other error, give up
+      return null;
+    }
+  }
+
+  // Timeout
+  return null;
 }
 
 /**
@@ -60,8 +127,18 @@ export function openDatabase(dbPath: string, options: DatabaseOptions = {}): Dat
     db.pragma('journal_mode = WAL');
   }
 
-  // Load sqlite-vec extension
-  sqliteVec.load(db);
+  // Load sqlite-vec extension with file-based locking to prevent concurrent loading
+  // which can cause mutex errors in the native code
+  const lockPath = path.join(path.dirname(dbPath), SQLITE_VEC_LOCK_FILE);
+  const releaseLock = acquireLock(lockPath);
+
+  try {
+    sqliteVec.load(db);
+  } finally {
+    if (releaseLock) {
+      releaseLock();
+    }
+  }
 
   logger.search.debug('Database opened successfully with sqlite-vec loaded');
 

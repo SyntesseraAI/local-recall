@@ -62,8 +62,8 @@ local-recall/                    # Project root
 │   ├── recall.log               # Debug log file (gitignored)
 │   ├── episodic-memory/         # Individual memory files (tracked in git)
 │   │   └── *.md                 # Memory markdown files
-│   └── thinking-memory/         # Thinking memories (experimental, tracked in git)
-│       └── *.md                 # Thinking memory files (no keywords)
+│   └── thinking-memory/         # Thinking memories (tracked in git)
+│       └── *.md                 # Thinking memory files (thought + output pairs)
 ├── local_cache/                 # Embedding model cache (gitignored)
 │   └── fast-bge-small-en-v1.5/  # BGE embedding model files
 ├── package.json
@@ -167,8 +167,101 @@ Triggered when a user submits a prompt, before Claude processes it:
 3. Performs semantic search using vector embeddings
 4. Outputs matching memories to stdout (injected into Claude's context)
 
+#### UserPromptSubmit Thinking Hook
+Triggered alongside the main UserPromptSubmit hook to inject thinking memories:
+1. Receives JSON input with `session_id`, `transcript_path`, `cwd`, `prompt`
+2. Performs semantic search on thinking memories
+3. Filters results by similarity threshold (default: 80%)
+4. Returns memories up to token limit (default: 1000 tokens)
+5. Outputs as "Previous Thoughts" in Claude's context
+
 #### Stop Hook (Disabled)
 The Stop hook is currently disabled. Memory extraction is handled by the MCP server daemon which processes transcripts asynchronously every 5 minutes. See the MCP Server section for details.
+
+## Thinking Memories
+
+Thinking memories capture Claude's reasoning paired with its output, providing examples of "how I thought → what I produced" for future sessions.
+
+### Thinking Memory Format
+
+```markdown
+---
+id: unique-memory-id
+subject: Brief description (from first sentence of thinking)
+applies_to: global
+occurred_at: ISO-8601 timestamp
+content_hash: SHA-256 prefix (16 chars)
+---
+
+## Thought
+
+[Claude's internal reasoning/thinking block]
+
+## Output
+
+[The text response that followed the thinking]
+```
+
+### How Thinking Memories Work
+
+1. **Extraction**: The daemon extracts thinking blocks from transcripts along with their corresponding text outputs (tool-only responses are skipped)
+2. **Storage**: Each thought+output pair is stored as a single thinking memory
+3. **Retrieval**: On each prompt, relevant thinking memories are retrieved based on:
+   - Semantic similarity (minimum threshold, default 80%)
+   - Token budget (maximum tokens, default 1000)
+4. **Injection**: Retrieved memories are added to context as "Previous Thoughts"
+
+### Example: How Thinking Memories Appear in Context
+
+When the UserPromptSubmit thinking hook runs, it injects memories like this:
+
+```markdown
+# Local Recall: Previous Thoughts
+
+Found 2 relevant thinking excerpts from previous sessions.
+
+## The user wants to add authentication to the API
+
+**ID:** a1b2c3d4-e5f6-7890-abcd-ef1234567890
+**Scope:** global
+**Occurred:** 2025-12-03T10:30:00.000Z
+
+---
+
+## Thought
+
+The user wants to add authentication. Let me think about the options:
+1. JWT tokens - stateless, good for APIs
+2. Session cookies - simpler but requires state
+
+Given this is a REST API, JWT makes the most sense.
+
+## Output
+
+I'll implement JWT authentication for your API. Let me start by installing
+the required packages and creating the auth middleware.
+
+*Similarity: 85%*
+
+---
+```
+
+This provides concrete examples of "how I reasoned → what I produced" for similar tasks.
+
+### Resetting Thinking Memories
+
+To fully reset thinking memories and reprocess from scratch:
+
+```bash
+# Delete processed log and memories
+rm local-recall/thinking-processed-log.jsonl
+rm -rf local-recall/thinking-memory/
+
+# Optionally delete the database to remove thinking tables
+rm local-recall/memory.sqlite
+
+# The next daemon run will recreate everything
+```
 
 ### Installation
 
@@ -400,14 +493,27 @@ Configuration can be set via environment variables or a `.local-recall.json` fil
 ```json
 {
   "memoryDir": "./local-recall",
-  "maxMemories": 1000
+  "maxMemories": 1000,
+  "episodicEnabled": false,
+  "thinkingEnabled": true,
+  "thinkingMaxTokens": 1000,
+  "thinkingMinSimilarity": 0.8
 }
 ```
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `memoryDir` | `./local-recall` | Directory for memory storage |
-| `maxMemories` | `1000` | Maximum number of memories |
+### Configuration Options
+
+| Option | Env Var | Default | Description |
+|--------|---------|---------|-------------|
+| `memoryDir` | `LOCAL_RECALL_DIR` | `./local-recall` | Directory for memory storage |
+| `maxMemories` | `LOCAL_RECALL_MAX_MEMORIES` | `1000` | Maximum number of memories |
+| `episodicEnabled` | `LOCAL_RECALL_EPISODIC_ENABLED` | `false` | Enable episodic memory extraction |
+| `thinkingEnabled` | `LOCAL_RECALL_THINKING_ENABLED` | `true` | Enable thinking memory extraction and retrieval |
+| `thinkingMaxTokens` | `LOCAL_RECALL_THINKING_MAX_TOKENS` | `1000` | Max tokens of thinking memories to inject per prompt |
+| `thinkingMinSimilarity` | `LOCAL_RECALL_THINKING_MIN_SIMILARITY` | `0.8` | Minimum similarity threshold (0.0-1.0) for thinking memories |
+| `fuzzyThreshold` | `LOCAL_RECALL_FUZZY_THRESHOLD` | `0.6` | Fuzzy matching threshold |
+| `indexRefreshInterval` | `LOCAL_RECALL_INDEX_REFRESH` | `300` | Index refresh interval in seconds |
+| `hooks.maxContextMemories` | `LOCAL_RECALL_MAX_CONTEXT` | `10` | Max episodic memories in context |
 
 ## Contributing
 
