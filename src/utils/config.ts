@@ -56,6 +56,12 @@ export async function loadConfig(configPath?: string): Promise<Config> {
   if (process.env['LOCAL_RECALL_EPISODIC_ENABLED']) {
     envConfig.episodicEnabled = process.env['LOCAL_RECALL_EPISODIC_ENABLED'] === 'true';
   }
+  if (process.env['LOCAL_RECALL_EPISODIC_MAX_TOKENS']) {
+    envConfig.episodicMaxTokens = parseInt(process.env['LOCAL_RECALL_EPISODIC_MAX_TOKENS'], 10);
+  }
+  if (process.env['LOCAL_RECALL_EPISODIC_MIN_SIMILARITY']) {
+    envConfig.episodicMinSimilarity = parseFloat(process.env['LOCAL_RECALL_EPISODIC_MIN_SIMILARITY']);
+  }
   if (process.env['LOCAL_RECALL_THINKING_ENABLED']) {
     envConfig.thinkingEnabled = process.env['LOCAL_RECALL_THINKING_ENABLED'] === 'true';
   }

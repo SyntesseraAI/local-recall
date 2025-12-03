@@ -14,6 +14,8 @@ export interface SearchEngineOptions {
   memoryManager?: MemoryManager;
   /** Open vector store in read-only mode (default: false) - avoids write locks */
   readonly?: boolean;
+  /** Base directory for memory storage (defaults to config.memoryDir) */
+  baseDir?: string;
 }
 
 /**
@@ -22,6 +24,7 @@ export interface SearchEngineOptions {
 export class SearchEngine {
   private memoryManager: MemoryManager;
   private readonly: boolean;
+  private baseDir: string;
 
   constructor(options: SearchEngineOptions | MemoryManager = {}) {
     const config = getConfig();
@@ -29,9 +32,13 @@ export class SearchEngine {
     if (options instanceof MemoryManager) {
       this.memoryManager = options;
       this.readonly = false;
+      // Use the MemoryManager's baseDir to ensure consistency
+      this.baseDir = options.baseDir;
     } else {
       this.memoryManager = options.memoryManager ?? new MemoryManager(config.memoryDir);
       this.readonly = options.readonly ?? false;
+      // Use the baseDir from options, or from the memoryManager if available
+      this.baseDir = options.baseDir ?? this.memoryManager.baseDir;
     }
   }
 
@@ -45,7 +52,7 @@ export class SearchEngine {
     logger.search.debug(`Vector search: "${query}"`);
     const limit = options.limit ?? 10;
 
-    const vectorStore = getVectorStore({ readonly: this.readonly });
+    const vectorStore = getVectorStore({ baseDir: this.baseDir, readonly: this.readonly });
     const results = await vectorStore.search(query, {
       limit,
       scope: options.scope,

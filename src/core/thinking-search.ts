@@ -21,6 +21,8 @@ export interface ThinkingSearchEngineOptions {
   memoryManager?: ThinkingMemoryManager;
   /** Open vector store in read-only mode (default: false) - avoids write locks */
   readonly?: boolean;
+  /** Base directory for memory storage (defaults to config.memoryDir) */
+  baseDir?: string;
 }
 
 /**
@@ -29,6 +31,7 @@ export interface ThinkingSearchEngineOptions {
 export class ThinkingSearchEngine {
   private memoryManager: ThinkingMemoryManager;
   private readonly: boolean;
+  private baseDir: string;
 
   constructor(options: ThinkingSearchEngineOptions | ThinkingMemoryManager = {}) {
     const config = getConfig();
@@ -36,9 +39,11 @@ export class ThinkingSearchEngine {
     if (options instanceof ThinkingMemoryManager) {
       this.memoryManager = options;
       this.readonly = false;
+      this.baseDir = config.memoryDir;
     } else {
       this.memoryManager = options.memoryManager ?? new ThinkingMemoryManager(config.memoryDir);
       this.readonly = options.readonly ?? false;
+      this.baseDir = options.baseDir ?? config.memoryDir;
     }
   }
 
@@ -52,7 +57,7 @@ export class ThinkingSearchEngine {
     logger.search.debug(`Thinking vector search: "${query}"`);
     const limit = options.limit ?? 10;
 
-    const vectorStore = getThinkingVectorStore({ readonly: this.readonly });
+    const vectorStore = getThinkingVectorStore({ baseDir: this.baseDir, readonly: this.readonly });
     const results = await vectorStore.search(query, {
       limit,
       scope: options.scope,

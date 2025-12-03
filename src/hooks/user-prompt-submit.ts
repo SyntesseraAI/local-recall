@@ -3,17 +3,23 @@
  * UserPromptSubmit Hook
  *
  * This hook is triggered when a user submits a prompt, before Claude processes it.
- * It uses vector similarity search to find relevant memories and adds them to the context.
+ * It uses the daemon's HTTP API for search to avoid loading sqlite-vec directly,
+ * which prevents "mutex lock failed" errors from concurrent native extension loading.
+ *
+ * Handles both episodic memories and thinking memories based on configuration:
+ * - episodicEnabled: Search episodic memories (facts, decisions, patterns)
+ * - thinkingEnabled: Search thinking memories (Claude's previous reasoning)
  *
  * Input (via stdin): JSON with session_id, transcript_path, cwd, prompt, etc.
  * Output: stdout text is added to Claude's context
  */
 
 import { loadConfig, getConfig } from "../utils/config.js";
-import { SearchEngine } from "../core/search.js";
-import { formatMemoryForDisplay } from "../utils/markdown.js";
+import { DaemonClient } from "../utils/daemon-client.js";
+import { formatMemoryForDisplay, formatThinkingMemoryForDisplay } from "../utils/markdown.js";
 import { readStdin } from "../utils/transcript.js";
 import { logger } from "../utils/logger.js";
+import type { SearchResult, ThinkingSearchResult } from "../core/types.js";
 
 interface UserPromptSubmitInput {
   session_id: string;
@@ -22,6 +28,98 @@ interface UserPromptSubmitInput {
   permission_mode: string;
   hook_event_name: string;
   prompt: string;
+}
+
+const CHARS_PER_TOKEN = 4;
+
+function filterByThreshold(
+  results: SearchResult[],
+  maxTokens: number,
+  minSimilarity: number
+): SearchResult[] {
+  let totalTokens = 0;
+  const filtered: SearchResult[] = [];
+
+  for (const result of results) {
+    if (result.score < minSimilarity) {
+      continue;
+    }
+
+    const memoryTokens = Math.ceil(result.memory.content.length / CHARS_PER_TOKEN);
+
+    if (totalTokens + memoryTokens > maxTokens) {
+      break;
+    }
+
+    filtered.push(result);
+    totalTokens += memoryTokens;
+  }
+
+  return filtered;
+}
+
+function filterThinkingByThreshold(
+  results: ThinkingSearchResult[],
+  maxTokens: number,
+  minSimilarity: number
+): ThinkingSearchResult[] {
+  let totalTokens = 0;
+  const filtered: ThinkingSearchResult[] = [];
+
+  for (const result of results) {
+    if (result.score < minSimilarity) {
+      continue;
+    }
+
+    const memoryTokens = Math.ceil(result.memory.content.length / CHARS_PER_TOKEN);
+
+    if (totalTokens + memoryTokens > maxTokens) {
+      break;
+    }
+
+    filtered.push(result);
+    totalTokens += memoryTokens;
+  }
+
+  return filtered;
+}
+
+function formatEpisodicResults(results: SearchResult[]): string {
+  const parts: string[] = [
+    "# Local Recall: Relevant Memories",
+    "",
+    `Found ${results.length} memories related to your query.`,
+    "",
+  ];
+
+  for (const result of results) {
+    parts.push(formatMemoryForDisplay(result.memory));
+    parts.push(`*Similarity: ${(result.score * 100).toFixed(0)}%*`);
+    parts.push("");
+    parts.push("---");
+    parts.push("");
+  }
+
+  return parts.join("\n");
+}
+
+function formatThinkingResults(results: ThinkingSearchResult[]): string {
+  const parts: string[] = [
+    "# Local Recall: Previous Thoughts",
+    "",
+    `Found ${results.length} relevant thinking excerpts from previous sessions.`,
+    "",
+  ];
+
+  for (const result of results) {
+    parts.push(formatThinkingMemoryForDisplay(result.memory));
+    parts.push(`*Similarity: ${(result.score * 100).toFixed(0)}%*`);
+    parts.push("");
+    parts.push("---");
+    parts.push("");
+  }
+
+  return parts.join("\n");
 }
 
 async function main(): Promise<void> {
@@ -66,50 +164,86 @@ async function main(): Promise<void> {
     await loadConfig();
     logger.hooks.debug("UserPromptSubmit: Configuration loaded");
 
-    // Check if episodic memory is enabled
     const config = getConfig();
-    if (!config.episodicEnabled) {
-      logger.hooks.debug("UserPromptSubmit: Episodic memory disabled, skipping");
+    const contextParts: string[] = [];
+
+    // Create daemon client (will check if daemon is available)
+    const client = new DaemonClient();
+    const daemonAvailable = await client.checkDaemon();
+
+    if (!daemonAvailable) {
+      logger.hooks.warn("UserPromptSubmit: Daemon not available, skipping search to avoid mutex errors");
+      // Exit gracefully - don't load sqlite-vec in hooks anymore
       process.exit(0);
     }
 
-    // Search for relevant memories using vector similarity
-    // Use readonly mode to avoid mutex conflicts with concurrent database access
-    const searchEngine = new SearchEngine({ readonly: true });
-    const results = await searchEngine.search(input.prompt, { limit: 5 });
+    // Search episodic memories if enabled
+    if (config.episodicEnabled) {
+      logger.hooks.debug("UserPromptSubmit: Searching episodic memories via daemon");
+      try {
+        const allResults = await client.searchEpisodic(input.prompt, { limit: 50 });
+        const episodicResults = filterByThreshold(
+          allResults,
+          config.episodicMaxTokens,
+          config.episodicMinSimilarity
+        );
 
-    if (results.length === 0) {
+        if (episodicResults.length > 0) {
+          logger.hooks.info(`UserPromptSubmit: Found ${episodicResults.length} episodic memories`);
+          for (const result of episodicResults) {
+            const similarity = (result.score * 100).toFixed(0);
+            logger.hooks.debug(
+              `  - ${result.memory.id}.md | ${similarity}% | "${result.memory.subject}"`
+            );
+          }
+          contextParts.push(formatEpisodicResults(episodicResults));
+        } else {
+          logger.hooks.info(`UserPromptSubmit: No episodic memories above ${(config.episodicMinSimilarity * 100).toFixed(0)}% similarity`);
+        }
+      } catch (error) {
+        logger.hooks.error(`UserPromptSubmit: Episodic search failed: ${String(error)}`);
+      }
+    } else {
+      logger.hooks.debug("UserPromptSubmit: Episodic memory disabled, skipping");
+    }
+
+    // Search thinking memories if enabled
+    if (config.thinkingEnabled) {
+      logger.hooks.debug("UserPromptSubmit: Searching thinking memories via daemon");
+      try {
+        const allResults = await client.searchThinking(input.prompt, { limit: 50 });
+        const thinkingResults = filterThinkingByThreshold(
+          allResults,
+          config.thinkingMaxTokens,
+          config.thinkingMinSimilarity
+        );
+
+        if (thinkingResults.length > 0) {
+          logger.hooks.info(`UserPromptSubmit: Found ${thinkingResults.length} thinking memories`);
+          for (const result of thinkingResults) {
+            const similarity = (result.score * 100).toFixed(0);
+            logger.hooks.debug(
+              `  - ${result.memory.id}.md | ${similarity}% | "${result.memory.subject}"`
+            );
+          }
+          contextParts.push(formatThinkingResults(thinkingResults));
+        } else {
+          logger.hooks.info(`UserPromptSubmit: No thinking memories above ${(config.thinkingMinSimilarity * 100).toFixed(0)}% similarity`);
+        }
+      } catch (error) {
+        logger.hooks.error(`UserPromptSubmit: Thinking search failed: ${String(error)}`);
+      }
+    } else {
+      logger.hooks.debug("UserPromptSubmit: Thinking memory disabled, skipping");
+    }
+
+    // If no results from either search, exit
+    if (contextParts.length === 0) {
       logger.hooks.info("UserPromptSubmit: No matching memories found");
       process.exit(0);
     }
 
-    logger.hooks.info(`UserPromptSubmit: Found ${results.length} relevant memories`);
-
-    // Log each memory's details for debugging
-    for (const result of results) {
-      const similarity = (result.score * 100).toFixed(0);
-      logger.hooks.debug(
-        `  - ${result.memory.id}.md | ${similarity}% | "${result.memory.subject}"`
-      );
-    }
-
-    // Build context string for Claude
-    const contextParts: string[] = [
-      "# Local Recall: Relevant Memories",
-      "",
-      `Found ${results.length} memories related to your query.`,
-      "",
-    ];
-
-    for (const result of results) {
-      contextParts.push(formatMemoryForDisplay(result.memory));
-      contextParts.push(`*Similarity: ${(result.score * 100).toFixed(0)}%*`);
-      contextParts.push("");
-      contextParts.push("---");
-      contextParts.push("");
-    }
-
-    const additionalContext = contextParts.join("\n");
+    const additionalContext = contextParts.join("\n\n");
 
     // Output as structured JSON for Claude Code hooks
     const output = {

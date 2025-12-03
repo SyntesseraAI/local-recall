@@ -33,11 +33,11 @@ local-recall/                    # Project root
 │   │   └── thinking-search.ts   # Search thinking memories
 │   ├── hooks/                   # Claude Code hooks (source)
 │   │   ├── session-start.ts     # Load recent memories on session start
-│   │   ├── user-prompt-submit.ts # Semantic search on user prompt
-│   │   ├── user-prompt-submit-thinking.ts # Inject thinking memories
+│   │   ├── user-prompt-submit.ts # Unified semantic search (episodic + thinking)
 │   │   └── stop.ts              # Parse transcript and create memories
 │   ├── mcp-server/              # MCP server implementation
-│   │   ├── server.ts            # Main MCP server
+│   │   ├── server.ts            # Main MCP server + daemon
+│   │   ├── http-server.ts       # HTTP API for hooks communication
 │   │   └── tools.ts             # Exposed memory tools
 │   ├── prompts/                 # Prompt templates
 │   │   └── memory-extraction.ts # Memory extraction prompts
@@ -51,7 +51,8 @@ local-recall/                    # Project root
 │       ├── fuzzy.ts             # Fuzzy matching utilities
 │       ├── config.ts            # Configuration loading
 │       ├── gitignore.ts         # Gitignore management
-│       └── summarize.ts         # Text summarization utilities
+│       ├── summarize.ts         # Text summarization utilities
+│       └── daemon-client.ts     # HTTP client for hooks to call daemon
 ├── dist/                        # Build output (gitignored)
 │   ├── hooks/                   # Compiled hooks
 │   ├── mcp-server/              # Compiled MCP server
@@ -147,6 +148,31 @@ Search implementation using the vector store:
 
 ## Claude Code Integration
 
+### Hook-Daemon Architecture
+
+Hooks communicate with the MCP daemon via HTTP to avoid loading the sqlite-vec native extension directly. This prevents "mutex lock failed: Invalid argument" errors that occur when multiple processes load sqlite-vec concurrently.
+
+```
+┌─────────────────────┐     HTTP     ┌─────────────────────┐
+│   Hook Process      │◄────────────►│   MCP Daemon        │
+│   (thin client)     │   localhost  │   (owns sqlite-vec) │
+├─────────────────────┤    :7847     ├─────────────────────┤
+│ • DaemonClient      │              │ • HTTP Server       │
+│ • No sqlite-vec     │              │ • Vector Store      │
+│ • Fallback to files │              │ • Search Engines    │
+└─────────────────────┘              └─────────┬───────────┘
+                                               │
+                                       ┌───────▼───────┐
+                                       │ memory.sqlite │
+                                       └───────────────┘
+```
+
+**HTTP Endpoints** (exposed by daemon on `localhost:7847`):
+- `POST /search/episodic` - Search episodic memories
+- `POST /search/thinking` - Search thinking memories
+- `POST /memories/recent` - Get recent memories
+- `GET /health` - Health check
+
 ### Hooks
 
 Hooks are configured in `hooks.json` and execute as shell commands that receive JSON via stdin.
@@ -154,26 +180,25 @@ Hooks are configured in `hooks.json` and execute as shell commands that receive 
 #### SessionStart Hook
 Triggered when a Claude Code session begins:
 1. Receives JSON input with `session_id`, `transcript_path`, `cwd`
-2. Loads all memories from disk via `MemoryManager.listMemories()`
-3. Returns the 5 most recent memories (sorted by `occurred_at`)
-4. Outputs memory content to stdout (injected into Claude's context)
-
-Note: This is a full reload, not incremental. The vector store is not used here to avoid slow initialization on every session start.
+2. Checks if daemon is available via HTTP health check
+3. If daemon available: fetches recent memories via HTTP
+4. If daemon unavailable: falls back to direct file reading (safe, no sqlite-vec)
+5. Returns the 5 most recent memories (sorted by `occurred_at`)
+6. Outputs memory content to stdout (injected into Claude's context)
 
 #### UserPromptSubmit Hook
-Triggered when a user submits a prompt, before Claude processes it:
-1. Receives JSON input with `session_id`, `transcript_path`, `cwd`, `prompt`
-2. Initializes the vector store (lazy initialization, cached after first use)
-3. Performs semantic search using vector embeddings
-4. Outputs matching memories to stdout (injected into Claude's context)
+Triggered when a user submits a prompt, before Claude processes it. This unified hook handles both episodic and thinking memories based on configuration:
 
-#### UserPromptSubmit Thinking Hook
-Triggered alongside the main UserPromptSubmit hook to inject thinking memories:
 1. Receives JSON input with `session_id`, `transcript_path`, `cwd`, `prompt`
-2. Performs semantic search on thinking memories
-3. Filters results by similarity threshold (default: 80%)
-4. Returns memories up to token limit (default: 1000 tokens)
-5. Outputs as "Previous Thoughts" in Claude's context
+2. Checks if daemon is available via HTTP health check
+3. If daemon unavailable: exits gracefully (no search to avoid mutex errors)
+4. If `episodicEnabled`: searches episodic memories via daemon HTTP API
+5. If `thinkingEnabled`: searches thinking memories via daemon HTTP API
+6. Combines results and outputs to stdout (injected into Claude's context)
+
+Each memory type has independent configuration:
+- **Episodic**: `episodicMaxTokens` (default: 1000), `episodicMinSimilarity` (default: 0.8)
+- **Thinking**: `thinkingMaxTokens` (default: 1000), `thinkingMinSimilarity` (default: 0.8)
 
 #### Stop Hook (Disabled)
 The Stop hook is currently disabled. Memory extraction is handled by the MCP server daemon which processes transcripts asynchronously every 5 minutes. See the MCP Server section for details.
@@ -494,7 +519,9 @@ Configuration can be set via environment variables or a `.local-recall.json` fil
 {
   "memoryDir": "./local-recall",
   "maxMemories": 1000,
-  "episodicEnabled": false,
+  "episodicEnabled": true,
+  "episodicMaxTokens": 1000,
+  "episodicMinSimilarity": 0.8,
   "thinkingEnabled": true,
   "thinkingMaxTokens": 1000,
   "thinkingMinSimilarity": 0.8
@@ -507,13 +534,15 @@ Configuration can be set via environment variables or a `.local-recall.json` fil
 |--------|---------|---------|-------------|
 | `memoryDir` | `LOCAL_RECALL_DIR` | `./local-recall` | Directory for memory storage |
 | `maxMemories` | `LOCAL_RECALL_MAX_MEMORIES` | `1000` | Maximum number of memories |
-| `episodicEnabled` | `LOCAL_RECALL_EPISODIC_ENABLED` | `false` | Enable episodic memory extraction |
-| `thinkingEnabled` | `LOCAL_RECALL_THINKING_ENABLED` | `true` | Enable thinking memory extraction and retrieval |
+| `episodicEnabled` | `LOCAL_RECALL_EPISODIC_ENABLED` | `true` | Enable episodic memory retrieval |
+| `episodicMaxTokens` | `LOCAL_RECALL_EPISODIC_MAX_TOKENS` | `1000` | Max tokens of episodic memories to inject per prompt |
+| `episodicMinSimilarity` | `LOCAL_RECALL_EPISODIC_MIN_SIMILARITY` | `0.8` | Minimum similarity threshold (0.0-1.0) for episodic memories |
+| `thinkingEnabled` | `LOCAL_RECALL_THINKING_ENABLED` | `true` | Enable thinking memory retrieval |
 | `thinkingMaxTokens` | `LOCAL_RECALL_THINKING_MAX_TOKENS` | `1000` | Max tokens of thinking memories to inject per prompt |
 | `thinkingMinSimilarity` | `LOCAL_RECALL_THINKING_MIN_SIMILARITY` | `0.8` | Minimum similarity threshold (0.0-1.0) for thinking memories |
 | `fuzzyThreshold` | `LOCAL_RECALL_FUZZY_THRESHOLD` | `0.6` | Fuzzy matching threshold |
 | `indexRefreshInterval` | `LOCAL_RECALL_INDEX_REFRESH` | `300` | Index refresh interval in seconds |
-| `hooks.maxContextMemories` | `LOCAL_RECALL_MAX_CONTEXT` | `10` | Max episodic memories in context |
+| `hooks.maxContextMemories` | `LOCAL_RECALL_MAX_CONTEXT` | `10` | Max episodic memories in context (session start only) |
 
 ## Contributing
 

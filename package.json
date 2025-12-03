@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "tsc && npm run build:scripts",
-    "build:scripts": "mkdir -p dev-marketplace/local-recall-plugin/scripts/hooks dev-marketplace/local-recall-plugin/scripts/mcp-server && esbuild src/hooks/session-start.ts src/hooks/stop.ts src/hooks/user-prompt-submit.ts src/hooks/user-prompt-submit-thinking.ts --bundle --platform=node --format=esm --outdir=dev-marketplace/local-recall-plugin/scripts/hooks --external:better-sqlite3 --external:sqlite-vec --external:fastembed --external:onnxruntime-node --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\" && esbuild src/mcp-server/server.ts --bundle --platform=node --format=esm --outdir=dev-marketplace/local-recall-plugin/scripts/mcp-server --external:@modelcontextprotocol/sdk --external:better-sqlite3 --external:sqlite-vec --external:fastembed --external:onnxruntime-node --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\"",
+    "build:scripts": "mkdir -p dev-marketplace/local-recall-plugin/scripts/hooks dev-marketplace/local-recall-plugin/scripts/mcp-server && esbuild src/hooks/session-start.ts src/hooks/stop.ts src/hooks/user-prompt-submit.ts --bundle --platform=node --format=esm --outdir=dev-marketplace/local-recall-plugin/scripts/hooks --external:better-sqlite3 --external:sqlite-vec --external:fastembed --external:onnxruntime-node --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\" && esbuild src/mcp-server/server.ts --bundle --platform=node --format=esm --outdir=dev-marketplace/local-recall-plugin/scripts/mcp-server --external:@modelcontextprotocol/sdk --external:better-sqlite3 --external:sqlite-vec --external:fastembed --external:onnxruntime-node --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\"",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:unit": "vitest run --dir src",
@@ -21,7 +21,6 @@
     "hooks:session-start": "node dist/hooks/session-start.js",
     "hooks:stop": "node dist/hooks/stop.js",
     "hooks:user-prompt-submit": "node dist/hooks/user-prompt-submit.js",
-    "hooks:user-prompt-submit-thinking": "node dist/hooks/user-prompt-submit-thinking.js",
     "config:validate": "node dist/cli.js config:validate"
   },
   "keywords": [

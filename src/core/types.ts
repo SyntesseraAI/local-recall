@@ -115,7 +115,9 @@ export const configSchema = z.object({
   maxMemories: z.number().positive().default(1000),
   indexRefreshInterval: z.number().nonnegative().default(300),
   fuzzyThreshold: z.number().min(0).max(1).default(0.6),
-  episodicEnabled: z.boolean().default(false),
+  episodicEnabled: z.boolean().default(true),
+  episodicMaxTokens: z.number().positive().default(1000),
+  episodicMinSimilarity: z.number().min(0).max(1).default(0.8),
   thinkingEnabled: z.boolean().default(true),
   thinkingMaxTokens: z.number().positive().default(1000),
   thinkingMinSimilarity: z.number().min(0).max(1).default(0.8),
@@ -123,7 +125,7 @@ export const configSchema = z.object({
     maxContextMemories: z.number().positive().default(10),
   }).default({}),
   mcp: z.object({
-    port: z.number().positive().default(3000),
+    port: z.number().positive().default(7847),
     host: z.string().default('localhost'),
   }).default({}),
 });

@@ -26,13 +26,20 @@ function computeContentHash(content: string): string {
  * Memory Manager - handles CRUD operations for memory files
  */
 export class MemoryManager {
-  private baseDir: string;
+  private _baseDir: string;
   private memoriesDir: string;
 
   constructor(baseDir?: string) {
     const config = getConfig();
-    this.baseDir = baseDir ?? config.memoryDir;
-    this.memoriesDir = path.join(this.baseDir, 'episodic-memory');
+    this._baseDir = baseDir ?? config.memoryDir;
+    this.memoriesDir = path.join(this._baseDir, 'episodic-memory');
+  }
+
+  /**
+   * Get the base directory used by this manager
+   */
+  get baseDir(): string {
+    return this._baseDir;
   }
 
   /**
@@ -40,7 +47,7 @@ export class MemoryManager {
    */
   private async ensureDir(): Promise<void> {
     await fs.mkdir(this.memoriesDir, { recursive: true });
-    await ensureGitignore(this.baseDir);
+    await ensureGitignore(this._baseDir);
   }
 
   /**
@@ -105,7 +112,7 @@ export class MemoryManager {
 
     // Add to vector store for immediate searchability
     try {
-      const vectorStore = getVectorStore({ baseDir: this.baseDir });
+      const vectorStore = getVectorStore({ baseDir: this._baseDir });
       await vectorStore.add(memory);
     } catch (error) {
       // Log but don't fail - vector store will sync on next startup
@@ -187,7 +194,7 @@ export class MemoryManager {
 
       // Remove from vector store
       try {
-        const vectorStore = getVectorStore({ baseDir: this.baseDir });
+        const vectorStore = getVectorStore({ baseDir: this._baseDir });
         await vectorStore.remove(id);
       } catch (error) {
         logger.memory.warn(`Failed to remove memory from vector store: ${error}`);
