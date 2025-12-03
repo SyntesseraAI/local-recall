@@ -43,12 +43,14 @@
     "@orama/plugin-data-persistence": "^3.1.16",
     "fastembed": "^2.0.0",
     "gray-matter": "^4.0.3",
+    "proper-lockfile": "^4.1.2",
     "uuid": "^10.0.0",
     "yaml": "^2.6.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/proper-lockfile": "^4.1.4",
     "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
