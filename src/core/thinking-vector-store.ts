@@ -207,10 +207,11 @@ export class ThinkingVectorStore {
 
   /**
    * Search for similar thinking memories using vector similarity
+   * Applies recency weighting to boost more recent memories
    */
   async search(
     query: string,
-    options: { limit?: number; scope?: MemoryScope } = {}
+    options: { limit?: number; scope?: MemoryScope; recencyWeight?: number } = {}
   ): Promise<Array<{ memory: ThinkingMemory; score: number }>> {
     if (!this.initialized) {
       await this.initialize();
@@ -221,6 +222,7 @@ export class ThinkingVectorStore {
     }
 
     const limit = options.limit ?? 10;
+    const recencyWeight = options.recencyWeight ?? 0.1; // 10% max boost for recency
     logger.search.debug(`Orama thinking vector search for: "${query}"`);
 
     // Generate query embedding
@@ -242,27 +244,36 @@ export class ThinkingVectorStore {
 
     const results = await search(this.db, searchParams) as Results<ThinkingDocument>;
 
-    let mappedResults = results.hits.map((hit) => ({
-      memory: {
-        id: hit.document.id,
-        subject: hit.document.subject,
-        applies_to: hit.document.applies_to as MemoryScope,
-        occurred_at: hit.document.occurred_at,
-        content_hash: hit.document.content_hash,
-        content: hit.document.content,
-      },
-      // Orama returns similarity score (higher is better, 0-1 range)
-      score: Math.round(hit.score * 100) / 100,
-    }));
+    // Find date range for recency calculation
+    const now = Date.now();
+    const timestamps = results.hits.map((hit) => new Date(hit.document.occurred_at).getTime());
+    const oldestTime = Math.min(...timestamps);
+    const timeRange = now - oldestTime;
 
-    // Sort by score descending, then by recency for equivalent scores
-    mappedResults.sort((a, b) => {
-      if (a.score !== b.score) {
-        return b.score - a.score;
-      }
-      // For equal scores, prefer more recent memories
-      return new Date(b.memory.occurred_at).getTime() - new Date(a.memory.occurred_at).getTime();
+    let mappedResults = results.hits.map((hit) => {
+      const occurredAt = new Date(hit.document.occurred_at).getTime();
+      // Calculate recency factor: 1.0 for now, 0.0 for oldest
+      const recencyFactor = timeRange > 0 ? (occurredAt - oldestTime) / timeRange : 1;
+      // Apply recency boost: similarity * (1 + recencyWeight * recencyFactor)
+      const baseScore = hit.score;
+      const boostedScore = baseScore * (1 + recencyWeight * recencyFactor);
+
+      return {
+        memory: {
+          id: hit.document.id,
+          subject: hit.document.subject,
+          applies_to: hit.document.applies_to as MemoryScope,
+          occurred_at: hit.document.occurred_at,
+          content_hash: hit.document.content_hash,
+          content: hit.document.content,
+        },
+        // Round to 2 decimal places
+        score: Math.round(boostedScore * 100) / 100,
+      };
     });
+
+    // Sort by boosted score descending
+    mappedResults.sort((a, b) => b.score - a.score);
 
     // Filter by scope if specified
     if (options.scope) {

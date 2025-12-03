@@ -85,6 +85,10 @@ export function createTools(): Tool[] {
             type: 'number',
             description: 'Maximum results (default: 10)',
           },
+          max_tokens: {
+            type: 'number',
+            description: 'Maximum tokens to return (default: 2000)',
+          },
         },
         required: ['query'],
       },
@@ -121,6 +125,10 @@ export function createTools(): Tool[] {
           limit: {
             type: 'number',
             description: 'Maximum results (default: 10)',
+          },
+          max_tokens: {
+            type: 'number',
+            description: 'Maximum tokens to return (default: 2000)',
           },
         },
         required: ['query'],
@@ -202,6 +210,7 @@ async function executeToolCall(
     }
 
     case 'episodic_search': {
+      const maxTokens = (args['max_tokens'] as number) ?? 2000;
       const results = await searchEngine.search(
         args['query'] as string,
         {
@@ -209,15 +218,33 @@ async function executeToolCall(
           limit: args['limit'] as number | undefined,
         }
       );
+
+      // Apply token limit
+      const CHARS_PER_TOKEN = 4;
+      let totalTokens = 0;
+      const limitedResults = [];
+
+      for (const r of results) {
+        const memoryTokens = Math.ceil(r.memory.content.length / CHARS_PER_TOKEN);
+        if (totalTokens + memoryTokens > maxTokens && limitedResults.length > 0) {
+          break;
+        }
+        limitedResults.push(r);
+        totalTokens += memoryTokens;
+      }
+
       return {
-        results: results.map((r) => ({
+        results: limitedResults.map((r) => ({
           id: r.memory.id,
           subject: r.memory.subject,
           similarity: r.score,
           keywords: r.memory.keywords,
           applies_to: r.memory.applies_to,
+          occurred_at: r.memory.occurred_at,
+          content: r.memory.content,
         })),
-        total: results.length,
+        total: limitedResults.length,
+        tokens_used: totalTokens,
       };
     }
 
@@ -231,6 +258,7 @@ async function executeToolCall(
     }
 
     case 'thinking_search': {
+      const maxTokens = (args['max_tokens'] as number) ?? 2000;
       const results = await thinkingSearchEngine.search(
         args['query'] as string,
         {
@@ -238,14 +266,32 @@ async function executeToolCall(
           limit: args['limit'] as number | undefined,
         }
       );
+
+      // Apply token limit
+      const CHARS_PER_TOKEN = 4;
+      let totalTokens = 0;
+      const limitedResults = [];
+
+      for (const r of results) {
+        const memoryTokens = Math.ceil(r.memory.content.length / CHARS_PER_TOKEN);
+        if (totalTokens + memoryTokens > maxTokens && limitedResults.length > 0) {
+          break;
+        }
+        limitedResults.push(r);
+        totalTokens += memoryTokens;
+      }
+
       return {
-        results: results.map((r) => ({
+        results: limitedResults.map((r) => ({
           id: r.memory.id,
           subject: r.memory.subject,
           similarity: r.score,
           applies_to: r.memory.applies_to,
+          occurred_at: r.memory.occurred_at,
+          content: r.memory.content,
         })),
-        total: results.length,
+        total: limitedResults.length,
+        tokens_used: totalTokens,
       };
     }
 

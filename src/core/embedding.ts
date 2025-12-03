@@ -1,78 +1,34 @@
 /**
- * Embedding Service - generates vector embeddings using fastembed
+ * Embedding Service - generates vector embeddings using Ollama
  *
- * Uses the BAAI/bge-small-en-v1.5 model (384 dimensions) for semantic search.
- * Uses file-based locking to prevent onnxruntime mutex errors when multiple
- * processes try to load the model concurrently.
+ * Uses nomic-embed-text model (768 dimensions) via Ollama HTTP API.
+ * Ollama handles concurrency properly as a separate server process.
  */
 
-import { EmbeddingModel, FlagEmbedding } from 'fastembed';
-import lockfile from 'proper-lockfile';
-import { promises as fs } from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { logger } from '../utils/logger.js';
 
-/** Lock file path for cross-process synchronization */
-const LOCK_FILE = path.join(os.tmpdir(), 'local-recall-embedding.lock');
+/** Ollama API endpoint */
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434';
 
-/** Lock options with retries for contention */
-const LOCK_OPTIONS = {
-  retries: {
-    retries: 10,
-    factor: 2,
-    minTimeout: 100,
-    maxTimeout: 2000,
-  },
-  stale: 30000, // Consider lock stale after 30 seconds
-};
+/** Embedding model - nomic-embed-text is fast, small (~274MB), and high quality */
+const EMBEDDING_MODEL = process.env.OLLAMA_EMBED_MODEL ?? 'nomic-embed-text';
 
-/**
- * Ensure the lock file exists (required by proper-lockfile)
- */
-async function ensureLockFile(): Promise<void> {
-  try {
-    await fs.access(LOCK_FILE);
-  } catch {
-    await fs.writeFile(LOCK_FILE, '', 'utf-8');
-  }
+/** Embedding dimension for nomic-embed-text */
+export const EMBEDDING_DIM = 768;
+
+interface OllamaEmbedResponse {
+  embeddings: number[][];
 }
 
 /**
- * Execute a function with cross-process file lock
- */
-async function withLock<T>(fn: () => Promise<T>): Promise<T> {
-  await ensureLockFile();
-  let release: (() => Promise<void>) | null = null;
-
-  try {
-    release = await lockfile.lock(LOCK_FILE, LOCK_OPTIONS);
-    logger.search.debug('Acquired embedding lock');
-    return await fn();
-  } finally {
-    if (release) {
-      await release();
-      logger.search.debug('Released embedding lock');
-    }
-  }
-}
-
-/** Embedding dimension for bge-small-en-v1.5 */
-export const EMBEDDING_DIM = 384;
-
-/**
- * Singleton embedding service
+ * Singleton embedding service using Ollama
  */
 export class EmbeddingService {
   private static instance: EmbeddingService | null = null;
-  private model: FlagEmbedding | null = null;
-  private initPromise: Promise<void> | null = null;
+  private initialized: boolean = false;
 
   private constructor() {}
 
-  /**
-   * Get the singleton instance
-   */
   static getInstance(): EmbeddingService {
     if (!EmbeddingService.instance) {
       EmbeddingService.instance = new EmbeddingService();
@@ -81,99 +37,74 @@ export class EmbeddingService {
   }
 
   /**
-   * Initialize the embedding model (downloads on first use)
+   * Initialize the embedding service (checks Ollama is available)
    */
   async initialize(): Promise<void> {
-    if (this.model) {
+    if (this.initialized) {
       return;
     }
 
-    if (this.initPromise) {
-      return this.initPromise;
-    }
-
-    this.initPromise = this.doInitialize();
-    return this.initPromise;
-  }
-
-  private async doInitialize(): Promise<void> {
-    logger.search.info('Loading embedding model: BGESmallENV15');
+    logger.search.info(`Initializing Ollama embedding service (model: ${EMBEDDING_MODEL})`);
     const startTime = Date.now();
 
+    // Check Ollama is running
     try {
-      // Use file lock to prevent concurrent onnxruntime initialization
-      await withLock(async () => {
-        // Double-check model isn't already initialized (another process may have done it)
-        if (this.model) {
-          return;
-        }
-
-        this.model = await FlagEmbedding.init({
-          model: EmbeddingModel.BGESmallENV15,
-        });
-      });
-
-      const elapsed = Date.now() - startTime;
-      logger.search.info(`Embedding model loaded in ${elapsed}ms`);
+      const response = await fetch(`${OLLAMA_BASE_URL}/api/tags`);
+      if (!response.ok) {
+        throw new Error(`Ollama not responding: ${response.status}`);
+      }
     } catch (error) {
-      logger.search.error(`Failed to load embedding model: ${error}`);
-      this.initPromise = null;
-      throw error;
+      throw new Error(
+        `Ollama not available at ${OLLAMA_BASE_URL}. ` +
+        `Please start Ollama and ensure ${EMBEDDING_MODEL} is pulled: ollama pull ${EMBEDDING_MODEL}`
+      );
     }
+
+    // Warm up the model with a test embedding
+    await this.embed('test');
+
+    const elapsed = Date.now() - startTime;
+    logger.search.info(`Ollama embedding service ready in ${elapsed}ms`);
+    this.initialized = true;
   }
 
-  /**
-   * Check if the service is initialized
-   */
   isInitialized(): boolean {
-    return this.model !== null;
+    return this.initialized;
   }
 
   /**
-   * Generate embedding for a query (optimized for search queries)
+   * Generate embedding for a query
    */
   async embedQuery(text: string): Promise<number[]> {
-    if (!this.model) {
-      await this.initialize();
-    }
-
-    if (!this.model) {
-      throw new Error('Embedding model not initialized');
-    }
-
-    // Lock during embedding to prevent concurrent onnxruntime usage
-    return withLock(async () => {
-      const embedding = await this.model!.queryEmbed(text);
-      return Array.from(embedding);
-    });
+    return this.embed(text);
   }
 
   /**
    * Generate embedding for a passage/document
    */
   async embed(text: string): Promise<number[]> {
-    if (!this.model) {
-      await this.initialize();
-    }
-
-    if (!this.model) {
-      throw new Error('Embedding model not initialized');
-    }
-
-    // Lock during embedding to prevent concurrent onnxruntime usage
-    return withLock(async () => {
-      const embeddings: number[][] = [];
-      for await (const batch of this.model!.passageEmbed([text], 1)) {
-        embeddings.push(...batch.map((e) => Array.from(e)));
-      }
-
-      const result = embeddings[0];
-      if (!result) {
-        throw new Error('No embedding generated');
-      }
-
-      return result;
+    const response = await fetch(`${OLLAMA_BASE_URL}/api/embed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: EMBEDDING_MODEL,
+        input: text,
+      }),
     });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Ollama embed failed: ${response.status} - ${error}`);
+    }
+
+    const data = await response.json() as OllamaEmbedResponse;
+    const embedding = data.embeddings[0];
+
+    if (!embedding) {
+      throw new Error('No embedding returned from Ollama');
+    }
+
+    return embedding;
   }
 
   /**
@@ -184,23 +115,23 @@ export class EmbeddingService {
       return [];
     }
 
-    if (!this.model) {
-      await this.initialize();
-    }
-
-    if (!this.model) {
-      throw new Error('Embedding model not initialized');
-    }
-
-    // Lock during embedding to prevent concurrent onnxruntime usage
-    return withLock(async () => {
-      const embeddings: number[][] = [];
-      for await (const batch of this.model!.passageEmbed(texts, 32)) {
-        embeddings.push(...batch.map((e) => Array.from(e)));
-      }
-
-      return embeddings;
+    // Ollama's embed API supports batching via array input
+    const response = await fetch(`${OLLAMA_BASE_URL}/api/embed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: EMBEDDING_MODEL,
+        input: texts,
+      }),
     });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Ollama batch embed failed: ${response.status} - ${error}`);
+    }
+
+    const data = await response.json() as OllamaEmbedResponse;
+    return data.embeddings;
   }
 }
 

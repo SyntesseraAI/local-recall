@@ -142,6 +142,3 @@ vite.config.ts.timestamp-*
 scripts/
 dev-marketplace/local-recall-plugin/scripts/
 .DS_Store
-
-# Embedding model cache
-local_cache/

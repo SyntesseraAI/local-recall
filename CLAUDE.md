@@ -18,8 +18,8 @@ local-recall/                    # Project root
 ├── src/
 │   ├── core/                    # Core memory management
 │   │   ├── memory.ts            # CRUD operations for memory files
-│   │   ├── vector-store.ts      # SQLite + vector embeddings for semantic search
-│   │   ├── embedding.ts         # Embedding service (fastembed)
+│   │   ├── vector-store.ts      # Orama vector store for semantic search
+│   │   ├── embedding.ts         # Embedding service (Ollama)
 │   │   ├── search.ts            # Search implementation using vector store
 │   │   ├── types.ts             # TypeScript interfaces
 │   │   ├── transcript-collector.ts  # Collect transcripts from Claude cache
@@ -37,7 +37,6 @@ local-recall/                    # Project root
 │   │   └── stop.ts              # Parse transcript and create memories
 │   ├── mcp-server/              # MCP server implementation
 │   │   ├── server.ts            # Main MCP server + daemon
-│   │   ├── http-server.ts       # HTTP API for hooks communication
 │   │   └── tools.ts             # Exposed memory tools
 │   ├── prompts/                 # Prompt templates
 │   │   └── memory-extraction.ts # Memory extraction prompts
@@ -51,22 +50,20 @@ local-recall/                    # Project root
 │       ├── fuzzy.ts             # Fuzzy matching utilities
 │       ├── config.ts            # Configuration loading
 │       ├── gitignore.ts         # Gitignore management
-│       ├── summarize.ts         # Text summarization utilities
-│       └── daemon-client.ts     # HTTP client for hooks to call daemon
+│       └── summarize.ts         # Text summarization utilities
 ├── dist/                        # Build output (gitignored)
 │   ├── hooks/                   # Compiled hooks
 │   ├── mcp-server/              # Compiled MCP server
 │   └── ...
 ├── local-recall/                # Memory storage (version-controlled)
-│   ├── .gitignore               # Auto-generated, excludes memory.sqlite and recall.log
-│   ├── memory.sqlite            # SQLite database with vector embeddings (gitignored)
+│   ├── .gitignore               # Auto-generated, excludes index files and recall.log
+│   ├── orama-episodic-index.json  # Orama vector index for episodic memories (gitignored)
+│   ├── orama-thinking-index.json  # Orama vector index for thinking memories (gitignored)
 │   ├── recall.log               # Debug log file (gitignored)
 │   ├── episodic-memory/         # Individual memory files (tracked in git)
 │   │   └── *.md                 # Memory markdown files
 │   └── thinking-memory/         # Thinking memories (tracked in git)
 │       └── *.md                 # Thinking memory files (thought + output pairs)
-├── local_cache/                 # Embedding model cache (gitignored)
-│   └── fast-bge-small-en-v1.5/  # BGE embedding model files
 ├── package.json
 ├── tsconfig.json
 └── CLAUDE.md
@@ -123,14 +120,15 @@ CRD operations for memory files (no update - memories are idempotent):
 
 ### Vector Store (`src/core/vector-store.ts`)
 
-SQLite-backed vector store for semantic search:
-- `initialize()` - Set up database and load sqlite-vec extension
+Orama-backed vector store for semantic search:
+- `initialize()` - Load or create the Orama index
 - `add(memory)` - Add a memory with its embedding to the store
 - `remove(id)` - Remove a memory from the store
 - `search(query, options)` - Semantic similarity search
 - `sync(memories)` - Sync store with file-based memories (add/remove as needed)
+- `persist()` - Save the index to disk (JSON file)
 
-The store uses `better-sqlite3` with the `sqlite-vec` extension for vector similarity search. Embeddings are generated using `fastembed` with the BGE-small-en-v1.5 model.
+The store uses Orama (pure JavaScript) for vector storage and search. Embeddings are generated using Ollama with the `nomic-embed-text` model (768 dimensions). Index files are stored as JSON (`orama-episodic-index.json`, `orama-thinking-index.json`).
 
 #### Scoring and Ranking
 
@@ -148,57 +146,54 @@ Search implementation using the vector store:
 
 ## Claude Code Integration
 
-### Hook-Daemon Architecture
+### Architecture
 
-Hooks communicate with the MCP daemon via HTTP to avoid loading the sqlite-vec native extension directly. This prevents "mutex lock failed: Invalid argument" errors that occur when multiple processes load sqlite-vec concurrently.
+Hooks use Orama directly (pure JavaScript) for vector search. Since Orama has no native dependencies, there are no mutex or process isolation issues.
 
 ```
-┌─────────────────────┐     HTTP     ┌─────────────────────┐
-│   Hook Process      │◄────────────►│   MCP Daemon        │
-│   (thin client)     │   localhost  │   (owns sqlite-vec) │
-├─────────────────────┤    :7847     ├─────────────────────┤
-│ • DaemonClient      │              │ • HTTP Server       │
-│ • No sqlite-vec     │              │ • Vector Store      │
-│ • Fallback to files │              │ • Search Engines    │
-└─────────────────────┘              └─────────┬───────────┘
-                                               │
-                                       ┌───────▼───────┐
-                                       │ memory.sqlite │
-                                       └───────────────┘
+┌─────────────────────┐              ┌─────────────────────┐
+│   Hook Process      │              │   MCP Server        │
+│   (direct search)   │              │   (background)      │
+├─────────────────────┤              ├─────────────────────┤
+│ • Orama search      │              │ • MCP tools         │
+│ • Ollama embeddings │              │ • Transcript daemon │
+│ • JSON index files  │              │ • Memory extraction │
+└─────────────────────┘              └─────────────────────┘
+         │                                     │
+         └──────────────┬──────────────────────┘
+                        │
+           ┌────────────▼────────────┐
+           │  local-recall/          │
+           │  ├── episodic-memory/   │
+           │  ├── thinking-memory/   │
+           │  ├── orama-*-index.json │
+           │  └── recall.log         │
+           └─────────────────────────┘
 ```
-
-**HTTP Endpoints** (exposed by daemon on `localhost:7847`):
-- `POST /search/episodic` - Search episodic memories
-- `POST /search/thinking` - Search thinking memories
-- `POST /memories/recent` - Get recent memories
-- `GET /health` - Health check
 
 ### Hooks
 
-Hooks are configured in `hooks.json` and execute as shell commands that receive JSON via stdin.
+Hooks are configured in `.claude/settings.json` and execute as shell commands that receive JSON via stdin.
 
 #### SessionStart Hook
 Triggered when a Claude Code session begins:
 1. Receives JSON input with `session_id`, `transcript_path`, `cwd`
-2. Checks if daemon is available via HTTP health check
-3. If daemon available: fetches recent memories via HTTP
-4. If daemon unavailable: falls back to direct file reading (safe, no sqlite-vec)
-5. Returns the 5 most recent memories (sorted by `occurred_at`)
-6. Outputs memory content to stdout (injected into Claude's context)
+2. Reads the 5 most recent memories directly from files (sorted by `occurred_at`)
+3. Outputs memory content to stdout (injected into Claude's context)
 
 #### UserPromptSubmit Hook
 Triggered when a user submits a prompt, before Claude processes it. This unified hook handles both episodic and thinking memories based on configuration:
 
 1. Receives JSON input with `session_id`, `transcript_path`, `cwd`, `prompt`
-2. Checks if daemon is available via HTTP health check
-3. If daemon unavailable: exits gracefully (no search to avoid mutex errors)
-4. If `episodicEnabled`: searches episodic memories via daemon HTTP API
-5. If `thinkingEnabled`: searches thinking memories via daemon HTTP API
+2. Skips internal prompts (those containing `[LOCAL_RECALL_INTERNAL]`) used for memory extraction
+3. If `episodicEnabled`: searches episodic memories using Orama + Ollama embeddings
+4. If `thinkingEnabled`: searches thinking memories using Orama + Ollama embeddings
+5. Filters results by similarity threshold and token budget
 6. Combines results and outputs to stdout (injected into Claude's context)
 
 Each memory type has independent configuration:
-- **Episodic**: `episodicMaxTokens` (default: 1000), `episodicMinSimilarity` (default: 0.8)
-- **Thinking**: `thinkingMaxTokens` (default: 1000), `thinkingMinSimilarity` (default: 0.8)
+- **Episodic**: `episodicMaxTokens` (default: 1000), `episodicMinSimilarity` (default: 0.5)
+- **Thinking**: `thinkingMaxTokens` (default: 1000), `thinkingMinSimilarity` (default: 0.5)
 
 #### Stop Hook (Disabled)
 The Stop hook is currently disabled. Memory extraction is handled by the MCP server daemon which processes transcripts asynchronously every 5 minutes. See the MCP Server section for details.
@@ -278,12 +273,10 @@ This provides concrete examples of "how I reasoned → what I produced" for simi
 To fully reset thinking memories and reprocess from scratch:
 
 ```bash
-# Delete processed log and memories
+# Delete processed log, index, and memories
 rm local-recall/thinking-processed-log.jsonl
+rm local-recall/orama-thinking-index.json
 rm -rf local-recall/thinking-memory/
-
-# Optionally delete the database to remove thinking tables
-rm local-recall/memory.sqlite
 
 # The next daemon run will recreate everything
 ```
@@ -491,9 +484,16 @@ npm run build
 
 ### Embedding Model
 
-Local Recall uses the `fastembed` library with the BGE-small-en-v1.5 model (~133MB) for semantic search. The model is automatically downloaded to `local_cache/` on first use.
+Local Recall uses Ollama for embeddings with the `nomic-embed-text` model (768 dimensions, ~274MB).
 
-**First run:** The initial startup may take 30-60 seconds while the model downloads. Subsequent runs load from cache.
+**Prerequisites:**
+1. Install Ollama: https://ollama.com
+2. Pull the embedding model: `ollama pull nomic-embed-text`
+3. Ensure Ollama is running: `ollama serve`
+
+**Configuration:**
+- `OLLAMA_BASE_URL` - Ollama server URL (default: `http://localhost:11434`)
+- `OLLAMA_EMBED_MODEL` - Model name (default: `nomic-embed-text`)
 
 ### Scripts
 ```bash
@@ -521,10 +521,10 @@ Configuration can be set via environment variables or a `.local-recall.json` fil
   "maxMemories": 1000,
   "episodicEnabled": true,
   "episodicMaxTokens": 1000,
-  "episodicMinSimilarity": 0.8,
+  "episodicMinSimilarity": 0.5,
   "thinkingEnabled": true,
   "thinkingMaxTokens": 1000,
-  "thinkingMinSimilarity": 0.8
+  "thinkingMinSimilarity": 0.5
 }
 ```
 
@@ -536,10 +536,10 @@ Configuration can be set via environment variables or a `.local-recall.json` fil
 | `maxMemories` | `LOCAL_RECALL_MAX_MEMORIES` | `1000` | Maximum number of memories |
 | `episodicEnabled` | `LOCAL_RECALL_EPISODIC_ENABLED` | `true` | Enable episodic memory retrieval |
 | `episodicMaxTokens` | `LOCAL_RECALL_EPISODIC_MAX_TOKENS` | `1000` | Max tokens of episodic memories to inject per prompt |
-| `episodicMinSimilarity` | `LOCAL_RECALL_EPISODIC_MIN_SIMILARITY` | `0.8` | Minimum similarity threshold (0.0-1.0) for episodic memories |
+| `episodicMinSimilarity` | `LOCAL_RECALL_EPISODIC_MIN_SIMILARITY` | `0.5` | Minimum similarity threshold (0.0-1.0) for episodic memories |
 | `thinkingEnabled` | `LOCAL_RECALL_THINKING_ENABLED` | `true` | Enable thinking memory retrieval |
 | `thinkingMaxTokens` | `LOCAL_RECALL_THINKING_MAX_TOKENS` | `1000` | Max tokens of thinking memories to inject per prompt |
-| `thinkingMinSimilarity` | `LOCAL_RECALL_THINKING_MIN_SIMILARITY` | `0.8` | Minimum similarity threshold (0.0-1.0) for thinking memories |
+| `thinkingMinSimilarity` | `LOCAL_RECALL_THINKING_MIN_SIMILARITY` | `0.5` | Minimum similarity threshold (0.0-1.0) for thinking memories |
 | `fuzzyThreshold` | `LOCAL_RECALL_FUZZY_THRESHOLD` | `0.6` | Fuzzy matching threshold |
 | `indexRefreshInterval` | `LOCAL_RECALL_INDEX_REFRESH` | `300` | Index refresh interval in seconds |
 | `hooks.maxContextMemories` | `LOCAL_RECALL_MAX_CONTEXT` | `10` | Max episodic memories in context (session start only) |
@@ -556,8 +556,8 @@ Configuration can be set via environment variables or a `.local-recall.json` fil
 When working with this codebase:
 - Memory files are markdown with YAML frontmatter
 - Memory files ARE version-controlled - they will be committed to git
-- The SQLite database (`local-recall/memory.sqlite`) is gitignored and auto-generated
-- Vector embeddings are generated automatically when memories are added to the store
+- Orama index files (`orama-*-index.json`) are gitignored and auto-generated
+- Vector embeddings are generated via Ollama when memories are added to the store
 - Use the provided MCP tools rather than direct file manipulation
 - New memories should have relevant, specific keywords
 - Consider scope carefully: `global` vs `file:` vs `area:`
@@ -573,21 +573,34 @@ When working with this codebase:
 
 ## Troubleshooting
 
-### Tokenizer file not found error
+### Ollama not available error
 
 ```
-Error: Tokenizer file not found at local_cache/fast-bge-small-en-v1.5/tokenizer.json
+Error: Ollama not available at http://localhost:11434
 ```
 
-This error occurs when the embedding model cache is corrupted or incomplete (usually from an interrupted download). To fix:
+Ensure Ollama is installed and running:
 
 ```bash
-# Remove the corrupted cache
-rm -rf local_cache/fast-bge-small-en-v1.5*
+# Install Ollama (macOS)
+brew install ollama
 
-# The model will re-download automatically on next run
+# Pull the embedding model
+ollama pull nomic-embed-text
+
+# Start Ollama server
+ollama serve
 ```
 
-### Slow first startup
+### Migrating from fastembed
 
-The first run downloads the BGE-small-en-v1.5 embedding model (~133MB). This is normal and only happens once. The model is cached in `local_cache/` for subsequent runs.
+If you previously used fastembed (BGE-small-en-v1.5, 384 dimensions), you need to rebuild your vector indexes since the new model uses 768 dimensions:
+
+```bash
+# Delete old indexes (they will be rebuilt automatically)
+rm local-recall/orama-episodic-index.json
+rm local-recall/orama-thinking-index.json
+
+# Optional: remove old model cache
+rm -rf local_cache/
+```

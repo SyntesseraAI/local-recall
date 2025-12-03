@@ -117,10 +117,10 @@ export const configSchema = z.object({
   fuzzyThreshold: z.number().min(0).max(1).default(0.6),
   episodicEnabled: z.boolean().default(true),
   episodicMaxTokens: z.number().positive().default(1000),
-  episodicMinSimilarity: z.number().min(0).max(1).default(0.8),
+  episodicMinSimilarity: z.number().min(0).max(1).default(0.5),
   thinkingEnabled: z.boolean().default(true),
   thinkingMaxTokens: z.number().positive().default(1000),
-  thinkingMinSimilarity: z.number().min(0).max(1).default(0.8),
+  thinkingMinSimilarity: z.number().min(0).max(1).default(0.5),
   hooks: z.object({
     maxContextMemories: z.number().positive().default(10),
   }).default({}),

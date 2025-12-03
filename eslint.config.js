@@ -49,6 +49,6 @@ export default [
     },
   },
   {
-    ignores: ['dist/**', 'node_modules/**', 'dev-marketplace/**', 'local_cache/**'],
+    ignores: ['dist/**', 'node_modules/**', 'dev-marketplace/**'],
   },
 ];
