@@ -5,7 +5,6 @@
  */
 
 import Database from 'better-sqlite3';
-import * as sqliteVec from 'sqlite-vec';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { type ThinkingMemory, type MemoryScope } from './types.js';
@@ -13,9 +12,17 @@ import { EmbeddingService, EMBEDDING_DIM, getEmbeddingService } from './embeddin
 import { getConfig } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
 import { ensureGitignore } from '../utils/gitignore.js';
+import { openDatabase } from '../utils/database.js';
 
 /** Database filename (same as main vector store) */
 const DB_FILENAME = 'memory.sqlite';
+
+export interface ThinkingVectorStoreOptions {
+  /** Base directory for memory storage */
+  baseDir?: string;
+  /** Open in read-only mode (default: false) - avoids write locks for search operations */
+  readonly?: boolean;
+}
 
 /**
  * Thinking Vector Store - manages vector embeddings for thinking memories in SQLite
@@ -25,12 +32,14 @@ export class ThinkingVectorStore {
   private embeddingService: EmbeddingService;
   private dbPath: string;
   private baseDir: string;
+  private readonly: boolean;
 
-  constructor(baseDir?: string) {
+  constructor(options: ThinkingVectorStoreOptions = {}) {
     const config = getConfig();
-    this.baseDir = baseDir ?? config.memoryDir;
+    this.baseDir = options.baseDir ?? config.memoryDir;
     this.dbPath = path.join(this.baseDir, DB_FILENAME);
     this.embeddingService = getEmbeddingService();
+    this.readonly = options.readonly ?? false;
   }
 
   /**
@@ -41,23 +50,24 @@ export class ThinkingVectorStore {
       return;
     }
 
-    logger.search.info('Initializing thinking vector store');
+    logger.search.info(`Initializing thinking vector store (readonly=${this.readonly})`);
 
-    // Ensure directory exists and gitignore is set up
-    await fs.mkdir(this.baseDir, { recursive: true });
-    await ensureGitignore(this.baseDir);
+    // Ensure directory exists and gitignore is set up (only if not readonly)
+    if (!this.readonly) {
+      await fs.mkdir(this.baseDir, { recursive: true });
+      await ensureGitignore(this.baseDir);
+    }
 
     // Initialize embedding service
     await this.embeddingService.initialize();
 
-    // Open database
-    this.db = new Database(this.dbPath);
+    // Open database with proper concurrency settings
+    this.db = openDatabase(this.dbPath, { readonly: this.readonly });
 
-    // Load sqlite-vec extension
-    sqliteVec.load(this.db);
-
-    // Create tables
-    this.createTables();
+    // Create tables (only if not readonly)
+    if (!this.readonly) {
+      this.createTables();
+    }
 
     logger.search.info('Thinking vector store initialized');
   }
@@ -341,26 +351,45 @@ export class ThinkingVectorStore {
 }
 
 /**
- * Singleton thinking vector store instance
+ * Singleton thinking vector store instances (separate for readonly and read-write)
  */
 let thinkingVectorStoreInstance: ThinkingVectorStore | null = null;
+let readonlyThinkingVectorStoreInstance: ThinkingVectorStore | null = null;
 
 /**
  * Get the singleton thinking vector store instance
+ *
+ * Note: Read-only instances are separate from read-write instances to allow
+ * concurrent search operations without mutex conflicts.
  */
-export function getThinkingVectorStore(baseDir?: string): ThinkingVectorStore {
+export function getThinkingVectorStore(options: ThinkingVectorStoreOptions = {}): ThinkingVectorStore {
+  // Use baseDir from options or legacy string parameter support
+  const baseDir = typeof options === 'string' ? options : options.baseDir;
+  const readonly = typeof options === 'string' ? false : (options.readonly ?? false);
+
+  if (readonly) {
+    if (!readonlyThinkingVectorStoreInstance) {
+      readonlyThinkingVectorStoreInstance = new ThinkingVectorStore({ baseDir, readonly: true });
+    }
+    return readonlyThinkingVectorStoreInstance;
+  }
+
   if (!thinkingVectorStoreInstance) {
-    thinkingVectorStoreInstance = new ThinkingVectorStore(baseDir);
+    thinkingVectorStoreInstance = new ThinkingVectorStore({ baseDir, readonly: false });
   }
   return thinkingVectorStoreInstance;
 }
 
 /**
- * Reset the singleton instance (for testing)
+ * Reset the singleton instances (for testing)
  */
 export function resetThinkingVectorStore(): void {
   if (thinkingVectorStoreInstance) {
     thinkingVectorStoreInstance.close();
     thinkingVectorStoreInstance = null;
+  }
+  if (readonlyThinkingVectorStoreInstance) {
+    readonlyThinkingVectorStoreInstance.close();
+    readonlyThinkingVectorStoreInstance = null;
   }
 }

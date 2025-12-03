@@ -9,15 +9,30 @@ import { getVectorStore } from './vector-store.js';
 import { getConfig } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
 
+export interface SearchEngineOptions {
+  /** Memory manager instance */
+  memoryManager?: MemoryManager;
+  /** Open vector store in read-only mode (default: false) - avoids write locks */
+  readonly?: boolean;
+}
+
 /**
  * Search Engine - vector-based semantic search for memories
  */
 export class SearchEngine {
   private memoryManager: MemoryManager;
+  private readonly: boolean;
 
-  constructor(memoryManager?: MemoryManager) {
+  constructor(options: SearchEngineOptions | MemoryManager = {}) {
     const config = getConfig();
-    this.memoryManager = memoryManager ?? new MemoryManager(config.memoryDir);
+    // Support legacy constructor (passing MemoryManager directly)
+    if (options instanceof MemoryManager) {
+      this.memoryManager = options;
+      this.readonly = false;
+    } else {
+      this.memoryManager = options.memoryManager ?? new MemoryManager(config.memoryDir);
+      this.readonly = options.readonly ?? false;
+    }
   }
 
   /**
@@ -30,7 +45,7 @@ export class SearchEngine {
     logger.search.debug(`Vector search: "${query}"`);
     const limit = options.limit ?? 10;
 
-    const vectorStore = getVectorStore();
+    const vectorStore = getVectorStore({ readonly: this.readonly });
     const results = await vectorStore.search(query, {
       limit,
       scope: options.scope,

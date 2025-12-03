@@ -40,7 +40,7 @@ async function main(): Promise<void> {
     try {
       input = JSON.parse(inputRaw) as StopHookInput;
       logger.hooks.info(`Stop hook input received: ${JSON.stringify(input, null, 2)}`);
-    } catch (parseError) {
+    } catch {
       logger.hooks.error(`Stop hook: Failed to parse stdin input: ${inputRaw}`);
       process.exit(0);
     }

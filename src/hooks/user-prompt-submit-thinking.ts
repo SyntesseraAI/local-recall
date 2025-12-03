@@ -78,7 +78,8 @@ async function main(): Promise<void> {
     // Fetch up to 25, but only return:
     // - First 10 items (default)
     // - Additional items (up to 25) only if similarity >= 90%
-    const searchEngine = new ThinkingSearchEngine();
+    // Use readonly mode to avoid mutex conflicts with concurrent database access
+    const searchEngine = new ThinkingSearchEngine({ readonly: true });
     const allResults = await searchEngine.search(input.prompt, { limit: 25 });
 
     if (allResults.length === 0) {

@@ -74,7 +74,8 @@ async function main(): Promise<void> {
     }
 
     // Search for relevant memories using vector similarity
-    const searchEngine = new SearchEngine();
+    // Use readonly mode to avoid mutex conflicts with concurrent database access
+    const searchEngine = new SearchEngine({ readonly: true });
     const results = await searchEngine.search(input.prompt, { limit: 5 });
 
     if (results.length === 0) {

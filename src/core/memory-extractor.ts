@@ -396,7 +396,7 @@ export class MemoryExtractor {
       const jsonMatch = response.match(/\{[\s\S]*"memories"[\s\S]*\}/);
       if (jsonMatch) {
         try {
-          let extracted = JSON.parse(jsonMatch[0]);
+          const extracted = JSON.parse(jsonMatch[0]);
           // Apply same normalization as above
           if (extracted.memories && Array.isArray(extracted.memories)) {
             extracted.memories = extracted.memories.map((memory: Record<string, unknown>) => ({

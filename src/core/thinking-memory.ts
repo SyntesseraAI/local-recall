@@ -134,7 +134,7 @@ export class ThinkingMemoryManager {
 
     // Add to vector store for immediate searchability
     try {
-      const vectorStore = getThinkingVectorStore(this.baseDir);
+      const vectorStore = getThinkingVectorStore({ baseDir: this.baseDir });
       await vectorStore.add(memory);
     } catch (error) {
       // Log but don't fail - vector store will sync on next startup
@@ -219,7 +219,7 @@ export class ThinkingMemoryManager {
 
       // Remove from vector store
       try {
-        const vectorStore = getThinkingVectorStore(this.baseDir);
+        const vectorStore = getThinkingVectorStore({ baseDir: this.baseDir });
         await vectorStore.remove(id);
       } catch (error) {
         logger.memory.warn(`Failed to remove thinking memory from vector store: ${error}`);
