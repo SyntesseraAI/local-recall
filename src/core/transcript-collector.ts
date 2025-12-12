@@ -73,13 +73,15 @@ export class TranscriptCollector {
    * Returns null if not found
    */
   async findClaudeProjectDir(): Promise<string | null> {
-    logger.transcript.debug(`Looking for Claude project for: ${this.projectPath}`);
-    logger.transcript.debug(`Claude projects directory: ${this.claudeProjectsDir}`);
+    logger.transcript.info(`Searching for Claude project transcripts...`);
+    logger.transcript.info(`  Project path: ${this.projectPath}`);
+    logger.transcript.info(`  Claude projects dir: ${this.claudeProjectsDir}`);
 
     try {
       await fs.access(this.claudeProjectsDir);
+      logger.transcript.debug('Claude projects directory exists');
     } catch {
-      logger.transcript.debug('Claude projects directory not found');
+      logger.transcript.info('Claude projects directory not found - no Claude sessions exist yet');
       return null;
     }
 
@@ -87,27 +89,28 @@ export class TranscriptCollector {
     // e.g., /Users/joe/Code/project -> -Users-joe-Code-project
     const expectedFolderName = this.pathToClaudeFolderName(this.projectPath);
     const expectedDir = path.join(this.claudeProjectsDir, expectedFolderName);
-    logger.transcript.debug(`Expected folder name: ${expectedFolderName}`);
-    logger.transcript.debug(`Checking path: ${expectedDir}`);
+    logger.transcript.info(`  Expected folder: ${expectedFolderName}`);
 
     try {
       await fs.access(expectedDir);
       // Transcripts are stored directly in the project folder as .jsonl files with UUID names
       const files = await fs.readdir(expectedDir);
-      const hasTranscripts = files.some((f) => f.endsWith('.jsonl') && isUuidFilename(f));
-      if (hasTranscripts) {
-        logger.transcript.debug(`Found Claude project via path convention: ${expectedFolderName}`);
+      const jsonlFiles = files.filter((f) => f.endsWith('.jsonl') && isUuidFilename(f));
+      if (jsonlFiles.length > 0) {
+        logger.transcript.info(`  Found ${jsonlFiles.length} transcript file(s) at expected path`);
         return expectedDir;
       } else {
-        logger.transcript.debug(`Claude project found but no transcript files: ${expectedFolderName}`);
+        logger.transcript.info(`  Expected folder exists but contains no transcript files`);
+        logger.transcript.debug(`  Files found: ${files.slice(0, 10).join(', ')}${files.length > 10 ? '...' : ''}`);
       }
     } catch {
-      logger.transcript.debug(`No Claude project at expected path: ${expectedFolderName}`);
+      logger.transcript.info(`  Expected folder not found - trying fallback search...`);
     }
 
     // Fallback: scan all directories and check cwd in transcript files
     const entries = await fs.readdir(this.claudeProjectsDir, { withFileTypes: true });
     const projectDirs = entries.filter((e) => e.isDirectory());
+    logger.transcript.info(`  Scanning ${projectDirs.length} Claude project folders for matching cwd...`);
 
     for (const dir of projectDirs) {
       const projectDir = path.join(this.claudeProjectsDir, dir.name);
@@ -129,7 +132,7 @@ export class TranscriptCollector {
           try {
             const parsed = JSON.parse(firstLine);
             if (parsed.cwd && this.isMatchingProject(parsed.cwd)) {
-              logger.transcript.debug(`Found matching Claude project via cwd: ${dir.name}`);
+              logger.transcript.info(`  Found matching project via cwd field: ${dir.name}`);
               return projectDir;
             }
           } catch {
@@ -142,15 +145,18 @@ export class TranscriptCollector {
     }
 
     // Last resort: check for directories ending with the project basename
+    const basename = path.basename(this.projectPath);
+    logger.transcript.debug(`  Trying basename match: *-${basename}`);
+
     for (const dir of projectDirs) {
       const projectDir = path.join(this.claudeProjectsDir, dir.name);
 
-      if (dir.name.endsWith('-' + path.basename(this.projectPath))) {
+      if (dir.name.endsWith('-' + basename)) {
         try {
           const files = await fs.readdir(projectDir);
-          const hasTranscripts = files.some((f) => f.endsWith('.jsonl') && isUuidFilename(f));
-          if (hasTranscripts) {
-            logger.transcript.debug(`Found Claude project via basename match: ${dir.name}`);
+          const jsonlFiles = files.filter((f) => f.endsWith('.jsonl') && isUuidFilename(f));
+          if (jsonlFiles.length > 0) {
+            logger.transcript.info(`  Found Claude project via basename match: ${dir.name}`);
             return projectDir;
           }
         } catch {
@@ -159,7 +165,8 @@ export class TranscriptCollector {
       }
     }
 
-    logger.transcript.warn('Could not find matching Claude project directory');
+    logger.transcript.info(`No matching Claude project directory found for: ${this.projectPath}`);
+    logger.transcript.info(`  This is normal if you haven't run Claude Code in this repo yet.`);
     return null;
   }
 
@@ -237,11 +244,23 @@ export class TranscriptCollector {
    * Also runs cleanup to remove synthetic and invalid transcripts.
    */
   async syncTranscripts(): Promise<TranscriptInfo[]> {
+    logger.transcript.info('Starting transcript sync...');
+
     // First, clean up any synthetic or invalid transcripts
     await this.cleanupTranscripts();
 
     const sourceTranscripts = await this.listSourceTranscripts();
+    logger.transcript.info(`Found ${sourceTranscripts.length} transcript(s) in Claude cache`);
+
+    if (sourceTranscripts.length === 0) {
+      logger.transcript.info('No transcripts to sync');
+      return [];
+    }
+
     const copied: TranscriptInfo[] = [];
+    let skippedUpToDate = 0;
+    let skippedSynthetic = 0;
+    let skippedNoThinking = 0;
 
     for (const transcript of sourceTranscripts) {
       try {
@@ -251,6 +270,7 @@ export class TranscriptCollector {
         // Skip if mtime is current AND size matches
         if (localStats.mtime >= transcript.lastModified && localStats.size === transcript.size) {
           // Local copy is up to date
+          skippedUpToDate++;
           continue;
         }
 
@@ -263,12 +283,14 @@ export class TranscriptCollector {
       // Skip synthetic transcripts before copying
       if (await this.isSyntheticFile(transcript.sourcePath)) {
         logger.transcript.debug(`Skipping synthetic transcript: ${transcript.filename}`);
+        skippedSynthetic++;
         continue;
       }
 
       // Skip transcripts without thinking blocks (e.g., Haiku transcripts)
       if (!(await this.hasThinkingBlocks(transcript.sourcePath))) {
         logger.transcript.debug(`Skipping transcript without thinking: ${transcript.filename}`);
+        skippedNoThinking++;
         continue;
       }
 
@@ -276,9 +298,12 @@ export class TranscriptCollector {
       copied.push(transcript);
     }
 
-    if (copied.length > 0) {
-      logger.transcript.info(`Synced ${copied.length} transcripts from Claude cache`);
-    }
+    // Log summary
+    logger.transcript.info(`Transcript sync complete:`);
+    logger.transcript.info(`  Copied: ${copied.length}`);
+    logger.transcript.info(`  Skipped (up-to-date): ${skippedUpToDate}`);
+    logger.transcript.info(`  Skipped (synthetic): ${skippedSynthetic}`);
+    logger.transcript.info(`  Skipped (no thinking blocks): ${skippedNoThinking}`);
 
     return copied;
   }

@@ -13,10 +13,12 @@
  */
 
 import { loadConfig, getConfig } from '../utils/config.js';
-import { formatMemoryForDisplay } from '../utils/markdown.js';
+import { formatMemoryForDisplay, formatThinkingMemoryForDisplay } from '../utils/markdown.js';
 import { readStdin } from '../utils/transcript.js';
 import { logger } from '../utils/logger.js';
 import { MemoryManager } from '../core/memory.js';
+import { ThinkingMemoryManager } from '../core/thinking-memory.js';
+import type { Memory, ThinkingMemory } from '../core/types.js';
 
 interface SessionStartInput {
   session_id: string;
@@ -55,27 +57,43 @@ async function main(): Promise<void> {
     await loadConfig();
     logger.hooks.debug('SessionStart: Configuration loaded');
 
-    // Check if episodic memory is enabled
     const config = getConfig();
-    if (!config.episodicEnabled) {
-      logger.hooks.debug('SessionStart: Episodic memory disabled, skipping');
+
+    // Check if both memory types are disabled
+    if (!config.episodicEnabled && !config.thinkingEnabled) {
+      logger.hooks.debug('SessionStart: Both episodic and thinking memories disabled, skipping');
       process.exit(0);
     }
 
-    // Read memories directly from files (MemoryManager doesn't use sqlite-vec)
-    logger.hooks.debug('SessionStart: Reading memories from files');
-    const memoryManager = new MemoryManager(config.memoryDir);
-    const allMemories = await memoryManager.listMemories();
-    const totalMemories = allMemories.length;
+    // Load episodic memories if enabled
+    let episodicMemories: Memory[] = [];
+    let totalEpisodic = 0;
+    if (config.episodicEnabled) {
+      logger.hooks.debug('SessionStart: Reading episodic memories from files');
+      const memoryManager = new MemoryManager(config.memoryDir);
+      const allEpisodic = await memoryManager.listMemories();
+      totalEpisodic = allEpisodic.length;
+      episodicMemories = allEpisodic
+        .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())
+        .slice(0, 5);
+      logger.hooks.info(`SessionStart: Found ${episodicMemories.length} recent episodic memories`);
+    }
 
-    // Get the 5 most recent memories for session context
-    const memories = allMemories
-      .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())
-      .slice(0, 5);
-    logger.hooks.info(`SessionStart: Found ${memories.length} recent memories`);
+    // Load thinking memories if enabled
+    let thinkingMemories: ThinkingMemory[] = [];
+    let totalThinking = 0;
+    if (config.thinkingEnabled) {
+      logger.hooks.debug('SessionStart: Reading thinking memories from files');
+      const thinkingManager = new ThinkingMemoryManager(config.memoryDir);
+      const allThinking = await thinkingManager.listMemories();
+      totalThinking = allThinking.length;
+      thinkingMemories = allThinking
+        .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())
+        .slice(0, 5);
+      logger.hooks.info(`SessionStart: Found ${thinkingMemories.length} recent thinking memories`);
+    }
 
-    if (memories.length === 0) {
-      // Output context for Claude
+    if (episodicMemories.length === 0 && thinkingMemories.length === 0) {
       console.log('# Local Recall: No memories loaded');
       console.log('');
       console.log('No prior memories found for this session. Memories will be created as the session progresses.');
@@ -83,23 +101,45 @@ async function main(): Promise<void> {
       process.exit(0);
     }
 
-    // Output memories for Claude to consume (stdout goes to context)
-    console.log('# Local Recall: Loaded Memories');
-    console.log('');
-    console.log(`Found ${memories.length} relevant memories for this session.`);
-    console.log('');
+    // Output episodic memories
+    if (episodicMemories.length > 0) {
+      console.log('# Local Recall: Recent Memories');
+      console.log('');
+      console.log(`Found ${episodicMemories.length} recent episodic memories for context.`);
+      console.log('');
 
-    for (const memory of memories) {
-      console.log(formatMemoryForDisplay(memory));
+      for (const memory of episodicMemories) {
+        console.log(formatMemoryForDisplay(memory));
+        console.log('');
+        console.log('---');
+        console.log('');
+      }
+    }
+
+    // Output thinking memories
+    if (thinkingMemories.length > 0) {
+      console.log('# Local Recall: Recent Thoughts');
       console.log('');
-      console.log('---');
+      console.log(`Found ${thinkingMemories.length} recent thinking memories for context.`);
       console.log('');
+
+      for (const memory of thinkingMemories) {
+        console.log(formatThinkingMemoryForDisplay(memory));
+        console.log('');
+        console.log('---');
+        console.log('');
+      }
     }
 
     // Output memory stats
     console.log('## Memory Status');
     console.log('');
-    console.log(`- Total memories: ${totalMemories}`);
+    if (config.episodicEnabled) {
+      console.log(`- Total episodic memories: ${totalEpisodic}`);
+    }
+    if (config.thinkingEnabled) {
+      console.log(`- Total thinking memories: ${totalThinking}`);
+    }
 
     // Exit 0 for success
     logger.hooks.info('SessionStart hook completed successfully');

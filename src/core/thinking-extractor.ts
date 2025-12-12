@@ -143,8 +143,12 @@ function parseTranscriptForThinking(rawContent: string): ExtractedThinking[] {
 
   // Convert aggregated messages to thinking blocks
   for (const aggregated of messageMap.values()) {
-    const thinking = aggregated.thinkingParts.join('\n');
-    const output = aggregated.textParts.join('\n');
+    // Deduplicate thinking and text parts (streaming can create duplicates)
+    const uniqueThinking = [...new Set(aggregated.thinkingParts)];
+    const uniqueText = [...new Set(aggregated.textParts)];
+
+    const thinking = uniqueThinking.join('\n');
+    const output = uniqueText.join('\n');
 
     // Only include if there's both thinking AND text output (skip tool-only responses)
     if (thinking.trim() && output.trim()) {

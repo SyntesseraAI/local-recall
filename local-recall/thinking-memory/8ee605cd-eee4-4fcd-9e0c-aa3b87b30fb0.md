@@ -1,0 +1,20 @@
+---
+id: 8ee605cd-eee4-4fcd-9e0c-aa3b87b30fb0
+subject: >-
+  So the only memory about "stew" is from an earlier conversation where the user
+  asked if there were...
+applies_to: global
+occurred_at: '2025-11-29T22:56:47.705Z'
+content_hash: 357f61780f13e40e
+---
+## Thought
+
+So the only memory about "stew" is from an earlier conversation where the user asked if there were any memories about sausages or stew - and at that time, the search found nothing. The memory just records that the question was asked, not any actual conversation about stew.
+
+I should tell the user that we haven't actually discussed stew - there's just a memory of them previously asking about it, and the answer was that no stew-related memories existed.
+
+## Output
+
+Based on the stored memories, we haven't actually discussed stew in any meaningful way. There's only a record from earlier today showing you previously asked if we'd had conversations about "sausages or stew" - and at that time, the search found nothing.
+
+So the answer is: we haven't said anything about stew. The only memory is you asking about it before.
