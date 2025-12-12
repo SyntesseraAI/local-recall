@@ -1,7 +1,7 @@
 {
   "name": "local-recall",
   "description": "Local markdown-powered memory system for AI coding assistants. Enables persistent memory across sessions through structured markdown files.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "Local Recall"
   },
