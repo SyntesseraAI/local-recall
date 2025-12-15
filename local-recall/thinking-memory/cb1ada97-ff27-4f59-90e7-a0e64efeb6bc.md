@@ -1,5 +1,5 @@
 ---
-id: 03495afc-1c6f-4297-a8e6-c019016c995d
+id: cb1ada97-ff27-4f59-90e7-a0e64efeb6bc
 subject: >-
   CLAUDE.md looks mostly good. I notice it doesn't list the LOG_LEVEL
   environment variable with its...
