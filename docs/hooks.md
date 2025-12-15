@@ -32,17 +32,6 @@ Hooks are configured in `.claude/settings.json`:
           }
         ]
       }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./node_modules/local-recall/dist/hooks/stop.js",
-            "timeout": 60
-          }
-        ]
-      }
     ]
   }
 }
@@ -84,11 +73,11 @@ All hooks receive JSON via stdin with these common fields:
 4. Outputs formatted memory content to stdout
 5. Exit code 0 indicates success
 
-### UserPromptSubmit Hook
+### UserPromptSubmit Hook (Unified)
 
 **Trigger**: When a user submits a prompt, before Claude processes it
 
-**Purpose**: Search for relevant memories based on the user's prompt and add them to the context
+**Purpose**: Search for relevant memories based on the user's prompt and add them to the context. This unified hook handles both episodic and thinking memories based on configuration.
 
 **Input Fields**:
 - `session_id`: Unique session identifier
@@ -100,18 +89,34 @@ All hooks receive JSON via stdin with these common fields:
 
 **Flow**:
 1. Receives JSON input via stdin (includes `prompt` field)
-2. Initializes vector store (lazy initialization, cached)
-3. Performs semantic search using vector embeddings
-4. Outputs formatted matching memories to stdout
-5. Exit code 0 indicates success
+2. Skips internal prompts (those containing `[LOCAL_RECALL_INTERNAL]`)
+3. If `episodicEnabled`: searches episodic memories using Orama + Ollama embeddings
+4. If `thinkingEnabled`: searches thinking memories using Orama + Ollama embeddings
+5. Filters results by similarity threshold and token budget
+6. Combines results and outputs formatted memories to stdout
+7. Exit code 0 indicates success
 
 **Search**:
-- Uses vector similarity search via SQLite + sqlite-vec
-- Embeddings generated using fastembed (BGE-small-en-v1.5)
+- Uses vector similarity search via Orama (pure JavaScript)
+- Embeddings generated using Ollama with nomic-embed-text model (768 dimensions)
 - Returns memories ranked by semantic similarity
+- Filters by minimum similarity threshold and token budget
 - Falls back gracefully on error
 
+**Configuration** (via `.local-recall.json` or environment variables):
+
+| Option | Env Variable | Default | Description |
+|--------|--------------|---------|-------------|
+| `episodicEnabled` | `LOCAL_RECALL_EPISODIC_ENABLED` | `true` | Enable episodic memory search |
+| `episodicMaxTokens` | `LOCAL_RECALL_EPISODIC_MAX_TOKENS` | `1000` | Max tokens of episodic memories |
+| `episodicMinSimilarity` | `LOCAL_RECALL_EPISODIC_MIN_SIMILARITY` | `0.5` | Min similarity threshold (0-1) |
+| `thinkingEnabled` | `LOCAL_RECALL_THINKING_ENABLED` | `true` | Enable thinking memory search |
+| `thinkingMaxTokens` | `LOCAL_RECALL_THINKING_MAX_TOKENS` | `1000` | Max tokens of thinking memories |
+| `thinkingMinSimilarity` | `LOCAL_RECALL_THINKING_MIN_SIMILARITY` | `0.5` | Min similarity threshold (0-1) |
+
 **Example Output**:
+
+When episodic memories are found:
 ```
 # Local Recall: Relevant Memories
 
@@ -122,71 +127,32 @@ Found 2 memories related to your query.
 **Scope:** global
 **Keywords:** api, rest, design
 ...
+*Similarity: 85%*
 ```
 
-### UserPromptSubmit Thinking Hook (Experimental)
-
-**Trigger**: When a user submits a prompt, before Claude processes it
-
-**Purpose**: Search for relevant thinking memories (Claude's previous thought processes) and add them to the context as "Previous Thoughts"
-
-**Input Fields**:
-- `session_id`: Unique session identifier
-- `transcript_path`: Path to the JSONL transcript file
-- `cwd`: Current working directory
-- `prompt`: The user's submitted prompt text
-
-**Output**: Stdout text is injected into Claude's context
-
-**Flow**:
-1. Receives JSON input via stdin (includes `prompt` field)
-2. Initializes thinking vector store (separate tables from main memories)
-3. Performs semantic search on thinking memories
-4. Outputs formatted matching thinking excerpts to stdout
-5. Exit code 0 indicates success
-
-**Configuration**: Add to `.claude/settings.json` alongside the main UserPromptSubmit hook:
-
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./dist/hooks/user-prompt-submit.js",
-            "timeout": 30
-          },
-          {
-            "type": "command",
-            "command": "node ./dist/hooks/user-prompt-submit-thinking.js",
-            "timeout": 30
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-**Example Output**:
+When thinking memories are found:
 ```
 # Local Recall: Previous Thoughts
 
 Found 2 relevant thinking excerpts from previous sessions.
 
 ## Auto-generated subject from thinking content...
-**ID:** abc123
+**ID:** def456
 **Scope:** global
 **Occurred:** 2025-01-01T00:00:00.000Z
 
 ---
-Thinking content here...
-*Similarity: 85%*
-```
 
-See [Thinking Memories documentation](./thinking-memory.md) for details.
+## Thought
+
+[Claude's reasoning]
+
+## Output
+
+[The response that followed]
+
+*Similarity: 82%*
+```
 
 ### Stop Hook (Disabled)
 
@@ -217,21 +183,25 @@ Available to hook commands:
 | Variable | Description |
 |----------|-------------|
 | `LOCAL_RECALL_DIR` | Memory storage directory (default: `./local-recall`) |
-| `LOCAL_RECALL_LOG_LEVEL` | Log level: debug, info, warn, error (default: debug) |
+| `LOCAL_RECALL_LOG_LEVEL` | Log level: debug, info, warn, error (default: error) |
 | `LOCAL_RECALL_MAX_CONTEXT` | Max memories at session start (default: 5) |
+| `OLLAMA_BASE_URL` | Ollama server URL (default: `http://localhost:11434`) |
+| `OLLAMA_EMBED_MODEL` | Embedding model (default: `nomic-embed-text`) |
 
 ## Debugging
 
 ### Enable Debug Logging
 
 ```bash
-export LOCAL_RECALL_DEBUG=1
+export LOCAL_RECALL_LOG_LEVEL=debug
 ```
 
 Or run Claude Code with debug flag:
 ```bash
 claude --debug
 ```
+
+Logs are written to `local-recall/recall.log`.
 
 ### Test Hooks Manually
 
@@ -240,13 +210,9 @@ claude --debug
 echo '{"session_id":"test","cwd":"/path/to/project","transcript_path":"/tmp/transcript.jsonl"}' | \
   node dist/hooks/session-start.js
 
-# Test user-prompt-submit hook
+# Test user-prompt-submit hook (unified - searches both episodic and thinking)
 echo '{"session_id":"test","cwd":"/path/to/project","transcript_path":"/tmp/transcript.jsonl","prompt":"tell me about the API design"}' | \
   node dist/hooks/user-prompt-submit.js
-
-# Test stop hook
-echo '{"session_id":"test","cwd":"/path/to/project","transcript_path":"/tmp/transcript.jsonl"}' | \
-  node dist/hooks/stop.js
 ```
 
 ### Common Issues
@@ -256,8 +222,10 @@ echo '{"session_id":"test","cwd":"/path/to/project","transcript_path":"/tmp/tran
 | Hook not triggering | Check hooks are configured in .claude/settings.json |
 | No memories loaded | Verify local-recall/episodic-memory/ has .md files |
 | Memories not being created | Check write permissions on local-recall/ |
-| Slow startup | First run downloads embedding model (~133MB) |
-| Hook timeout | Increase timeout in settings (default: 30-60s) |
+| Ollama not available | Ensure Ollama is running: `ollama serve` |
+| Wrong embedding model | Run: `ollama pull nomic-embed-text` |
+| Slow first search | First run initializes embedding model (~274MB) |
+| Hook timeout | Increase timeout in settings (default: 30s) |
 
 ## Security Considerations
 

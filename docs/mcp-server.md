@@ -119,6 +119,10 @@ Search episodic memories using semantic vector similarity.
     "limit": {
       "type": "number",
       "description": "Maximum results (default: 10)"
+    },
+    "max_tokens": {
+      "type": "number",
+      "description": "Maximum tokens to return (default: 2000)"
     }
   },
   "required": ["query"]
@@ -202,6 +206,10 @@ Search thinking memories using semantic vector similarity.
     "limit": {
       "type": "number",
       "description": "Maximum results (default: 10)"
+    },
+    "max_tokens": {
+      "type": "number",
+      "description": "Maximum tokens to return (default: 2000)"
     }
   },
   "required": ["query"]
@@ -230,7 +238,7 @@ The MCP server includes a daemon loop that automatically processes Claude Code t
 ### How It Works
 
 1. **Transcript Collection**: Every 5 minutes, the daemon checks `~/.claude/projects/<project>/transcripts/` for transcript files
-2. **Change Detection**: Each transcript's content hash is tracked in `local-recall/processed-log.json`
+2. **Change Detection**: Each transcript's content hash is tracked in `local-recall/processed-log.jsonl`
 3. **Memory Extraction**: New/modified transcripts are sent to `claude -p` CLI for intelligent memory extraction
 4. **Idempotent Storage**: Memories are created with `occurred_at` and `content_hash` for deduplication
 
@@ -238,13 +246,24 @@ The MCP server includes a daemon loop that automatically processes Claude Code t
 
 ```
 local-recall/
-├── episodic-memory/      # Extracted episodic memories
+├── episodic-memory/              # Extracted episodic memories
 │   └── *.md
-├── thinking-memory/      # Extracted thinking memories
+├── thinking-memory/              # Extracted thinking memories
 │   └── *.md
-├── memory.sqlite         # Vector store database (both types)
-└── recall.log            # Debug log
+├── orama-episodic-index.json     # Orama vector index for episodic
+├── orama-thinking-index.json     # Orama vector index for thinking
+├── processed-log.jsonl           # Episodic transcript tracking
+├── thinking-processed-log.jsonl  # Thinking transcript tracking
+└── recall.log                    # Debug log
 ```
+
+### Vector Search
+
+The MCP server uses **Orama** (pure JavaScript) for vector storage and search:
+- No native dependencies or mutex issues
+- Embeddings generated via **Ollama** with `nomic-embed-text` model (768 dimensions)
+- Indexes are persisted as JSON files
+- Supports concurrent read access from multiple processes
 
 ### Memory Extraction Prompt
 
@@ -256,20 +275,8 @@ The daemon uses Claude CLI to analyze transcripts with a prompt that asks:
 
 ### Processed Log Format
 
-```json
-{
-  "version": 1,
-  "lastUpdated": "2025-01-15T10:30:00Z",
-  "transcripts": {
-    "session-abc123.jsonl": {
-      "sourcePath": "/home/user/.claude/projects/.../transcripts/session-abc123.jsonl",
-      "contentHash": "a1b2c3d4",
-      "lastModified": "2025-01-15T10:00:00Z",
-      "processedAt": "2025-01-15T10:30:00Z",
-      "memoriesCreated": ["uuid-1", "uuid-2"]
-    }
-  }
-}
+```jsonl
+{"transcriptPath":"session-abc123.jsonl","contentHash":"a1b2c3d4","processedAt":"2025-01-15T10:30:00Z","memoryIds":["uuid-1","uuid-2"]}
 ```
 
 When a transcript changes:
@@ -285,7 +292,9 @@ When a transcript changes:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `LOCAL_RECALL_DIR` | `./local-recall` | Memory storage path |
-| `LOCAL_RECALL_LOG_LEVEL` | `debug` | Log level: debug, info, warn, error |
+| `LOCAL_RECALL_LOG_LEVEL` | `error` | Log level: debug, info, warn, error |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL |
+| `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Embedding model name |
 
 ## Client Integration
 
@@ -332,6 +341,7 @@ All tools return errors in this format:
 | `INVALID_INPUT` | Input validation failed |
 | `INDEX_ERROR` | Index operation failed |
 | `STORAGE_ERROR` | File system error |
+| `OLLAMA_ERROR` | Ollama embedding service unavailable |
 
 ## Logging
 
@@ -341,6 +351,23 @@ Enable detailed logging:
 LOCAL_RECALL_LOG_LEVEL=debug npm run mcp:start
 ```
 
-Log levels: `error`, `warn`, `info`, `debug`
+Log levels: `error` (default), `warn`, `info`, `debug`
 
 Logs are written to `local-recall/recall.log`.
+
+## Prerequisites
+
+The MCP server requires **Ollama** to be running for embedding generation:
+
+```bash
+# Install Ollama
+brew install ollama  # macOS
+
+# Pull the embedding model
+ollama pull nomic-embed-text
+
+# Start Ollama server
+ollama serve
+```
+
+If Ollama is not available, search operations will fail with an `OLLAMA_ERROR`.

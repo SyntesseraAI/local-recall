@@ -19,11 +19,17 @@ Create `.local-recall.json` in your project root:
   "maxMemories": 1000,
   "indexRefreshInterval": 300,
   "fuzzyThreshold": 0.6,
+  "episodicEnabled": true,
+  "episodicMaxTokens": 1000,
+  "episodicMinSimilarity": 0.5,
+  "thinkingEnabled": true,
+  "thinkingMaxTokens": 1000,
+  "thinkingMinSimilarity": 0.5,
   "hooks": {
     "maxContextMemories": 10
   },
   "mcp": {
-    "port": 3000,
+    "port": 7847,
     "host": "localhost"
   }
 }
@@ -39,10 +45,18 @@ All settings can be overridden via environment variables:
 | `LOCAL_RECALL_MAX_MEMORIES` | `maxMemories` | `1000` | Maximum number of memories |
 | `LOCAL_RECALL_INDEX_REFRESH` | `indexRefreshInterval` | `300` | Index refresh interval (seconds) |
 | `LOCAL_RECALL_FUZZY_THRESHOLD` | `fuzzyThreshold` | `0.6` | Fuzzy match threshold (0-1) |
+| `LOCAL_RECALL_EPISODIC_ENABLED` | `episodicEnabled` | `true` | Enable episodic memory retrieval |
+| `LOCAL_RECALL_EPISODIC_MAX_TOKENS` | `episodicMaxTokens` | `1000` | Max tokens for episodic memories |
+| `LOCAL_RECALL_EPISODIC_MIN_SIMILARITY` | `episodicMinSimilarity` | `0.5` | Min similarity threshold for episodic |
+| `LOCAL_RECALL_THINKING_ENABLED` | `thinkingEnabled` | `true` | Enable thinking memory retrieval |
+| `LOCAL_RECALL_THINKING_MAX_TOKENS` | `thinkingMaxTokens` | `1000` | Max tokens for thinking memories |
+| `LOCAL_RECALL_THINKING_MIN_SIMILARITY` | `thinkingMinSimilarity` | `0.5` | Min similarity threshold for thinking |
 | `LOCAL_RECALL_MAX_CONTEXT` | `hooks.maxContextMemories` | `10` | Max memories at session start |
-| `LOCAL_RECALL_LOG_LEVEL` | - | `debug` | Log level: debug, info, warn, error |
-| `MCP_PORT` | `mcp.port` | `3000` | MCP server port |
+| `LOCAL_RECALL_LOG_LEVEL` | - | `error` | Log level: debug, info, warn, error |
+| `MCP_PORT` | `mcp.port` | `7847` | MCP server port |
 | `MCP_HOST` | `mcp.host` | `localhost` | MCP server host |
+| `OLLAMA_BASE_URL` | - | `http://localhost:11434` | Ollama server URL |
+| `OLLAMA_EMBED_MODEL` | - | `nomic-embed-text` | Embedding model name |
 
 ## Configuration Options
 
@@ -85,6 +99,48 @@ Minimum score for fuzzy search matches:
 - `0.4` = Loose matching
 - `0.0` = Match everything
 
+### episodicEnabled
+
+**Type**: `boolean`
+**Default**: `true`
+
+Enable or disable episodic memory retrieval in the UserPromptSubmit hook. When disabled, episodic memories won't be searched or injected into context.
+
+### episodicMaxTokens
+
+**Type**: `number`
+**Default**: `1000`
+
+Maximum number of tokens of episodic memories to inject into context per prompt. Memories are added in order of similarity until this budget is reached.
+
+### episodicMinSimilarity
+
+**Type**: `number` (0-1)
+**Default**: `0.5`
+
+Minimum similarity threshold for episodic memories. Memories with similarity below this threshold are excluded from results.
+
+### thinkingEnabled
+
+**Type**: `boolean`
+**Default**: `true`
+
+Enable or disable thinking memory retrieval in the UserPromptSubmit hook. When disabled, thinking memories won't be searched or injected into context.
+
+### thinkingMaxTokens
+
+**Type**: `number`
+**Default**: `1000`
+
+Maximum number of tokens of thinking memories to inject into context per prompt. Memories are added in order of similarity until this budget is reached.
+
+### thinkingMinSimilarity
+
+**Type**: `number` (0-1)
+**Default**: `0.5`
+
+Minimum similarity threshold for thinking memories. Memories with similarity below this threshold are excluded from results.
+
 ### hooks.maxContextMemories
 
 **Type**: `number`
@@ -95,7 +151,7 @@ Maximum number of memories to load into context at session start. Higher values 
 ### mcp.port / mcp.host
 
 **Type**: `number` / `string`
-**Default**: `3000` / `localhost`
+**Default**: `7847` / `localhost`
 
 MCP server network configuration.
 
@@ -146,13 +202,15 @@ MCP server network configuration.
 ```json
 {
   "logging": {
-    "level": "info",
-    "file": "./local-recall/logs/local-recall.log",
-    "maxSize": "10m",
-    "maxFiles": 5
+    "level": "error",
+    "file": "./local-recall/recall.log"
   }
 }
 ```
+
+Log levels: `debug`, `info`, `warn`, `error` (default: `error`)
+
+Logs are written to `local-recall/recall.log`. Set `LOCAL_RECALL_LOG_LEVEL=debug` to enable verbose logging for troubleshooting.
 
 ## Per-Directory Configuration
 
@@ -179,6 +237,10 @@ import { LocalRecall } from 'local-recall';
 const recall = new LocalRecall({
   memoryDir: './custom-memories',
   fuzzyThreshold: 0.7,
+  episodicEnabled: true,
+  episodicMaxTokens: 2000,
+  thinkingEnabled: true,
+  thinkingMaxTokens: 1000,
   hooks: {
     maxContextMemories: 15
   }
@@ -211,13 +273,19 @@ npx local-recall config:validate
 {
   "memoryDir": "./local-recall",
   "fuzzyThreshold": 0.5,
+  "episodicEnabled": true,
+  "episodicMinSimilarity": 0.4,
+  "thinkingEnabled": true,
+  "thinkingMinSimilarity": 0.4,
   "hooks": {
     "maxContextMemories": 20
-  },
-  "logging": {
-    "level": "debug"
   }
 }
+```
+
+To enable debug logging, set the environment variable:
+```bash
+export LOCAL_RECALL_LOG_LEVEL=debug
 ```
 
 ### Production
@@ -228,13 +296,33 @@ npx local-recall config:validate
   "maxMemories": 5000,
   "indexRefreshInterval": 600,
   "fuzzyThreshold": 0.7,
+  "episodicEnabled": true,
+  "episodicMaxTokens": 1500,
+  "episodicMinSimilarity": 0.6,
+  "thinkingEnabled": true,
+  "thinkingMaxTokens": 1000,
+  "thinkingMinSimilarity": 0.6,
   "archivePolicy": {
     "enabled": true,
     "strategy": "least-accessed"
-  },
-  "logging": {
-    "level": "warn",
-    "file": "/var/log/local-recall.log"
   }
+}
+```
+
+### Episodic Only (Disable Thinking)
+
+```json
+{
+  "episodicEnabled": true,
+  "thinkingEnabled": false
+}
+```
+
+### Thinking Only (Disable Episodic)
+
+```json
+{
+  "episodicEnabled": false,
+  "thinkingEnabled": true
 }
 ```

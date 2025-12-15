@@ -325,17 +325,6 @@ Add hooks to your project's `.claude/settings.json`:
           }
         ]
       }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./node_modules/local-recall/dist/hooks/stop.js",
-            "timeout": 60
-          }
-        ]
-      }
     ]
   }
 }
@@ -368,20 +357,11 @@ Add hooks to your project's `.claude/settings.json`:
         ]
       }
     ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./dist/hooks/stop.js",
-            "timeout": 60
-          }
-        ]
-      }
-    ]
   }
 }
 ```
+
+> **Note**: The Stop hook is currently disabled. Memory extraction is handled by the MCP server daemon.
 
 ## MCP Server
 
@@ -543,6 +523,7 @@ Configuration can be set via environment variables or a `.local-recall.json` fil
 | `fuzzyThreshold` | `LOCAL_RECALL_FUZZY_THRESHOLD` | `0.6` | Fuzzy matching threshold |
 | `indexRefreshInterval` | `LOCAL_RECALL_INDEX_REFRESH` | `300` | Index refresh interval in seconds |
 | `hooks.maxContextMemories` | `LOCAL_RECALL_MAX_CONTEXT` | `10` | Max episodic memories in context (session start only) |
+| - | `LOCAL_RECALL_LOG_LEVEL` | `error` | Log level: debug, info, warn, error |
 
 ## Contributing
 
