@@ -45,7 +45,7 @@ npm run build
 
 ### Claude Code Plugin (Recommended)
 
-Install the plugin from `dev-marketplace/local-recall-plugin/` to enable automatic memory integration:
+Install the plugin from `local-recall-plugin/` (or via the Claude marketplace at `syntessera-marketplace/local-recall`) to enable automatic memory integration:
 
 - **SessionStart Hook**: Loads recent memories when starting a session
 - **UserPromptSubmit Hook**: Searches for relevant episodic and thinking memories based on your prompt

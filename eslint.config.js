@@ -49,6 +49,6 @@ export default [
     },
   },
   {
-    ignores: ['dist/**', 'node_modules/**', 'dev-marketplace/**'],
+    ignores: ['dist/**', 'node_modules/**', 'local-recall-plugin/**'],
   },
 ];
