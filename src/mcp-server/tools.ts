@@ -28,7 +28,8 @@ export function createTools(): Tool[] {
     // Episodic memory tools
     {
       name: 'episodic_create',
-      description: 'Create a new episodic memory with subject, keywords, scope, and content',
+      description:
+        'Create a new episodic memory to persist important information across sessions. Use when learning architectural decisions, bug fixes with root causes, user preferences, configuration rationale, or any knowledge that should be remembered. Memories are stored as markdown files and searchable via semantic similarity.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -55,7 +56,8 @@ export function createTools(): Tool[] {
     },
     {
       name: 'episodic_get',
-      description: 'Retrieve a specific episodic memory by ID',
+      description:
+        'Retrieve a specific episodic memory by its UUID. Use when you have a memory ID from search results and need the full content, or when following up on a specific memory reference.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -69,7 +71,8 @@ export function createTools(): Tool[] {
     },
     {
       name: 'episodic_search',
-      description: 'Search episodic memories using semantic vector similarity',
+      description:
+        'Search episodic memories for past decisions, architectural choices, bug fixes, user preferences, and project conventions. Use BEFORE making significant decisions to check for relevant historical context. Returns memories ranked by semantic similarity to your natural language query. Always search before proposing architectural changes, library selections, or implementation approaches.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -96,7 +99,8 @@ export function createTools(): Tool[] {
     // Thinking memory tools
     {
       name: 'thinking_get',
-      description: 'Retrieve a specific thinking memory by ID',
+      description:
+        'Retrieve a specific thinking memory by its UUID. Thinking memories contain reasoning patterns - how problems were analyzed and what conclusions were reached. Use when you have a thinking memory ID and need the full thought process.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -110,7 +114,8 @@ export function createTools(): Tool[] {
     },
     {
       name: 'thinking_search',
-      description: 'Search thinking memories using semantic vector similarity',
+      description:
+        'Search thinking memories for reasoning patterns, debugging approaches, and analysis techniques from past sessions. Use when facing complex problems to see how similar issues were analyzed before. Thinking memories capture the thought process paired with outcomes, showing "how I reasoned -> what I concluded". Especially useful for debugging, architectural analysis, and complex decision-making.',
       inputSchema: {
         type: 'object',
         properties: {

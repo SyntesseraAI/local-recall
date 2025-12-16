@@ -1,7 +1,7 @@
 {
   "name": "local-recall",
-  "description": "Local markdown-powered memory system for AI coding assistants. Enables persistent memory across sessions through structured markdown files.",
-  "version": "0.1.2",
+  "description": "Local markdown-powered memory system for AI coding assistants. Enables persistent memory across sessions - stores decisions, preferences, and reasoning patterns. Search memories BEFORE making architectural decisions, debugging, or implementing features.",
+  "version": "0.1.3",
   "author": {
     "name": "Local Recall"
   },
@@ -9,9 +9,13 @@
     "memory",
     "context",
     "recall",
-    "mcp",
-    "ai-assistant",
-    "persistent-memory"
+    "decisions",
+    "history",
+    "persistent-memory",
+    "architectural-decisions",
+    "debugging",
+    "preferences",
+    "knowledge-base"
   ],
   "license": "MIT",
   "repository": "https://github.com/local-recall/local-recall",
