@@ -138,9 +138,12 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-# Plugin scripts folder (build output)
-scripts/
-local-recall-plugin/scripts/
+# Plugin scripts folder (build output for root dist/)
+/scripts/
+
+# Include local-recall-plugin/scripts/ for Claude Code marketplace
+# (the bundled MCP server and hooks need to be in Git for plugin distribution)
+!local-recall-plugin/scripts/
 .DS_Store
 
 # Embedding model cache
