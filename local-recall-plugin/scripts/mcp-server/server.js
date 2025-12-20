@@ -32442,6 +32442,7 @@ function summarizeToolUse(name, input) {
   }
 }
 function isErrorResult(content) {
+  if (typeof content !== "string") return false;
   const lowerContent = content.toLowerCase();
   return lowerContent.startsWith("error:") || lowerContent.includes("failed") || lowerContent.includes("permission denied") || lowerContent.includes("no such file") || lowerContent.includes("command not found");
 }
@@ -32494,6 +32495,12 @@ function summarizeToolResult(toolUseResult, resultContent) {
         summary: summarizeBashResult(bashResult)
       };
     }
+  }
+  if (typeof resultContent !== "string") {
+    return {
+      success: true,
+      summary: "(complex result)"
+    };
   }
   const isError = isErrorResult(resultContent);
   return {

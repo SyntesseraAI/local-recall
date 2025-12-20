@@ -202,6 +202,7 @@ function summarizeToolUse(
  * Check if a tool result indicates an error
  */
 function isErrorResult(content: string): boolean {
+  if (typeof content !== "string") return false;
   const lowerContent = content.toLowerCase();
   return (
     lowerContent.startsWith("error:") ||
@@ -289,6 +290,13 @@ function summarizeToolResult(
   }
 
   // Fall back to string content analysis
+  // Handle case where resultContent is not a string (e.g., array of content blocks)
+  if (typeof resultContent !== "string") {
+    return {
+      success: true,
+      summary: "(complex result)",
+    };
+  }
   const isError = isErrorResult(resultContent);
   return {
     success: !isError,
