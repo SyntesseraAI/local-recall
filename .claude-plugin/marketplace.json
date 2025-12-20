@@ -9,7 +9,7 @@
       "name": "local-recall",
       "source": "./local-recall-plugin",
       "description": "Local markdown-powered memory system for AI coding assistants",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "author": {
         "name": "SyntesseraAI"
       }
