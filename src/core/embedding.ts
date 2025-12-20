@@ -16,8 +16,25 @@ const EMBEDDING_MODEL = process.env.OLLAMA_EMBED_MODEL ?? 'nomic-embed-text';
 /** Embedding dimension for nomic-embed-text */
 export const EMBEDDING_DIM = 768;
 
+/**
+ * Max input length in characters (nomic-embed-text has 2048 token limit)
+ * Using ~4 chars/token estimate with safety margin
+ */
+const MAX_INPUT_CHARS = 6000;
+
 interface OllamaEmbedResponse {
   embeddings: number[][];
+}
+
+/**
+ * Truncate text to fit within model's context window
+ */
+function truncateInput(text: string): string {
+  if (text.length <= MAX_INPUT_CHARS) {
+    return text;
+  }
+  logger.search.debug(`Truncating input from ${text.length} to ${MAX_INPUT_CHARS} chars`);
+  return text.slice(0, MAX_INPUT_CHARS);
 }
 
 /**
@@ -83,12 +100,13 @@ export class EmbeddingService {
    * Generate embedding for a passage/document
    */
   async embed(text: string): Promise<number[]> {
+    const truncatedText = truncateInput(text);
     const response = await fetch(`${OLLAMA_BASE_URL}/api/embed`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: EMBEDDING_MODEL,
-        input: text,
+        input: truncatedText,
       }),
     });
 
@@ -115,13 +133,16 @@ export class EmbeddingService {
       return [];
     }
 
+    // Truncate each text to fit model's context window
+    const truncatedTexts = texts.map(truncateInput);
+
     // Ollama's embed API supports batching via array input
     const response = await fetch(`${OLLAMA_BASE_URL}/api/embed`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: EMBEDDING_MODEL,
-        input: texts,
+        input: truncatedTexts,
       }),
     });
 

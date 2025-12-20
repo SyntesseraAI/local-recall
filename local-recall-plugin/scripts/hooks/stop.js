@@ -18058,6 +18058,14 @@ import { promises as fs3 } from "node:fs";
 var OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 var EMBEDDING_MODEL = process.env.OLLAMA_EMBED_MODEL ?? "nomic-embed-text";
 var EMBEDDING_DIM = 768;
+var MAX_INPUT_CHARS = 6e3;
+function truncateInput(text) {
+  if (text.length <= MAX_INPUT_CHARS) {
+    return text;
+  }
+  logger.search.debug(`Truncating input from ${text.length} to ${MAX_INPUT_CHARS} chars`);
+  return text.slice(0, MAX_INPUT_CHARS);
+}
 var EmbeddingService = class _EmbeddingService {
   static instance = null;
   initialized = false;
@@ -18106,12 +18114,13 @@ var EmbeddingService = class _EmbeddingService {
    * Generate embedding for a passage/document
    */
   async embed(text) {
+    const truncatedText = truncateInput(text);
     const response = await fetch(`${OLLAMA_BASE_URL}/api/embed`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: EMBEDDING_MODEL,
-        input: text
+        input: truncatedText
       })
     });
     if (!response.ok) {
@@ -18132,12 +18141,13 @@ var EmbeddingService = class _EmbeddingService {
     if (texts.length === 0) {
       return [];
     }
+    const truncatedTexts = texts.map(truncateInput);
     const response = await fetch(`${OLLAMA_BASE_URL}/api/embed`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: EMBEDDING_MODEL,
-        input: texts
+        input: truncatedTexts
       })
     });
     if (!response.ok) {
