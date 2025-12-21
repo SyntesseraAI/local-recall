@@ -50,7 +50,7 @@ describe('ThinkingMemoryManager', () => {
       };
 
       const memory = await memoryManager.createMemory(input);
-      const filePath = path.join(testDir, 'thinking.jsonl');
+      const filePath = path.join(testDir, 'thinking-000001.jsonl');
 
       const exists = await fs.access(filePath).then(() => true).catch(() => false);
       expect(exists).toBe(true);

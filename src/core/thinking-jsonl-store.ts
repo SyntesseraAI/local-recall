@@ -9,7 +9,6 @@
  * - Content is structured as "## Thought" + "## Output" sections
  */
 
-import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -29,8 +28,8 @@ import { JsonlStore } from './jsonl-store.js';
 import { getConfig } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
 
-/** JSONL filename for thinking memories */
-const THINKING_JSONL_FILENAME = 'thinking.jsonl';
+/** File prefix for thinking memories (creates thinking-000001.jsonl, etc.) */
+const THINKING_FILE_PREFIX = 'thinking';
 
 /**
  * Compute SHA-256 hash of content (16-char prefix)
@@ -89,10 +88,10 @@ export class ThinkingJsonlStore {
   constructor(options: ThinkingJsonlStoreOptions = {}) {
     const config = getConfig();
     this.baseDir = options.baseDir ?? config.memoryDir;
-    const filePath = path.join(this.baseDir, THINKING_JSONL_FILENAME);
 
     this.store = new JsonlStore<ThinkingEntry, ThinkingMemory>({
-      filePath,
+      baseDir: this.baseDir,
+      filePrefix: THINKING_FILE_PREFIX,
       entrySchema: thinkingEntrySchema,
       entryToMemory,
       getEntryId: (entry) => entry.id,

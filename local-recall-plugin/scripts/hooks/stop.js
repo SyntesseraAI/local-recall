@@ -8410,8 +8410,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path7, errorMaps, issueData } = params;
-  const fullPath = [...path7, ...issueData.path || []];
+  const { data, path: path6, errorMaps, issueData } = params;
+  const fullPath = [...path6, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -8527,11 +8527,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path7, key) {
+  constructor(parent, value, path6, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path7;
+    this._path = path6;
     this._key = key;
   }
   get path() {
@@ -12418,15 +12418,15 @@ function getDocumentProperties(doc, paths) {
   const properties = {};
   const pathsLength = paths.length;
   for (let i = 0; i < pathsLength; i++) {
-    const path7 = paths[i];
-    const pathTokens = path7.split(".");
+    const path6 = paths[i];
+    const pathTokens = path6.split(".");
     let current = doc;
     const pathTokensLength = pathTokens.length;
     for (let j = 0; j < pathTokensLength; j++) {
       current = current[pathTokens[j]];
       if (typeof current === "object") {
         if (current !== null && "lat" in current && "lon" in current && typeof current.lat === "number" && typeof current.lon === "number") {
-          current = properties[path7] = current;
+          current = properties[path6] = current;
           break;
         } else if (!Array.isArray(current) && current !== null && j === pathTokensLength - 1) {
           current = void 0;
@@ -12438,14 +12438,14 @@ function getDocumentProperties(doc, paths) {
       }
     }
     if (typeof current !== "undefined") {
-      properties[path7] = current;
+      properties[path6] = current;
     }
   }
   return properties;
 }
-function getNested(obj, path7) {
-  const props = getDocumentProperties(obj, [path7]);
-  return props[path7];
+function getNested(obj, path6) {
+  const props = getDocumentProperties(obj, [path6]);
+  return props[path6];
 }
 var mapDistanceToMeters = {
   cm: 0.01,
@@ -12469,10 +12469,10 @@ function removeVectorsFromHits(searchResult, vectorProperties) {
       ...result.document,
       // Remove embeddings from the result
       ...vectorProperties.reduce((acc, prop) => {
-        const path7 = prop.split(".");
-        const lastKey = path7.pop();
+        const path6 = prop.split(".");
+        const lastKey = path6.pop();
         let obj = acc;
-        for (const key of path7) {
+        for (const key of path6) {
           obj[key] = obj[key] ?? {};
           obj = obj[key];
         }
@@ -13069,15 +13069,15 @@ var AVLTree = class _AVLTree {
     if (node === null) {
       return new AVLNode(key, [value]);
     }
-    const path7 = [];
+    const path6 = [];
     let current = node;
     let parent = null;
     while (current !== null) {
-      path7.push({ parent, node: current });
+      path6.push({ parent, node: current });
       if (key < current.k) {
         if (current.l === null) {
           current.l = new AVLNode(key, [value]);
-          path7.push({ parent: current, node: current.l });
+          path6.push({ parent: current, node: current.l });
           break;
         } else {
           parent = current;
@@ -13086,7 +13086,7 @@ var AVLTree = class _AVLTree {
       } else if (key > current.k) {
         if (current.r === null) {
           current.r = new AVLNode(key, [value]);
-          path7.push({ parent: current, node: current.r });
+          path6.push({ parent: current, node: current.r });
           break;
         } else {
           parent = current;
@@ -13101,8 +13101,8 @@ var AVLTree = class _AVLTree {
     if (this.insertCount++ % rebalanceThreshold === 0) {
       needRebalance = true;
     }
-    for (let i = path7.length - 1; i >= 0; i--) {
-      const { parent: parent2, node: currentNode } = path7[i];
+    for (let i = path6.length - 1; i >= 0; i--) {
+      const { parent: parent2, node: currentNode } = path6[i];
       currentNode.updateHeight();
       if (needRebalance) {
         const rebalancedNode = this.rebalanceNode(currentNode);
@@ -13208,10 +13208,10 @@ var AVLTree = class _AVLTree {
   removeNode(node, key) {
     if (node === null)
       return null;
-    const path7 = [];
+    const path6 = [];
     let current = node;
     while (current !== null && current.k !== key) {
-      path7.push(current);
+      path6.push(current);
       if (key < current.k) {
         current = current.l;
       } else {
@@ -13223,10 +13223,10 @@ var AVLTree = class _AVLTree {
     }
     if (current.l === null || current.r === null) {
       const child = current.l ? current.l : current.r;
-      if (path7.length === 0) {
+      if (path6.length === 0) {
         node = child;
       } else {
-        const parent = path7[path7.length - 1];
+        const parent = path6[path6.length - 1];
         if (parent.l === current) {
           parent.l = child;
         } else {
@@ -13249,13 +13249,13 @@ var AVLTree = class _AVLTree {
       }
       current = successorParent;
     }
-    path7.push(current);
-    for (let i = path7.length - 1; i >= 0; i--) {
-      const currentNode = path7[i];
+    path6.push(current);
+    for (let i = path6.length - 1; i >= 0; i--) {
+      const currentNode = path6[i];
       currentNode.updateHeight();
       const rebalancedNode = this.rebalanceNode(currentNode);
       if (i > 0) {
-        const parent = path7[i - 1];
+        const parent = path6[i - 1];
         if (parent.l === currentNode) {
           parent.l = rebalancedNode;
         } else if (parent.r === currentNode) {
@@ -14343,15 +14343,15 @@ function create2(orama, sharedInternalDocumentStore, schema, index, prefix = "")
     };
   }
   for (const [prop, type] of Object.entries(schema)) {
-    const path7 = `${prefix}${prefix ? "." : ""}${prop}`;
+    const path6 = `${prefix}${prefix ? "." : ""}${prop}`;
     if (typeof type === "object" && !Array.isArray(type)) {
-      create2(orama, sharedInternalDocumentStore, type, index, path7);
+      create2(orama, sharedInternalDocumentStore, type, index, path6);
       continue;
     }
     if (isVectorType(type)) {
-      index.searchableProperties.push(path7);
-      index.searchablePropertiesWithTypes[path7] = type;
-      index.vectorIndexes[path7] = {
+      index.searchableProperties.push(path6);
+      index.searchablePropertiesWithTypes[path6] = type;
+      index.vectorIndexes[path6] = {
         type: "Vector",
         node: new VectorIndex(getVectorSize(type)),
         isArray: false
@@ -14361,32 +14361,32 @@ function create2(orama, sharedInternalDocumentStore, schema, index, prefix = "")
       switch (type) {
         case "boolean":
         case "boolean[]":
-          index.indexes[path7] = { type: "Bool", node: new BoolNode(), isArray };
+          index.indexes[path6] = { type: "Bool", node: new BoolNode(), isArray };
           break;
         case "number":
         case "number[]":
-          index.indexes[path7] = { type: "AVL", node: new AVLTree(0, []), isArray };
+          index.indexes[path6] = { type: "AVL", node: new AVLTree(0, []), isArray };
           break;
         case "string":
         case "string[]":
-          index.indexes[path7] = { type: "Radix", node: new RadixTree(), isArray };
-          index.avgFieldLength[path7] = 0;
-          index.frequencies[path7] = {};
-          index.tokenOccurrences[path7] = {};
-          index.fieldLengths[path7] = {};
+          index.indexes[path6] = { type: "Radix", node: new RadixTree(), isArray };
+          index.avgFieldLength[path6] = 0;
+          index.frequencies[path6] = {};
+          index.tokenOccurrences[path6] = {};
+          index.fieldLengths[path6] = {};
           break;
         case "enum":
         case "enum[]":
-          index.indexes[path7] = { type: "Flat", node: new FlatTree(), isArray };
+          index.indexes[path6] = { type: "Flat", node: new FlatTree(), isArray };
           break;
         case "geopoint":
-          index.indexes[path7] = { type: "BKD", node: new BKDTree(), isArray };
+          index.indexes[path6] = { type: "BKD", node: new BKDTree(), isArray };
           break;
         default:
-          throw createError("INVALID_SCHEMA_TYPE", Array.isArray(type) ? "array" : type, path7);
+          throw createError("INVALID_SCHEMA_TYPE", Array.isArray(type) ? "array" : type, path6);
       }
-      index.searchableProperties.push(path7);
-      index.searchablePropertiesWithTypes[path7] = type;
+      index.searchableProperties.push(path6);
+      index.searchablePropertiesWithTypes[path6] = type;
     }
   }
   return index;
@@ -14934,12 +14934,12 @@ function innerCreate(orama, sharedInternalDocumentStore, schema, sortableDeniedP
     sorts: {}
   };
   for (const [prop, type] of Object.entries(schema)) {
-    const path7 = `${prefix}${prefix ? "." : ""}${prop}`;
-    if (sortableDeniedProperties.includes(path7)) {
+    const path6 = `${prefix}${prefix ? "." : ""}${prop}`;
+    if (sortableDeniedProperties.includes(path6)) {
       continue;
     }
     if (typeof type === "object" && !Array.isArray(type)) {
-      const ret = innerCreate(orama, sharedInternalDocumentStore, type, sortableDeniedProperties, path7);
+      const ret = innerCreate(orama, sharedInternalDocumentStore, type, sortableDeniedProperties, path6);
       safeArrayPush(sorter.sortableProperties, ret.sortableProperties);
       sorter.sorts = {
         ...sorter.sorts,
@@ -14956,9 +14956,9 @@ function innerCreate(orama, sharedInternalDocumentStore, schema, sortableDeniedP
         case "boolean":
         case "number":
         case "string":
-          sorter.sortableProperties.push(path7);
-          sorter.sortablePropertiesWithTypes[path7] = type;
-          sorter.sorts[path7] = {
+          sorter.sortableProperties.push(path6);
+          sorter.sortablePropertiesWithTypes[path6] = type;
+          sorter.sorts[path6] = {
             docs: /* @__PURE__ */ new Map(),
             orderedDocsToRemove: /* @__PURE__ */ new Map(),
             orderedDocs: [],
@@ -14974,7 +14974,7 @@ function innerCreate(orama, sharedInternalDocumentStore, schema, sortableDeniedP
         case "string[]":
           continue;
         default:
-          throw createError("INVALID_SORT_SCHEMA_TYPE", Array.isArray(type) ? "array" : type, path7);
+          throw createError("INVALID_SORT_SCHEMA_TYPE", Array.isArray(type) ? "array" : type, path6);
       }
     }
   }
@@ -16485,8 +16485,8 @@ function innerFullTextSearch(orama, params, language) {
 function escapeRegex(str2) {
   return str2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-function getPropValue(obj, path7) {
-  const keys = path7.split(".");
+function getPropValue(obj, path6) {
+  const keys = path6.split(".");
   let value = obj;
   for (const key of keys) {
     if (value && typeof value === "object" && key in value) {
@@ -18180,7 +18180,6 @@ function getVectorStore(options2 = {}) {
 }
 
 // src/core/episodic-jsonl-store.ts
-import path6 from "node:path";
 import { createHash } from "node:crypto";
 
 // node_modules/uuid/dist/esm-node/stringify.js
@@ -18289,8 +18288,11 @@ var compactionConfigSchema = external_exports.object({
 // src/core/jsonl-store.ts
 import { promises as fs4 } from "node:fs";
 import path5 from "node:path";
+var DEFAULT_ENTRIES_PER_FILE = 500;
 var JsonlStore = class {
-  filePath;
+  baseDir;
+  filePrefix;
+  entriesPerFile;
   entrySchema;
   entryToMemory;
   getEntryId;
@@ -18302,8 +18304,12 @@ var JsonlStore = class {
   memories = null;
   embeddings = null;
   stats = null;
+  currentFileNumber = 1;
+  currentFileEntryCount = 0;
   constructor(options2) {
-    this.filePath = options2.filePath;
+    this.baseDir = options2.baseDir;
+    this.filePrefix = options2.filePrefix;
+    this.entriesPerFile = options2.entriesPerFile ?? DEFAULT_ENTRIES_PER_FILE;
     this.entrySchema = options2.entrySchema;
     this.entryToMemory = options2.entryToMemory;
     this.getEntryId = options2.getEntryId;
@@ -18313,7 +18319,44 @@ var JsonlStore = class {
     this.compactionConfig = compactionConfigSchema.parse(options2.compactionConfig ?? {});
   }
   /**
-   * Load the JSONL file and replay entries to build state
+   * Get the file path for a given file number
+   */
+  getFilePathForNumber(fileNumber) {
+    const paddedNumber = String(fileNumber).padStart(6, "0");
+    return path5.join(this.baseDir, `${this.filePrefix}-${paddedNumber}.jsonl`);
+  }
+  /**
+   * Get all JSONL files for this store, sorted by number
+   */
+  async getExistingFiles() {
+    try {
+      const files = await fs4.readdir(this.baseDir);
+      const pattern = new RegExp(`^${this.filePrefix}-(\\d{6})\\.jsonl$`);
+      return files.filter((f) => pattern.test(f)).sort((a, b) => {
+        const numA = parseInt(a.match(pattern)[1], 10);
+        const numB = parseInt(b.match(pattern)[1], 10);
+        return numA - numB;
+      }).map((f) => path5.join(this.baseDir, f));
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        return [];
+      }
+      throw error;
+    }
+  }
+  /**
+   * Count entries in a single file
+   */
+  async countEntriesInFile(filePath) {
+    try {
+      const content = await fs4.readFile(filePath, "utf-8");
+      return content.split("\n").filter((line) => line.trim()).length;
+    } catch {
+      return 0;
+    }
+  }
+  /**
+   * Load all JSONL files and replay entries to build state
    */
   async load() {
     if (this.memories !== null) {
@@ -18328,40 +18371,54 @@ var JsonlStore = class {
       embeddingEntries: 0,
       activeMemories: 0,
       memoriesWithEmbeddings: 0,
-      fileSizeBytes: 0
+      totalFileSizeBytes: 0,
+      fileCount: 0,
+      currentFileEntries: 0
     };
-    try {
-      const content = await fs4.readFile(this.filePath, "utf-8");
-      this.stats.fileSizeBytes = Buffer.byteLength(content, "utf-8");
-      const lines = content.split("\n").filter((line) => line.trim());
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        try {
-          const parsed = JSON.parse(line);
-          const entry = this.entrySchema.parse(parsed);
-          this.applyEntry(entry);
-          this.stats.totalEntries++;
-        } catch {
-          if (i === lines.length - 1) {
-            logger.memory.warn(`Truncated last line in JSONL, skipping: ${line.slice(0, 50)}...`);
-          } else {
-            logger.memory.warn(`Invalid JSONL entry at line ${i + 1}, skipping: ${line.slice(0, 50)}...`);
+    const files = await this.getExistingFiles();
+    this.stats.fileCount = files.length;
+    for (const filePath of files) {
+      try {
+        const content = await fs4.readFile(filePath, "utf-8");
+        this.stats.totalFileSizeBytes += Buffer.byteLength(content, "utf-8");
+        const lines = content.split("\n").filter((line) => line.trim());
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          try {
+            const parsed = JSON.parse(line);
+            const entry = this.entrySchema.parse(parsed);
+            this.applyEntry(entry);
+            this.stats.totalEntries++;
+          } catch {
+            if (i === lines.length - 1) {
+              logger.memory.warn(`Truncated last line in ${filePath}, skipping`);
+            } else {
+              logger.memory.warn(`Invalid JSONL entry in ${filePath} line ${i + 1}, skipping`);
+            }
           }
         }
-      }
-      this.stats.activeMemories = this.memories.size;
-      this.stats.memoriesWithEmbeddings = this.embeddings.size;
-      logger.memory.debug(
-        `Loaded JSONL: ${this.memories.size} memories, ${this.embeddings.size} embeddings`
-      );
-    } catch (error) {
-      if (error.code === "ENOENT") {
-        logger.memory.debug("No JSONL file found, starting fresh");
-      } else {
-        logger.memory.error(`Failed to load JSONL file: ${error}`);
-        throw error;
+      } catch (error) {
+        if (error.code !== "ENOENT") {
+          logger.memory.error(`Failed to load JSONL file ${filePath}: ${error}`);
+          throw error;
+        }
       }
     }
+    if (files.length > 0) {
+      const lastFile = files[files.length - 1];
+      const match = lastFile.match(/-(\d{6})\.jsonl$/);
+      this.currentFileNumber = match ? parseInt(match[1], 10) : 1;
+      this.currentFileEntryCount = await this.countEntriesInFile(lastFile);
+    } else {
+      this.currentFileNumber = 1;
+      this.currentFileEntryCount = 0;
+    }
+    this.stats.activeMemories = this.memories.size;
+    this.stats.memoriesWithEmbeddings = this.embeddings.size;
+    this.stats.currentFileEntries = this.currentFileEntryCount;
+    logger.memory.debug(
+      `Loaded ${this.stats.fileCount} JSONL files: ${this.memories.size} memories, ${this.embeddings.size} embeddings`
+    );
   }
   /**
    * Apply an entry to the in-memory state
@@ -18387,20 +18444,28 @@ var JsonlStore = class {
     }
   }
   /**
-   * Append an entry to the JSONL file
+   * Append an entry to the current JSONL file
+   * Creates a new file if current file has reached entry limit
    */
   async appendEntry(entry) {
     await this.load();
-    const dir = path5.dirname(this.filePath);
-    await fs4.mkdir(dir, { recursive: true });
+    await fs4.mkdir(this.baseDir, { recursive: true });
+    if (this.currentFileEntryCount >= this.entriesPerFile) {
+      this.currentFileNumber++;
+      this.currentFileEntryCount = 0;
+      if (this.stats) this.stats.fileCount++;
+    }
+    const filePath = this.getFilePathForNumber(this.currentFileNumber);
     const line = JSON.stringify(entry) + "\n";
-    await fs4.appendFile(this.filePath, line, "utf-8");
+    await fs4.appendFile(filePath, line, "utf-8");
     this.applyEntry(entry);
+    this.currentFileEntryCount++;
     if (this.stats) {
       this.stats.totalEntries++;
-      this.stats.fileSizeBytes += Buffer.byteLength(line, "utf-8");
+      this.stats.totalFileSizeBytes += Buffer.byteLength(line, "utf-8");
       this.stats.activeMemories = this.memories?.size ?? 0;
       this.stats.memoriesWithEmbeddings = this.embeddings?.size ?? 0;
+      this.stats.currentFileEntries = this.currentFileEntryCount;
     }
   }
   /**
@@ -18475,7 +18540,7 @@ var JsonlStore = class {
     if (!this.stats) {
       return { needsCompaction: false };
     }
-    const fileSizeMb = this.stats.fileSizeBytes / (1024 * 1024);
+    const fileSizeMb = this.stats.totalFileSizeBytes / (1024 * 1024);
     if (fileSizeMb > this.compactionConfig.maxFileSizeMb) {
       return {
         needsCompaction: true,
@@ -18497,7 +18562,7 @@ var JsonlStore = class {
     return { needsCompaction: false };
   }
   /**
-   * Compact the JSONL file by rewriting only current state
+   * Compact by rewriting only current state across multiple files
    *
    * @param createAddEntry - Function to create an add entry from a memory
    * @param createEmbeddingEntry - Function to create an embedding entry
@@ -18505,44 +18570,78 @@ var JsonlStore = class {
   async compact(createAddEntry, createEmbeddingEntry) {
     await this.load();
     const originalLines = this.stats?.totalEntries ?? 0;
+    const existingFiles = await this.getExistingFiles();
     if (!this.memories || this.memories.size === 0) {
-      try {
-        await fs4.unlink(this.filePath);
-      } catch {
+      for (const file of existingFiles) {
+        try {
+          await fs4.unlink(file);
+        } catch {
+        }
       }
       this.clearCache();
       return { originalLines, newLines: 0 };
     }
-    const backupPath = `${this.filePath}.backup-${Date.now()}`;
-    try {
-      await fs4.copyFile(this.filePath, backupPath);
-    } catch {
+    const backupPaths = [];
+    const backupSuffix = `.backup-${Date.now()}`;
+    for (const file of existingFiles) {
+      const backupPath = file + backupSuffix;
+      try {
+        await fs4.copyFile(file, backupPath);
+        backupPaths.push(backupPath);
+      } catch {
+      }
     }
     try {
-      const lines = [];
+      const allEntries = [];
       for (const [id, memory] of this.memories) {
         const addEntry = createAddEntry(memory);
-        lines.push(JSON.stringify(addEntry));
+        allEntries.push(JSON.stringify(addEntry));
         const embedding = this.embeddings?.get(id);
         if (embedding) {
           const embeddingEntry = createEmbeddingEntry(id, embedding);
-          lines.push(JSON.stringify(embeddingEntry));
+          allEntries.push(JSON.stringify(embeddingEntry));
         }
       }
-      const tempPath = `${this.filePath}.compact.tmp`;
-      await fs4.writeFile(tempPath, lines.join("\n") + "\n", "utf-8");
-      await fs4.rename(tempPath, this.filePath);
-      this.clearCache();
-      try {
-        await fs4.unlink(backupPath);
-      } catch {
+      const newFileCount = Math.ceil(allEntries.length / this.entriesPerFile);
+      const tempFiles = [];
+      for (let fileNum = 1; fileNum <= newFileCount; fileNum++) {
+        const startIdx = (fileNum - 1) * this.entriesPerFile;
+        const endIdx = Math.min(startIdx + this.entriesPerFile, allEntries.length);
+        const fileEntries = allEntries.slice(startIdx, endIdx);
+        const tempPath = this.getFilePathForNumber(fileNum) + ".compact.tmp";
+        await fs4.writeFile(tempPath, fileEntries.join("\n") + "\n", "utf-8");
+        tempFiles.push(tempPath);
       }
-      logger.memory.info(`Compacted JSONL: ${originalLines} \u2192 ${lines.length} entries`);
-      return { originalLines, newLines: lines.length };
+      for (const file of existingFiles) {
+        try {
+          await fs4.unlink(file);
+        } catch {
+        }
+      }
+      for (let i = 0; i < tempFiles.length; i++) {
+        const tempPath = tempFiles[i];
+        const finalPath = this.getFilePathForNumber(i + 1);
+        await fs4.rename(tempPath, finalPath);
+      }
+      this.clearCache();
+      for (const backupPath of backupPaths) {
+        try {
+          await fs4.unlink(backupPath);
+        } catch {
+        }
+      }
+      logger.memory.info(
+        `Compacted JSONL: ${originalLines} \u2192 ${allEntries.length} entries across ${newFileCount} files`
+      );
+      return { originalLines, newLines: allEntries.length };
     } catch (error) {
-      try {
-        await fs4.copyFile(backupPath, this.filePath);
-      } catch {
+      for (const backupPath of backupPaths) {
+        const originalPath = backupPath.replace(backupSuffix, "");
+        try {
+          await fs4.copyFile(backupPath, originalPath);
+          await fs4.unlink(backupPath);
+        } catch {
+        }
       }
       throw error;
     }
@@ -18554,17 +18653,31 @@ var JsonlStore = class {
     this.memories = null;
     this.embeddings = null;
     this.stats = null;
+    this.currentFileNumber = 1;
+    this.currentFileEntryCount = 0;
   }
   /**
-   * Get the file path
+   * Get the base directory
+   */
+  getBaseDir() {
+    return this.baseDir;
+  }
+  /**
+   * Get the file prefix
+   */
+  getFilePrefix() {
+    return this.filePrefix;
+  }
+  /**
+   * Get the current file path (for backwards compatibility)
    */
   getFilePath() {
-    return this.filePath;
+    return this.getFilePathForNumber(this.currentFileNumber);
   }
 };
 
 // src/core/episodic-jsonl-store.ts
-var EPISODIC_JSONL_FILENAME = "episodic.jsonl";
+var EPISODIC_FILE_PREFIX = "episodic";
 function computeContentHash(content) {
   return createHash("sha256").update(content).digest("hex").slice(0, 16);
 }
@@ -18588,9 +18701,9 @@ var EpisodicJsonlStore = class {
   constructor(options2 = {}) {
     const config = getConfig();
     this.baseDir = options2.baseDir ?? config.memoryDir;
-    const filePath = path6.join(this.baseDir, EPISODIC_JSONL_FILENAME);
     this.store = new JsonlStore({
-      filePath,
+      baseDir: this.baseDir,
+      filePrefix: EPISODIC_FILE_PREFIX,
       entrySchema: episodicEntrySchema,
       entryToMemory,
       getEntryId: (entry) => entry.id,

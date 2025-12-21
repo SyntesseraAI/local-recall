@@ -5,7 +5,6 @@
  * Wraps the generic JsonlStore with episodic-memory-specific logic.
  */
 
-import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -25,8 +24,8 @@ import { JsonlStore } from './jsonl-store.js';
 import { getConfig } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
 
-/** JSONL filename for episodic memories */
-const EPISODIC_JSONL_FILENAME = 'episodic.jsonl';
+/** File prefix for episodic memories (creates episodic-000001.jsonl, etc.) */
+const EPISODIC_FILE_PREFIX = 'episodic';
 
 /**
  * Compute SHA-256 hash of content (16-char prefix)
@@ -73,10 +72,10 @@ export class EpisodicJsonlStore {
   constructor(options: EpisodicJsonlStoreOptions = {}) {
     const config = getConfig();
     this.baseDir = options.baseDir ?? config.memoryDir;
-    const filePath = path.join(this.baseDir, EPISODIC_JSONL_FILENAME);
 
     this.store = new JsonlStore<EpisodicEntry, Memory>({
-      filePath,
+      baseDir: this.baseDir,
+      filePrefix: EPISODIC_FILE_PREFIX,
       entrySchema: episodicEntrySchema,
       entryToMemory,
       getEntryId: (entry) => entry.id,

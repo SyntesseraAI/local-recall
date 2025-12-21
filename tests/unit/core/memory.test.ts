@@ -51,7 +51,7 @@ describe('MemoryManager', () => {
       };
 
       const memory = await memoryManager.createMemory(input);
-      const filePath = path.join(testDir, 'episodic.jsonl');
+      const filePath = path.join(testDir, 'episodic-000001.jsonl');
 
       const exists = await fs.access(filePath).then(() => true).catch(() => false);
       expect(exists).toBe(true);
