@@ -8407,8 +8407,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path7, errorMaps, issueData } = params;
-  const fullPath = [...path7, ...issueData.path || []];
+  const { data, path: path9, errorMaps, issueData } = params;
+  const fullPath = [...path9, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -8524,11 +8524,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path7, key) {
+  constructor(parent, value, path9, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path7;
+    this._path = path9;
     this._key = key;
   }
   get path() {
@@ -12483,15 +12483,15 @@ function getDocumentProperties(doc, paths) {
   const properties = {};
   const pathsLength = paths.length;
   for (let i = 0; i < pathsLength; i++) {
-    const path7 = paths[i];
-    const pathTokens = path7.split(".");
+    const path9 = paths[i];
+    const pathTokens = path9.split(".");
     let current = doc;
     const pathTokensLength = pathTokens.length;
     for (let j = 0; j < pathTokensLength; j++) {
       current = current[pathTokens[j]];
       if (typeof current === "object") {
         if (current !== null && "lat" in current && "lon" in current && typeof current.lat === "number" && typeof current.lon === "number") {
-          current = properties[path7] = current;
+          current = properties[path9] = current;
           break;
         } else if (!Array.isArray(current) && current !== null && j === pathTokensLength - 1) {
           current = void 0;
@@ -12503,14 +12503,14 @@ function getDocumentProperties(doc, paths) {
       }
     }
     if (typeof current !== "undefined") {
-      properties[path7] = current;
+      properties[path9] = current;
     }
   }
   return properties;
 }
-function getNested(obj, path7) {
-  const props = getDocumentProperties(obj, [path7]);
-  return props[path7];
+function getNested(obj, path9) {
+  const props = getDocumentProperties(obj, [path9]);
+  return props[path9];
 }
 var mapDistanceToMeters = {
   cm: 0.01,
@@ -12534,10 +12534,10 @@ function removeVectorsFromHits(searchResult, vectorProperties) {
       ...result.document,
       // Remove embeddings from the result
       ...vectorProperties.reduce((acc, prop) => {
-        const path7 = prop.split(".");
-        const lastKey = path7.pop();
+        const path9 = prop.split(".");
+        const lastKey = path9.pop();
         let obj = acc;
-        for (const key of path7) {
+        for (const key of path9) {
           obj[key] = obj[key] ?? {};
           obj = obj[key];
         }
@@ -13134,15 +13134,15 @@ var AVLTree = class _AVLTree {
     if (node === null) {
       return new AVLNode(key, [value]);
     }
-    const path7 = [];
+    const path9 = [];
     let current = node;
     let parent = null;
     while (current !== null) {
-      path7.push({ parent, node: current });
+      path9.push({ parent, node: current });
       if (key < current.k) {
         if (current.l === null) {
           current.l = new AVLNode(key, [value]);
-          path7.push({ parent: current, node: current.l });
+          path9.push({ parent: current, node: current.l });
           break;
         } else {
           parent = current;
@@ -13151,7 +13151,7 @@ var AVLTree = class _AVLTree {
       } else if (key > current.k) {
         if (current.r === null) {
           current.r = new AVLNode(key, [value]);
-          path7.push({ parent: current, node: current.r });
+          path9.push({ parent: current, node: current.r });
           break;
         } else {
           parent = current;
@@ -13166,8 +13166,8 @@ var AVLTree = class _AVLTree {
     if (this.insertCount++ % rebalanceThreshold === 0) {
       needRebalance = true;
     }
-    for (let i = path7.length - 1; i >= 0; i--) {
-      const { parent: parent2, node: currentNode } = path7[i];
+    for (let i = path9.length - 1; i >= 0; i--) {
+      const { parent: parent2, node: currentNode } = path9[i];
       currentNode.updateHeight();
       if (needRebalance) {
         const rebalancedNode = this.rebalanceNode(currentNode);
@@ -13273,10 +13273,10 @@ var AVLTree = class _AVLTree {
   removeNode(node, key) {
     if (node === null)
       return null;
-    const path7 = [];
+    const path9 = [];
     let current = node;
     while (current !== null && current.k !== key) {
-      path7.push(current);
+      path9.push(current);
       if (key < current.k) {
         current = current.l;
       } else {
@@ -13288,10 +13288,10 @@ var AVLTree = class _AVLTree {
     }
     if (current.l === null || current.r === null) {
       const child = current.l ? current.l : current.r;
-      if (path7.length === 0) {
+      if (path9.length === 0) {
         node = child;
       } else {
-        const parent = path7[path7.length - 1];
+        const parent = path9[path9.length - 1];
         if (parent.l === current) {
           parent.l = child;
         } else {
@@ -13314,13 +13314,13 @@ var AVLTree = class _AVLTree {
       }
       current = successorParent;
     }
-    path7.push(current);
-    for (let i = path7.length - 1; i >= 0; i--) {
-      const currentNode = path7[i];
+    path9.push(current);
+    for (let i = path9.length - 1; i >= 0; i--) {
+      const currentNode = path9[i];
       currentNode.updateHeight();
       const rebalancedNode = this.rebalanceNode(currentNode);
       if (i > 0) {
-        const parent = path7[i - 1];
+        const parent = path9[i - 1];
         if (parent.l === currentNode) {
           parent.l = rebalancedNode;
         } else if (parent.r === currentNode) {
@@ -14408,15 +14408,15 @@ function create2(orama, sharedInternalDocumentStore, schema, index, prefix = "")
     };
   }
   for (const [prop, type] of Object.entries(schema)) {
-    const path7 = `${prefix}${prefix ? "." : ""}${prop}`;
+    const path9 = `${prefix}${prefix ? "." : ""}${prop}`;
     if (typeof type === "object" && !Array.isArray(type)) {
-      create2(orama, sharedInternalDocumentStore, type, index, path7);
+      create2(orama, sharedInternalDocumentStore, type, index, path9);
       continue;
     }
     if (isVectorType(type)) {
-      index.searchableProperties.push(path7);
-      index.searchablePropertiesWithTypes[path7] = type;
-      index.vectorIndexes[path7] = {
+      index.searchableProperties.push(path9);
+      index.searchablePropertiesWithTypes[path9] = type;
+      index.vectorIndexes[path9] = {
         type: "Vector",
         node: new VectorIndex(getVectorSize(type)),
         isArray: false
@@ -14426,32 +14426,32 @@ function create2(orama, sharedInternalDocumentStore, schema, index, prefix = "")
       switch (type) {
         case "boolean":
         case "boolean[]":
-          index.indexes[path7] = { type: "Bool", node: new BoolNode(), isArray };
+          index.indexes[path9] = { type: "Bool", node: new BoolNode(), isArray };
           break;
         case "number":
         case "number[]":
-          index.indexes[path7] = { type: "AVL", node: new AVLTree(0, []), isArray };
+          index.indexes[path9] = { type: "AVL", node: new AVLTree(0, []), isArray };
           break;
         case "string":
         case "string[]":
-          index.indexes[path7] = { type: "Radix", node: new RadixTree(), isArray };
-          index.avgFieldLength[path7] = 0;
-          index.frequencies[path7] = {};
-          index.tokenOccurrences[path7] = {};
-          index.fieldLengths[path7] = {};
+          index.indexes[path9] = { type: "Radix", node: new RadixTree(), isArray };
+          index.avgFieldLength[path9] = 0;
+          index.frequencies[path9] = {};
+          index.tokenOccurrences[path9] = {};
+          index.fieldLengths[path9] = {};
           break;
         case "enum":
         case "enum[]":
-          index.indexes[path7] = { type: "Flat", node: new FlatTree(), isArray };
+          index.indexes[path9] = { type: "Flat", node: new FlatTree(), isArray };
           break;
         case "geopoint":
-          index.indexes[path7] = { type: "BKD", node: new BKDTree(), isArray };
+          index.indexes[path9] = { type: "BKD", node: new BKDTree(), isArray };
           break;
         default:
-          throw createError("INVALID_SCHEMA_TYPE", Array.isArray(type) ? "array" : type, path7);
+          throw createError("INVALID_SCHEMA_TYPE", Array.isArray(type) ? "array" : type, path9);
       }
-      index.searchableProperties.push(path7);
-      index.searchablePropertiesWithTypes[path7] = type;
+      index.searchableProperties.push(path9);
+      index.searchablePropertiesWithTypes[path9] = type;
     }
   }
   return index;
@@ -14999,12 +14999,12 @@ function innerCreate(orama, sharedInternalDocumentStore, schema, sortableDeniedP
     sorts: {}
   };
   for (const [prop, type] of Object.entries(schema)) {
-    const path7 = `${prefix}${prefix ? "." : ""}${prop}`;
-    if (sortableDeniedProperties.includes(path7)) {
+    const path9 = `${prefix}${prefix ? "." : ""}${prop}`;
+    if (sortableDeniedProperties.includes(path9)) {
       continue;
     }
     if (typeof type === "object" && !Array.isArray(type)) {
-      const ret = innerCreate(orama, sharedInternalDocumentStore, type, sortableDeniedProperties, path7);
+      const ret = innerCreate(orama, sharedInternalDocumentStore, type, sortableDeniedProperties, path9);
       safeArrayPush(sorter.sortableProperties, ret.sortableProperties);
       sorter.sorts = {
         ...sorter.sorts,
@@ -15021,9 +15021,9 @@ function innerCreate(orama, sharedInternalDocumentStore, schema, sortableDeniedP
         case "boolean":
         case "number":
         case "string":
-          sorter.sortableProperties.push(path7);
-          sorter.sortablePropertiesWithTypes[path7] = type;
-          sorter.sorts[path7] = {
+          sorter.sortableProperties.push(path9);
+          sorter.sortablePropertiesWithTypes[path9] = type;
+          sorter.sorts[path9] = {
             docs: /* @__PURE__ */ new Map(),
             orderedDocsToRemove: /* @__PURE__ */ new Map(),
             orderedDocs: [],
@@ -15039,7 +15039,7 @@ function innerCreate(orama, sharedInternalDocumentStore, schema, sortableDeniedP
         case "string[]":
           continue;
         default:
-          throw createError("INVALID_SORT_SCHEMA_TYPE", Array.isArray(type) ? "array" : type, path7);
+          throw createError("INVALID_SORT_SCHEMA_TYPE", Array.isArray(type) ? "array" : type, path9);
       }
     }
   }
@@ -16550,8 +16550,8 @@ function innerFullTextSearch(orama, params, language) {
 function escapeRegex(str2) {
   return str2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-function getPropValue(obj, path7) {
-  const keys = path7.split(".");
+function getPropValue(obj, path9) {
+  const keys = path9.split(".");
   let value = obj;
   for (const key of keys) {
     if (value && typeof value === "object" && key in value) {
@@ -18246,6 +18246,7 @@ function getVectorStore(options2 = {}) {
 
 // src/core/episodic-jsonl-store.ts
 import { createHash } from "node:crypto";
+import path6 from "node:path";
 
 // node_modules/uuid/dist/esm-node/stringify.js
 var byteToHex = [];
@@ -18743,6 +18744,7 @@ var JsonlStore = class {
 
 // src/core/episodic-jsonl-store.ts
 var EPISODIC_FILE_PREFIX = "episodic";
+var EPISODIC_SUBDIR = "episodic-memory";
 function computeContentHash(content) {
   return createHash("sha256").update(content).digest("hex").slice(0, 16);
 }
@@ -18763,11 +18765,13 @@ function entryToMemory(entry) {
 var EpisodicJsonlStore = class {
   store;
   baseDir;
+  storeDir;
   constructor(options2 = {}) {
     const config = getConfig();
     this.baseDir = options2.baseDir ?? config.memoryDir;
+    this.storeDir = path6.join(this.baseDir, EPISODIC_SUBDIR);
     this.store = new JsonlStore({
-      baseDir: this.baseDir,
+      baseDir: this.storeDir,
       filePrefix: EPISODIC_FILE_PREFIX,
       entrySchema: episodicEntrySchema,
       entryToMemory,
@@ -19207,7 +19211,7 @@ var SearchEngine = class {
 };
 
 // src/core/thinking-vector-store.ts
-import path6 from "node:path";
+import path7 from "node:path";
 import { promises as fs5 } from "node:fs";
 var INDEX_FILENAME2 = "orama-thinking-index.json";
 var THINKING_SCHEMA = {
@@ -19230,7 +19234,7 @@ var ThinkingVectorStore = class {
   constructor(options2 = {}) {
     const config = getConfig();
     this.baseDir = options2.baseDir ?? config.memoryDir;
-    this.indexPath = path6.join(this.baseDir, INDEX_FILENAME2);
+    this.indexPath = path7.join(this.baseDir, INDEX_FILENAME2);
     this.embeddingService = getEmbeddingService();
     this.readonly = options2.readonly ?? false;
   }
@@ -19513,7 +19517,9 @@ function getThinkingVectorStore(options2 = {}) {
 
 // src/core/thinking-jsonl-store.ts
 import { createHash as createHash2 } from "node:crypto";
+import path8 from "node:path";
 var THINKING_FILE_PREFIX = "thinking";
+var THINKING_SUBDIR = "thinking-memory";
 function computeContentHash2(content) {
   return createHash2("sha256").update(content).digest("hex").slice(0, 16);
 }
@@ -19541,11 +19547,13 @@ function entryToMemory2(entry) {
 var ThinkingJsonlStore = class {
   store;
   baseDir;
+  storeDir;
   constructor(options2 = {}) {
     const config = getConfig();
     this.baseDir = options2.baseDir ?? config.memoryDir;
+    this.storeDir = path8.join(this.baseDir, THINKING_SUBDIR);
     this.store = new JsonlStore({
-      baseDir: this.baseDir,
+      baseDir: this.storeDir,
       filePrefix: THINKING_FILE_PREFIX,
       entrySchema: thinkingEntrySchema,
       entryToMemory: entryToMemory2,

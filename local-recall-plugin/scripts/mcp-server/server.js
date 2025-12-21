@@ -3229,8 +3229,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path11) {
-      let input = path11;
+    function removeDotSegments(path13) {
+      let input = path13;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -3429,8 +3429,8 @@ var require_schemes = __commonJS({
         wsComponent.secure = void 0;
       }
       if (wsComponent.resourceName) {
-        const [path11, query] = wsComponent.resourceName.split("?");
-        wsComponent.path = path11 && path11 !== "/" ? path11 : void 0;
+        const [path13, query] = wsComponent.resourceName.split("?");
+        wsComponent.path = path13 && path13 !== "/" ? path13 : void 0;
         wsComponent.query = query;
         wsComponent.resourceName = void 0;
       }
@@ -15163,8 +15163,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path11, errorMaps, issueData } = params;
-  const fullPath = [...path11, ...issueData.path || []];
+  const { data, path: path13, errorMaps, issueData } = params;
+  const fullPath = [...path13, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -15280,11 +15280,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path11, key) {
+  constructor(parent, value, path13, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path11;
+    this._path = path13;
     this._key = key;
   }
   get path() {
@@ -18922,10 +18922,10 @@ function assignProp(target, prop, value) {
     configurable: true
   });
 }
-function getElementAtPath(obj, path11) {
-  if (!path11)
+function getElementAtPath(obj, path13) {
+  if (!path13)
     return obj;
-  return path11.reduce((acc, key) => acc?.[key], obj);
+  return path13.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -19245,11 +19245,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path11, issues) {
+function prefixIssues(path13, issues) {
   return issues.map((iss) => {
     var _a;
     (_a = iss).path ?? (_a.path = []);
-    iss.path.unshift(path11);
+    iss.path.unshift(path13);
     return iss;
   });
 }
@@ -24904,15 +24904,15 @@ function getDocumentProperties(doc, paths) {
   const properties = {};
   const pathsLength = paths.length;
   for (let i = 0; i < pathsLength; i++) {
-    const path11 = paths[i];
-    const pathTokens = path11.split(".");
+    const path13 = paths[i];
+    const pathTokens = path13.split(".");
     let current = doc;
     const pathTokensLength = pathTokens.length;
     for (let j = 0; j < pathTokensLength; j++) {
       current = current[pathTokens[j]];
       if (typeof current === "object") {
         if (current !== null && "lat" in current && "lon" in current && typeof current.lat === "number" && typeof current.lon === "number") {
-          current = properties[path11] = current;
+          current = properties[path13] = current;
           break;
         } else if (!Array.isArray(current) && current !== null && j === pathTokensLength - 1) {
           current = void 0;
@@ -24924,14 +24924,14 @@ function getDocumentProperties(doc, paths) {
       }
     }
     if (typeof current !== "undefined") {
-      properties[path11] = current;
+      properties[path13] = current;
     }
   }
   return properties;
 }
-function getNested(obj, path11) {
-  const props = getDocumentProperties(obj, [path11]);
-  return props[path11];
+function getNested(obj, path13) {
+  const props = getDocumentProperties(obj, [path13]);
+  return props[path13];
 }
 var mapDistanceToMeters = {
   cm: 0.01,
@@ -24955,10 +24955,10 @@ function removeVectorsFromHits(searchResult, vectorProperties) {
       ...result.document,
       // Remove embeddings from the result
       ...vectorProperties.reduce((acc, prop) => {
-        const path11 = prop.split(".");
-        const lastKey = path11.pop();
+        const path13 = prop.split(".");
+        const lastKey = path13.pop();
         let obj = acc;
-        for (const key of path11) {
+        for (const key of path13) {
           obj[key] = obj[key] ?? {};
           obj = obj[key];
         }
@@ -25555,15 +25555,15 @@ var AVLTree = class _AVLTree {
     if (node === null) {
       return new AVLNode(key, [value]);
     }
-    const path11 = [];
+    const path13 = [];
     let current = node;
     let parent = null;
     while (current !== null) {
-      path11.push({ parent, node: current });
+      path13.push({ parent, node: current });
       if (key < current.k) {
         if (current.l === null) {
           current.l = new AVLNode(key, [value]);
-          path11.push({ parent: current, node: current.l });
+          path13.push({ parent: current, node: current.l });
           break;
         } else {
           parent = current;
@@ -25572,7 +25572,7 @@ var AVLTree = class _AVLTree {
       } else if (key > current.k) {
         if (current.r === null) {
           current.r = new AVLNode(key, [value]);
-          path11.push({ parent: current, node: current.r });
+          path13.push({ parent: current, node: current.r });
           break;
         } else {
           parent = current;
@@ -25587,8 +25587,8 @@ var AVLTree = class _AVLTree {
     if (this.insertCount++ % rebalanceThreshold === 0) {
       needRebalance = true;
     }
-    for (let i = path11.length - 1; i >= 0; i--) {
-      const { parent: parent2, node: currentNode } = path11[i];
+    for (let i = path13.length - 1; i >= 0; i--) {
+      const { parent: parent2, node: currentNode } = path13[i];
       currentNode.updateHeight();
       if (needRebalance) {
         const rebalancedNode = this.rebalanceNode(currentNode);
@@ -25694,10 +25694,10 @@ var AVLTree = class _AVLTree {
   removeNode(node, key) {
     if (node === null)
       return null;
-    const path11 = [];
+    const path13 = [];
     let current = node;
     while (current !== null && current.k !== key) {
-      path11.push(current);
+      path13.push(current);
       if (key < current.k) {
         current = current.l;
       } else {
@@ -25709,10 +25709,10 @@ var AVLTree = class _AVLTree {
     }
     if (current.l === null || current.r === null) {
       const child = current.l ? current.l : current.r;
-      if (path11.length === 0) {
+      if (path13.length === 0) {
         node = child;
       } else {
-        const parent = path11[path11.length - 1];
+        const parent = path13[path13.length - 1];
         if (parent.l === current) {
           parent.l = child;
         } else {
@@ -25735,13 +25735,13 @@ var AVLTree = class _AVLTree {
       }
       current = successorParent;
     }
-    path11.push(current);
-    for (let i = path11.length - 1; i >= 0; i--) {
-      const currentNode = path11[i];
+    path13.push(current);
+    for (let i = path13.length - 1; i >= 0; i--) {
+      const currentNode = path13[i];
       currentNode.updateHeight();
       const rebalancedNode = this.rebalanceNode(currentNode);
       if (i > 0) {
-        const parent = path11[i - 1];
+        const parent = path13[i - 1];
         if (parent.l === currentNode) {
           parent.l = rebalancedNode;
         } else if (parent.r === currentNode) {
@@ -26829,15 +26829,15 @@ function create2(orama, sharedInternalDocumentStore, schema, index, prefix = "")
     };
   }
   for (const [prop, type] of Object.entries(schema)) {
-    const path11 = `${prefix}${prefix ? "." : ""}${prop}`;
+    const path13 = `${prefix}${prefix ? "." : ""}${prop}`;
     if (typeof type === "object" && !Array.isArray(type)) {
-      create2(orama, sharedInternalDocumentStore, type, index, path11);
+      create2(orama, sharedInternalDocumentStore, type, index, path13);
       continue;
     }
     if (isVectorType(type)) {
-      index.searchableProperties.push(path11);
-      index.searchablePropertiesWithTypes[path11] = type;
-      index.vectorIndexes[path11] = {
+      index.searchableProperties.push(path13);
+      index.searchablePropertiesWithTypes[path13] = type;
+      index.vectorIndexes[path13] = {
         type: "Vector",
         node: new VectorIndex(getVectorSize(type)),
         isArray: false
@@ -26847,32 +26847,32 @@ function create2(orama, sharedInternalDocumentStore, schema, index, prefix = "")
       switch (type) {
         case "boolean":
         case "boolean[]":
-          index.indexes[path11] = { type: "Bool", node: new BoolNode(), isArray };
+          index.indexes[path13] = { type: "Bool", node: new BoolNode(), isArray };
           break;
         case "number":
         case "number[]":
-          index.indexes[path11] = { type: "AVL", node: new AVLTree(0, []), isArray };
+          index.indexes[path13] = { type: "AVL", node: new AVLTree(0, []), isArray };
           break;
         case "string":
         case "string[]":
-          index.indexes[path11] = { type: "Radix", node: new RadixTree(), isArray };
-          index.avgFieldLength[path11] = 0;
-          index.frequencies[path11] = {};
-          index.tokenOccurrences[path11] = {};
-          index.fieldLengths[path11] = {};
+          index.indexes[path13] = { type: "Radix", node: new RadixTree(), isArray };
+          index.avgFieldLength[path13] = 0;
+          index.frequencies[path13] = {};
+          index.tokenOccurrences[path13] = {};
+          index.fieldLengths[path13] = {};
           break;
         case "enum":
         case "enum[]":
-          index.indexes[path11] = { type: "Flat", node: new FlatTree(), isArray };
+          index.indexes[path13] = { type: "Flat", node: new FlatTree(), isArray };
           break;
         case "geopoint":
-          index.indexes[path11] = { type: "BKD", node: new BKDTree(), isArray };
+          index.indexes[path13] = { type: "BKD", node: new BKDTree(), isArray };
           break;
         default:
-          throw createError("INVALID_SCHEMA_TYPE", Array.isArray(type) ? "array" : type, path11);
+          throw createError("INVALID_SCHEMA_TYPE", Array.isArray(type) ? "array" : type, path13);
       }
-      index.searchableProperties.push(path11);
-      index.searchablePropertiesWithTypes[path11] = type;
+      index.searchableProperties.push(path13);
+      index.searchablePropertiesWithTypes[path13] = type;
     }
   }
   return index;
@@ -27420,12 +27420,12 @@ function innerCreate(orama, sharedInternalDocumentStore, schema, sortableDeniedP
     sorts: {}
   };
   for (const [prop, type] of Object.entries(schema)) {
-    const path11 = `${prefix}${prefix ? "." : ""}${prop}`;
-    if (sortableDeniedProperties.includes(path11)) {
+    const path13 = `${prefix}${prefix ? "." : ""}${prop}`;
+    if (sortableDeniedProperties.includes(path13)) {
       continue;
     }
     if (typeof type === "object" && !Array.isArray(type)) {
-      const ret = innerCreate(orama, sharedInternalDocumentStore, type, sortableDeniedProperties, path11);
+      const ret = innerCreate(orama, sharedInternalDocumentStore, type, sortableDeniedProperties, path13);
       safeArrayPush(sorter.sortableProperties, ret.sortableProperties);
       sorter.sorts = {
         ...sorter.sorts,
@@ -27442,9 +27442,9 @@ function innerCreate(orama, sharedInternalDocumentStore, schema, sortableDeniedP
         case "boolean":
         case "number":
         case "string":
-          sorter.sortableProperties.push(path11);
-          sorter.sortablePropertiesWithTypes[path11] = type;
-          sorter.sorts[path11] = {
+          sorter.sortableProperties.push(path13);
+          sorter.sortablePropertiesWithTypes[path13] = type;
+          sorter.sorts[path13] = {
             docs: /* @__PURE__ */ new Map(),
             orderedDocsToRemove: /* @__PURE__ */ new Map(),
             orderedDocs: [],
@@ -27460,7 +27460,7 @@ function innerCreate(orama, sharedInternalDocumentStore, schema, sortableDeniedP
         case "string[]":
           continue;
         default:
-          throw createError("INVALID_SORT_SCHEMA_TYPE", Array.isArray(type) ? "array" : type, path11);
+          throw createError("INVALID_SORT_SCHEMA_TYPE", Array.isArray(type) ? "array" : type, path13);
       }
     }
   }
@@ -28971,8 +28971,8 @@ function innerFullTextSearch(orama, params, language) {
 function escapeRegex2(str2) {
   return str2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-function getPropValue(obj, path11) {
-  const keys = path11.split(".");
+function getPropValue(obj, path13) {
+  const keys = path13.split(".");
   let value = obj;
   for (const key of keys) {
     if (value && typeof value === "object" && key in value) {
@@ -30667,6 +30667,7 @@ function getVectorStore(options2 = {}) {
 
 // src/core/episodic-jsonl-store.ts
 import { createHash } from "node:crypto";
+import path6 from "node:path";
 
 // node_modules/uuid/dist/esm-node/stringify.js
 var byteToHex = [];
@@ -31164,6 +31165,7 @@ var JsonlStore = class {
 
 // src/core/episodic-jsonl-store.ts
 var EPISODIC_FILE_PREFIX = "episodic";
+var EPISODIC_SUBDIR = "episodic-memory";
 function computeContentHash(content) {
   return createHash("sha256").update(content).digest("hex").slice(0, 16);
 }
@@ -31184,11 +31186,13 @@ function entryToMemory(entry) {
 var EpisodicJsonlStore = class {
   store;
   baseDir;
+  storeDir;
   constructor(options2 = {}) {
     const config2 = getConfig();
     this.baseDir = options2.baseDir ?? config2.memoryDir;
+    this.storeDir = path6.join(this.baseDir, EPISODIC_SUBDIR);
     this.store = new JsonlStore({
-      baseDir: this.baseDir,
+      baseDir: this.storeDir,
       filePrefix: EPISODIC_FILE_PREFIX,
       entrySchema: episodicEntrySchema,
       entryToMemory,
@@ -31628,7 +31632,7 @@ var SearchEngine = class {
 };
 
 // src/core/thinking-vector-store.ts
-import path6 from "node:path";
+import path7 from "node:path";
 import { promises as fs5 } from "node:fs";
 var INDEX_FILENAME2 = "orama-thinking-index.json";
 var THINKING_SCHEMA = {
@@ -31651,7 +31655,7 @@ var ThinkingVectorStore = class {
   constructor(options2 = {}) {
     const config2 = getConfig();
     this.baseDir = options2.baseDir ?? config2.memoryDir;
-    this.indexPath = path6.join(this.baseDir, INDEX_FILENAME2);
+    this.indexPath = path7.join(this.baseDir, INDEX_FILENAME2);
     this.embeddingService = getEmbeddingService();
     this.readonly = options2.readonly ?? false;
   }
@@ -31934,7 +31938,9 @@ function getThinkingVectorStore(options2 = {}) {
 
 // src/core/thinking-jsonl-store.ts
 import { createHash as createHash2 } from "node:crypto";
+import path8 from "node:path";
 var THINKING_FILE_PREFIX = "thinking";
+var THINKING_SUBDIR = "thinking-memory";
 function computeContentHash2(content) {
   return createHash2("sha256").update(content).digest("hex").slice(0, 16);
 }
@@ -31962,11 +31968,13 @@ function entryToMemory2(entry) {
 var ThinkingJsonlStore = class {
   store;
   baseDir;
+  storeDir;
   constructor(options2 = {}) {
     const config2 = getConfig();
     this.baseDir = options2.baseDir ?? config2.memoryDir;
+    this.storeDir = path8.join(this.baseDir, THINKING_SUBDIR);
     this.store = new JsonlStore({
-      baseDir: this.baseDir,
+      baseDir: this.storeDir,
       filePrefix: THINKING_FILE_PREFIX,
       entrySchema: thinkingEntrySchema,
       entryToMemory: entryToMemory2,
@@ -32614,7 +32622,7 @@ import { spawn } from "node:child_process";
 
 // src/core/processed-log.ts
 import { promises as fs6 } from "node:fs";
-import path7 from "node:path";
+import path9 from "node:path";
 var processedTranscriptEntrySchema = external_exports.object({
   /** Original source path (from Claude cache) */
   sourcePath: external_exports.string(),
@@ -32648,7 +32656,7 @@ var ProcessedLogManager = class {
   constructor(baseDir) {
     const config2 = getConfig();
     const dir = baseDir ?? config2.memoryDir;
-    this.logPath = path7.join(dir, "processed-log.jsonl");
+    this.logPath = path9.join(dir, "processed-log.jsonl");
   }
   /**
    * Load the processed log from disk by replaying JSONL entries
@@ -32719,7 +32727,7 @@ var ProcessedLogManager = class {
    * Append an entry to the JSONL file
    */
   async appendEntry(entry) {
-    const dir = path7.dirname(this.logPath);
+    const dir = path9.dirname(this.logPath);
     await fs6.mkdir(dir, { recursive: true });
     const line = JSON.stringify(entry) + "\n";
     await fs6.appendFile(this.logPath, line, "utf-8");
@@ -32853,12 +32861,12 @@ var ProcessedLogManager = class {
 
 // src/core/transcript-collector.ts
 import { promises as fs7 } from "node:fs";
-import path8 from "node:path";
+import path10 from "node:path";
 import os from "node:os";
 import { createHash as createHash3 } from "node:crypto";
 var UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function isUuidFilename(filename) {
-  const nameWithoutExt = path8.parse(filename).name;
+  const nameWithoutExt = path10.parse(filename).name;
   return UUID_REGEX.test(nameWithoutExt);
 }
 var TranscriptCollector = class {
@@ -32868,8 +32876,8 @@ var TranscriptCollector = class {
   constructor(projectPath) {
     const config2 = getConfig();
     this.projectPath = projectPath ?? process.cwd();
-    this.claudeProjectsDir = path8.join(os.homedir(), ".claude", "projects");
-    this.transcriptsDir = path8.join(config2.memoryDir, "transcripts");
+    this.claudeProjectsDir = path10.join(os.homedir(), ".claude", "projects");
+    this.transcriptsDir = path10.join(config2.memoryDir, "transcripts");
   }
   /**
    * Ensure the transcripts directory exists
@@ -32883,7 +32891,7 @@ var TranscriptCollector = class {
    * e.g., /Users/joe/Code/project -> -Users-joe-Code-project
    */
   pathToClaudeFolderName(projectPath) {
-    const normalizedPath = path8.resolve(projectPath);
+    const normalizedPath = path10.resolve(projectPath);
     return normalizedPath.replace(/\//g, "-");
   }
   /**
@@ -32902,7 +32910,7 @@ var TranscriptCollector = class {
       return null;
     }
     const expectedFolderName = this.pathToClaudeFolderName(this.projectPath);
-    const expectedDir = path8.join(this.claudeProjectsDir, expectedFolderName);
+    const expectedDir = path10.join(this.claudeProjectsDir, expectedFolderName);
     logger.transcript.info(`  Expected folder: ${expectedFolderName}`);
     try {
       await fs7.access(expectedDir);
@@ -32922,14 +32930,14 @@ var TranscriptCollector = class {
     const projectDirs = entries.filter((e) => e.isDirectory());
     logger.transcript.info(`  Scanning ${projectDirs.length} Claude project folders for matching cwd...`);
     for (const dir of projectDirs) {
-      const projectDir = path8.join(this.claudeProjectsDir, dir.name);
+      const projectDir = path10.join(this.claudeProjectsDir, dir.name);
       try {
         const files = await fs7.readdir(projectDir);
         const jsonlFiles = files.filter((f) => f.endsWith(".jsonl") && isUuidFilename(f));
         if (jsonlFiles.length > 0) {
           const firstFile = jsonlFiles[0];
           if (!firstFile) continue;
-          const sampleFile = path8.join(projectDir, firstFile);
+          const sampleFile = path10.join(projectDir, firstFile);
           const content = await fs7.readFile(sampleFile, "utf-8");
           const firstLine = content.split("\n")[0];
           if (!firstLine) continue;
@@ -32945,10 +32953,10 @@ var TranscriptCollector = class {
       } catch {
       }
     }
-    const basename = path8.basename(this.projectPath);
+    const basename = path10.basename(this.projectPath);
     logger.transcript.debug(`  Trying basename match: *-${basename}`);
     for (const dir of projectDirs) {
-      const projectDir = path8.join(this.claudeProjectsDir, dir.name);
+      const projectDir = path10.join(this.claudeProjectsDir, dir.name);
       if (dir.name.endsWith("-" + basename)) {
         try {
           const files = await fs7.readdir(projectDir);
@@ -32969,9 +32977,9 @@ var TranscriptCollector = class {
    * Check if a path matches the current project
    */
   isMatchingProject(cwdPath) {
-    const normalizedCwd = path8.resolve(cwdPath);
-    const normalizedProject = path8.resolve(this.projectPath);
-    return normalizedCwd === normalizedProject || normalizedCwd.startsWith(normalizedProject + path8.sep);
+    const normalizedCwd = path10.resolve(cwdPath);
+    const normalizedProject = path10.resolve(this.projectPath);
+    return normalizedCwd === normalizedProject || normalizedCwd.startsWith(normalizedProject + path10.sep);
   }
   /**
    * List all transcript files in Claude's cache for this project
@@ -32986,11 +32994,11 @@ var TranscriptCollector = class {
       const jsonlFiles = files.filter((f) => f.endsWith(".jsonl") && isUuidFilename(f));
       const transcripts = [];
       for (const filename of jsonlFiles) {
-        const sourcePath = path8.join(projectDir, filename);
+        const sourcePath = path10.join(projectDir, filename);
         const stats = await fs7.stat(sourcePath);
         transcripts.push({
           sourcePath,
-          localPath: path8.join(this.transcriptsDir, filename),
+          localPath: path10.join(this.transcriptsDir, filename),
           filename,
           lastModified: stats.mtime,
           size: stats.size
@@ -33080,7 +33088,7 @@ var TranscriptCollector = class {
       const jsonlFiles = files.filter((f) => f.endsWith(".jsonl") && isUuidFilename(f));
       const transcripts = [];
       for (const filename of jsonlFiles) {
-        const localPath = path8.join(this.transcriptsDir, filename);
+        const localPath = path10.join(this.transcriptsDir, filename);
         const stats = await fs7.stat(localPath);
         transcripts.push({
           sourcePath: "",
@@ -33170,7 +33178,7 @@ var TranscriptCollector = class {
     try {
       const files = await fs7.readdir(this.transcriptsDir);
       for (const filename of files) {
-        const filePath = path8.join(this.transcriptsDir, filename);
+        const filePath = path10.join(this.transcriptsDir, filename);
         const stats = await fs7.stat(filePath);
         if (!stats.isFile()) {
           continue;
@@ -33269,17 +33277,17 @@ function summarizeBashTool(input) {
 }
 function summarizeGrepTool(input) {
   const pattern = input.pattern;
-  const path11 = input.path;
+  const path13 = input.path;
   const glob = input.glob;
   let summary = `Grep: "${pattern}"`;
-  if (path11) summary += ` in ${path11}`;
+  if (path13) summary += ` in ${path13}`;
   if (glob) summary += ` (${glob})`;
   return summary;
 }
 function summarizeGlobTool(input) {
   const pattern = input.pattern;
-  const path11 = input.path;
-  return path11 ? `Glob: ${pattern} in ${path11}` : `Glob: ${pattern}`;
+  const path13 = input.path;
+  return path13 ? `Glob: ${pattern} in ${path13}` : `Glob: ${pattern}`;
 }
 function summarizeTaskTool(input) {
   const description = input.description;
@@ -34060,7 +34068,7 @@ async function runTranscriptProcessing(projectPath) {
 
 // src/core/thinking-processed-log.ts
 import { promises as fs8 } from "node:fs";
-import path9 from "node:path";
+import path11 from "node:path";
 var thinkingProcessedTranscriptEntrySchema = external_exports.object({
   /** Original source path (from Claude cache) */
   sourcePath: external_exports.string(),
@@ -34094,7 +34102,7 @@ var ThinkingProcessedLogManager = class {
   constructor(baseDir) {
     const config2 = getConfig();
     const dir = baseDir ?? config2.memoryDir;
-    this.logPath = path9.join(dir, "thinking-processed-log.jsonl");
+    this.logPath = path11.join(dir, "thinking-processed-log.jsonl");
   }
   /**
    * Load the processed log from disk by replaying JSONL entries
@@ -34165,7 +34173,7 @@ var ThinkingProcessedLogManager = class {
    * Append an entry to the JSONL file
    */
   async appendEntry(entry) {
-    const dir = path9.dirname(this.logPath);
+    const dir = path11.dirname(this.logPath);
     await fs8.mkdir(dir, { recursive: true });
     const line = JSON.stringify(entry) + "\n";
     await fs8.appendFile(this.logPath, line, "utf-8");
@@ -34545,7 +34553,7 @@ async function runThinkingExtraction(projectPath) {
 
 // src/core/migration.ts
 import { promises as fs9 } from "node:fs";
-import path10 from "node:path";
+import path12 from "node:path";
 
 // src/utils/markdown.ts
 var import_gray_matter = __toESM(require_gray_matter(), 1);
@@ -34558,215 +34566,183 @@ function parseMarkdown(content) {
 }
 
 // src/core/migration.ts
+var ORAMA_EPISODIC_INDEX = "orama-episodic-index.json";
+var ORAMA_THINKING_INDEX = "orama-thinking-index.json";
 var MigrationService = class {
   baseDir;
   episodicDir;
   thinkingDir;
-  episodicJsonlPath;
-  thinkingJsonlPath;
   constructor(baseDir) {
     const config2 = getConfig();
     this.baseDir = baseDir ?? config2.memoryDir;
-    this.episodicDir = path10.join(this.baseDir, "episodic-memory");
-    this.thinkingDir = path10.join(this.baseDir, "thinking-memory");
-    this.episodicJsonlPath = path10.join(this.baseDir, "episodic.jsonl");
-    this.thinkingJsonlPath = path10.join(this.baseDir, "thinking.jsonl");
+    this.episodicDir = path12.join(this.baseDir, "episodic-memory");
+    this.thinkingDir = path12.join(this.baseDir, "thinking-memory");
   }
   /**
-   * Check if directories/files exist
+   * Check if a path exists
    */
-  async exists(path11) {
+  async exists(filePath) {
     try {
-      await fs9.access(path11);
+      await fs9.access(filePath);
       return true;
     } catch {
       return false;
     }
   }
   /**
-   * Count markdown files in a directory
+   * Get all markdown files in a directory
    */
-  async countMarkdownFiles(dir) {
+  async getMarkdownFiles(dir) {
     try {
       const files = await fs9.readdir(dir);
-      return files.filter((f) => f.endsWith(".md")).length;
+      return files.filter((f) => f.endsWith(".md"));
     } catch {
-      return 0;
+      return [];
+    }
+  }
+  /**
+   * Check if any JSONL files exist in a directory
+   */
+  async hasJsonlFiles(dir) {
+    try {
+      const files = await fs9.readdir(dir);
+      return files.some((f) => f.match(/^(episodic|thinking)-\d{6}\.jsonl$/));
+    } catch {
+      return false;
     }
   }
   /**
    * Check if migration is needed
    *
    * Migration is needed when:
-   * - Markdown directory exists AND contains files
-   * - JSONL file does NOT exist
+   * - Markdown files exist in the memory directory
+   * - No JSONL files exist yet (or we want to re-migrate)
    */
   async checkMigrationStatus() {
-    const [episodicDirExists, thinkingDirExists, episodicJsonlExists, thinkingJsonlExists] = await Promise.all([
-      this.exists(this.episodicDir),
-      this.exists(this.thinkingDir),
-      this.exists(this.episodicJsonlPath),
-      this.exists(this.thinkingJsonlPath)
-    ]);
-    const episodicMarkdownCount = episodicDirExists ? await this.countMarkdownFiles(this.episodicDir) : 0;
-    const thinkingMarkdownCount = thinkingDirExists ? await this.countMarkdownFiles(this.thinkingDir) : 0;
+    const episodicMdFiles = await this.getMarkdownFiles(this.episodicDir);
+    const thinkingMdFiles = await this.getMarkdownFiles(this.thinkingDir);
+    const episodicHasJsonl = await this.hasJsonlFiles(this.episodicDir);
+    const thinkingHasJsonl = await this.hasJsonlFiles(this.thinkingDir);
     return {
-      episodicNeedsMigration: episodicMarkdownCount > 0 && !episodicJsonlExists,
-      thinkingNeedsMigration: thinkingMarkdownCount > 0 && !thinkingJsonlExists,
-      episodicMarkdownCount,
-      thinkingMarkdownCount
+      // Need migration if we have markdown files and no JSONL files
+      episodicNeedsMigration: episodicMdFiles.length > 0 && !episodicHasJsonl,
+      thinkingNeedsMigration: thinkingMdFiles.length > 0 && !thinkingHasJsonl,
+      episodicMarkdownCount: episodicMdFiles.length,
+      thinkingMarkdownCount: thinkingMdFiles.length
     };
   }
   /**
    * Migrate episodic memories from markdown to JSONL
+   * Uses the EpisodicJsonlStore which creates files in episodic-memory/
    */
   async migrateEpisodicMemories() {
     const errors2 = [];
     let migrated = 0;
-    try {
-      const files = await fs9.readdir(this.episodicDir);
-      const mdFiles = files.filter((f) => f.endsWith(".md"));
-      if (mdFiles.length === 0) {
-        logger.memory.info("No episodic markdown files to migrate");
-        return { migrated: 0, errors: [] };
-      }
-      logger.memory.info(`Migrating ${mdFiles.length} episodic memories from markdown to JSONL`);
-      await fs9.mkdir(this.baseDir, { recursive: true });
-      for (const file of mdFiles) {
+    let deleted = 0;
+    const mdFiles = await this.getMarkdownFiles(this.episodicDir);
+    if (mdFiles.length === 0) {
+      logger.memory.info("No episodic markdown files to migrate");
+      return { migrated: 0, deleted: 0, errors: [] };
+    }
+    logger.memory.info(`Migrating ${mdFiles.length} episodic memories from markdown to JSONL`);
+    const store2 = new EpisodicJsonlStore({ baseDir: this.baseDir });
+    await store2.initialize();
+    for (const file of mdFiles) {
+      const filePath = path12.join(this.episodicDir, file);
+      try {
+        const content = await fs9.readFile(filePath, "utf-8");
+        const { frontmatter, body } = parseMarkdown(content);
+        const validated = memoryFrontmatterSchema.parse(frontmatter);
+        await store2.createMemory({
+          subject: validated.subject,
+          keywords: validated.keywords,
+          applies_to: validated.applies_to,
+          content: body,
+          occurred_at: validated.occurred_at
+        });
+        migrated++;
         try {
-          const filePath = path10.join(this.episodicDir, file);
-          const content = await fs9.readFile(filePath, "utf-8");
-          const { frontmatter, body } = parseMarkdown(content);
-          const validated = memoryFrontmatterSchema.parse(frontmatter);
-          const entry = {
-            action: "add",
-            id: validated.id,
-            subject: validated.subject,
-            keywords: validated.keywords,
-            applies_to: validated.applies_to,
-            occurred_at: validated.occurred_at,
-            content_hash: validated.content_hash,
-            content: body,
-            timestamp: (/* @__PURE__ */ new Date()).toISOString()
-          };
-          const line = JSON.stringify(entry) + "\n";
-          await fs9.appendFile(this.episodicJsonlPath, line, "utf-8");
-          migrated++;
-        } catch (error) {
-          const errorMsg = `Failed to migrate ${file}: ${error}`;
-          errors2.push(errorMsg);
-          logger.memory.warn(errorMsg);
+          await fs9.unlink(filePath);
+          deleted++;
+          logger.memory.debug(`Deleted migrated file: ${file}`);
+        } catch (deleteError) {
+          logger.memory.warn(`Failed to delete ${file}: ${deleteError}`);
         }
-      }
-      logger.memory.info(`Migrated ${migrated}/${mdFiles.length} episodic memories`);
-    } catch (error) {
-      if (error.code !== "ENOENT") {
-        throw error;
+      } catch (error) {
+        const errorMsg = `Failed to migrate ${file}: ${error}`;
+        errors2.push(errorMsg);
+        logger.memory.warn(errorMsg);
       }
     }
-    return { migrated, errors: errors2 };
+    logger.memory.info(
+      `Migrated ${migrated}/${mdFiles.length} episodic memories, deleted ${deleted} markdown files`
+    );
+    return { migrated, deleted, errors: errors2 };
   }
   /**
    * Migrate thinking memories from markdown to JSONL
+   * Uses the ThinkingJsonlStore which creates files in thinking-memory/
    */
   async migrateThinkingMemories() {
     const errors2 = [];
     let migrated = 0;
-    try {
-      const files = await fs9.readdir(this.thinkingDir);
-      const mdFiles = files.filter((f) => f.endsWith(".md"));
-      if (mdFiles.length === 0) {
-        logger.memory.info("No thinking markdown files to migrate");
-        return { migrated: 0, errors: [] };
-      }
-      logger.memory.info(`Migrating ${mdFiles.length} thinking memories from markdown to JSONL`);
-      await fs9.mkdir(this.baseDir, { recursive: true });
-      for (const file of mdFiles) {
+    let deleted = 0;
+    const mdFiles = await this.getMarkdownFiles(this.thinkingDir);
+    if (mdFiles.length === 0) {
+      logger.memory.info("No thinking markdown files to migrate");
+      return { migrated: 0, deleted: 0, errors: [] };
+    }
+    logger.memory.info(`Migrating ${mdFiles.length} thinking memories from markdown to JSONL`);
+    const store2 = new ThinkingJsonlStore({ baseDir: this.baseDir });
+    await store2.initialize();
+    for (const file of mdFiles) {
+      const filePath = path12.join(this.thinkingDir, file);
+      try {
+        const content = await fs9.readFile(filePath, "utf-8");
+        const { frontmatter, body } = parseMarkdown(content);
+        const validated = thinkingMemoryFrontmatterSchema.parse(frontmatter);
+        await store2.createMemory({
+          subject: validated.subject,
+          applies_to: validated.applies_to,
+          content: body,
+          occurred_at: validated.occurred_at
+        });
+        migrated++;
         try {
-          const filePath = path10.join(this.thinkingDir, file);
-          const content = await fs9.readFile(filePath, "utf-8");
-          const { frontmatter, body } = parseMarkdown(content);
-          const validated = thinkingMemoryFrontmatterSchema.parse(frontmatter);
-          const entry = {
-            action: "add",
-            id: validated.id,
-            subject: validated.subject,
-            applies_to: validated.applies_to,
-            occurred_at: validated.occurred_at,
-            content_hash: validated.content_hash,
-            content: body,
-            timestamp: (/* @__PURE__ */ new Date()).toISOString()
-          };
-          const line = JSON.stringify(entry) + "\n";
-          await fs9.appendFile(this.thinkingJsonlPath, line, "utf-8");
-          migrated++;
-        } catch (error) {
-          const errorMsg = `Failed to migrate ${file}: ${error}`;
-          errors2.push(errorMsg);
-          logger.memory.warn(errorMsg);
+          await fs9.unlink(filePath);
+          deleted++;
+          logger.memory.debug(`Deleted migrated file: ${file}`);
+        } catch (deleteError) {
+          logger.memory.warn(`Failed to delete ${file}: ${deleteError}`);
         }
-      }
-      logger.memory.info(`Migrated ${migrated}/${mdFiles.length} thinking memories`);
-    } catch (error) {
-      if (error.code !== "ENOENT") {
-        throw error;
+      } catch (error) {
+        const errorMsg = `Failed to migrate ${file}: ${error}`;
+        errors2.push(errorMsg);
+        logger.memory.warn(errorMsg);
       }
     }
-    return { migrated, errors: errors2 };
+    logger.memory.info(
+      `Migrated ${migrated}/${mdFiles.length} thinking memories, deleted ${deleted} markdown files`
+    );
+    return { migrated, deleted, errors: errors2 };
   }
   /**
-   * Delete old markdown folders after successful migration
-   *
-   * Only deletes if:
-   * - JSONL file exists
-   * - At least 95% of markdown files were successfully migrated
+   * Delete Orama index files to force a rebuild
+   * This ensures embeddings are regenerated after migration
    */
-  async deleteOldFolders() {
+  async deleteOramaIndexes() {
     let deleted = false;
-    if (await this.exists(this.episodicJsonlPath)) {
-      try {
-        const episodicStore = new EpisodicJsonlStore({ baseDir: this.baseDir });
-        await episodicStore.initialize();
-        const jsonlCount = await episodicStore.count();
-        const mdCount = await this.countMarkdownFiles(this.episodicDir);
-        if (mdCount === 0 || jsonlCount >= mdCount * 0.95) {
-          try {
-            await fs9.rm(this.episodicDir, { recursive: true, force: true });
-            logger.memory.info(`Deleted old episodic-memory folder after successful migration`);
-            deleted = true;
-          } catch (error) {
-            logger.memory.warn(`Failed to delete episodic-memory folder: ${error}`);
-          }
-        } else {
-          logger.memory.warn(
-            `Skipping episodic-memory deletion: only ${jsonlCount}/${mdCount} memories migrated`
-          );
+    const episodicIndexPath = path12.join(this.baseDir, ORAMA_EPISODIC_INDEX);
+    const thinkingIndexPath = path12.join(this.baseDir, ORAMA_THINKING_INDEX);
+    for (const indexPath of [episodicIndexPath, thinkingIndexPath]) {
+      if (await this.exists(indexPath)) {
+        try {
+          await fs9.unlink(indexPath);
+          logger.memory.info(`Deleted Orama index: ${path12.basename(indexPath)}`);
+          deleted = true;
+        } catch (error) {
+          logger.memory.warn(`Failed to delete Orama index ${indexPath}: ${error}`);
         }
-      } catch (error) {
-        logger.memory.warn(`Failed to verify episodic migration: ${error}`);
-      }
-    }
-    if (await this.exists(this.thinkingJsonlPath)) {
-      try {
-        const thinkingStore = new ThinkingJsonlStore({ baseDir: this.baseDir });
-        await thinkingStore.initialize();
-        const jsonlCount = await thinkingStore.count();
-        const mdCount = await this.countMarkdownFiles(this.thinkingDir);
-        if (mdCount === 0 || jsonlCount >= mdCount * 0.95) {
-          try {
-            await fs9.rm(this.thinkingDir, { recursive: true, force: true });
-            logger.memory.info(`Deleted old thinking-memory folder after successful migration`);
-            deleted = true;
-          } catch (error) {
-            logger.memory.warn(`Failed to delete thinking-memory folder: ${error}`);
-          }
-        } else {
-          logger.memory.warn(
-            `Skipping thinking-memory deletion: only ${jsonlCount}/${mdCount} memories migrated`
-          );
-        }
-      } catch (error) {
-        logger.memory.warn(`Failed to verify thinking migration: ${error}`);
       }
     }
     return deleted;
@@ -34775,30 +34751,36 @@ var MigrationService = class {
    * Run full migration process
    *
    * 1. Check if migration is needed
-   * 2. Migrate memories to JSONL
-   * 3. Delete old markdown folders
+   * 2. Migrate memories to JSONL (using stores)
+   * 3. Delete markdown files after successful migration
+   * 4. Delete Orama indexes to force rebuild
    */
   async runFullMigration() {
     const status = await this.checkMigrationStatus();
     const result = {
-      episodic: { migrated: 0, errors: [] },
-      thinking: { migrated: 0, errors: [] },
-      foldersDeleted: false
+      episodic: { migrated: 0, deleted: 0, errors: [] },
+      thinking: { migrated: 0, deleted: 0, errors: [] },
+      oramaIndexesDeleted: false
     };
     if (status.episodicNeedsMigration) {
       logger.memory.info("Starting episodic memory migration...");
       result.episodic = await this.migrateEpisodicMemories();
     } else if (status.episodicMarkdownCount > 0) {
-      logger.memory.info("Episodic memories already migrated (JSONL file exists)");
+      logger.memory.info(
+        `Episodic memories already migrated (${status.episodicMarkdownCount} markdown files remain - may need manual cleanup)`
+      );
     }
     if (status.thinkingNeedsMigration) {
       logger.memory.info("Starting thinking memory migration...");
       result.thinking = await this.migrateThinkingMemories();
     } else if (status.thinkingMarkdownCount > 0) {
-      logger.memory.info("Thinking memories already migrated (JSONL file exists)");
+      logger.memory.info(
+        `Thinking memories already migrated (${status.thinkingMarkdownCount} markdown files remain - may need manual cleanup)`
+      );
     }
-    if (result.episodic.migrated > 0 || result.thinking.migrated > 0 || status.episodicMarkdownCount > 0 || status.thinkingMarkdownCount > 0) {
-      result.foldersDeleted = await this.deleteOldFolders();
+    if (result.episodic.migrated > 0 || result.thinking.migrated > 0) {
+      logger.memory.info("Deleting Orama indexes to force rebuild...");
+      result.oramaIndexesDeleted = await this.deleteOramaIndexes();
     }
     return result;
   }
@@ -34810,10 +34792,7 @@ async function runMigrationIfNeeded(baseDir) {
     logger.memory.info("Migration needed, starting...");
     return service.runFullMigration();
   }
-  if (status.episodicMarkdownCount > 0 || status.thinkingMarkdownCount > 0) {
-    logger.memory.info("Cleaning up old markdown folders...");
-    await service.deleteOldFolders();
-  }
+  logger.memory.debug("No migration needed");
   return null;
 }
 

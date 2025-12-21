@@ -6,11 +6,13 @@ import { ThinkingMemoryManager, generateSubjectFromContent } from '../../../src/
 
 describe('ThinkingMemoryManager', () => {
   let testDir: string;
+  let storeDir: string; // thinking-memory subdirectory where JSONL files are stored
   let memoryManager: ThinkingMemoryManager;
 
   beforeEach(async () => {
     // Create a unique temp directory for each test
     testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'local-recall-thinking-test-'));
+    storeDir = path.join(testDir, 'thinking-memory');
     // Set environment variable for config
     process.env['LOCAL_RECALL_DIR'] = testDir;
     memoryManager = new ThinkingMemoryManager(testDir);
@@ -50,7 +52,7 @@ describe('ThinkingMemoryManager', () => {
       };
 
       const memory = await memoryManager.createMemory(input);
-      const filePath = path.join(testDir, 'thinking-000001.jsonl');
+      const filePath = path.join(storeDir, 'thinking-000001.jsonl');
 
       const exists = await fs.access(filePath).then(() => true).catch(() => false);
       expect(exists).toBe(true);

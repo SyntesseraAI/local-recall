@@ -6,6 +6,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import path from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
 import {
   type Memory,
@@ -26,6 +27,9 @@ import { logger } from '../utils/logger.js';
 
 /** File prefix for episodic memories (creates episodic-000001.jsonl, etc.) */
 const EPISODIC_FILE_PREFIX = 'episodic';
+
+/** Subdirectory for episodic memories */
+const EPISODIC_SUBDIR = 'episodic-memory';
 
 /**
  * Compute SHA-256 hash of content (16-char prefix)
@@ -64,17 +68,21 @@ export interface EpisodicJsonlStoreOptions {
  * Episodic JSONL Store
  *
  * Provides CRUD operations for episodic memories using JSONL storage.
+ * JSONL files are stored in the episodic-memory subdirectory.
  */
 export class EpisodicJsonlStore {
   private store: JsonlStore<EpisodicEntry, Memory>;
   private baseDir: string;
+  private storeDir: string;
 
   constructor(options: EpisodicJsonlStoreOptions = {}) {
     const config = getConfig();
     this.baseDir = options.baseDir ?? config.memoryDir;
+    // JSONL files go in the episodic-memory subdirectory
+    this.storeDir = path.join(this.baseDir, EPISODIC_SUBDIR);
 
     this.store = new JsonlStore<EpisodicEntry, Memory>({
-      baseDir: this.baseDir,
+      baseDir: this.storeDir,
       filePrefix: EPISODIC_FILE_PREFIX,
       entrySchema: episodicEntrySchema,
       entryToMemory,

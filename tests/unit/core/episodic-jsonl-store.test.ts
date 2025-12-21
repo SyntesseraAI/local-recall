@@ -6,11 +6,13 @@ import { EpisodicJsonlStore } from '../../../src/core/episodic-jsonl-store.js';
 
 describe('EpisodicJsonlStore', () => {
   let testDir: string;
+  let storeDir: string; // episodic-memory subdirectory where JSONL files are stored
   let store: EpisodicJsonlStore;
 
   beforeEach(async () => {
     // Create a unique temp directory for each test
     testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'local-recall-test-'));
+    storeDir = path.join(testDir, 'episodic-memory');
     process.env['LOCAL_RECALL_DIR'] = testDir;
     store = new EpisodicJsonlStore({ baseDir: testDir });
   });
@@ -51,8 +53,8 @@ describe('EpisodicJsonlStore', () => {
 
       await store.createMemory(input);
 
-      // Check file exists and contains the memory (multi-file format)
-      const filePath = path.join(testDir, 'episodic-000001.jsonl');
+      // Check file exists and contains the memory (multi-file format in subdirectory)
+      const filePath = path.join(storeDir, 'episodic-000001.jsonl');
       const content = await fs.readFile(filePath, 'utf-8');
       const lines = content.split('\n').filter((l) => l.trim());
 
@@ -76,8 +78,8 @@ describe('EpisodicJsonlStore', () => {
 
       expect(first.id).toBe(second.id);
 
-      // Should only have one entry in the file (multi-file format)
-      const filePath = path.join(testDir, 'episodic-000001.jsonl');
+      // Should only have one entry in the file (multi-file format in subdirectory)
+      const filePath = path.join(storeDir, 'episodic-000001.jsonl');
       const content = await fs.readFile(filePath, 'utf-8');
       const lines = content.split('\n').filter((l) => l.trim());
       expect(lines).toHaveLength(1);
@@ -132,7 +134,7 @@ describe('EpisodicJsonlStore', () => {
 
       await store.deleteMemory(created.id);
 
-      const filePath = path.join(testDir, 'episodic-000001.jsonl');
+      const filePath = path.join(storeDir, 'episodic-000001.jsonl');
       const content = await fs.readFile(filePath, 'utf-8');
       const lines = content.split('\n').filter((l) => l.trim());
 
@@ -267,7 +269,7 @@ describe('EpisodicJsonlStore', () => {
 
       await store.storeEmbedding(created.id, Array(768).fill(0.1));
 
-      const filePath = path.join(testDir, 'episodic-000001.jsonl');
+      const filePath = path.join(storeDir, 'episodic-000001.jsonl');
       const content = await fs.readFile(filePath, 'utf-8');
       const lines = content.split('\n').filter((l) => l.trim());
 
@@ -327,7 +329,7 @@ describe('EpisodicJsonlStore', () => {
       await store.deleteMemory(first.id);
 
       // Before compact: 3 entries (add, add, delete)
-      let filePath = path.join(testDir, 'episodic-000001.jsonl');
+      let filePath = path.join(storeDir, 'episodic-000001.jsonl');
       let content = await fs.readFile(filePath, 'utf-8');
       let lines = content.split('\n').filter((l) => l.trim());
       expect(lines).toHaveLength(3);
@@ -355,7 +357,7 @@ describe('EpisodicJsonlStore', () => {
 
       const result = await store.compact();
 
-      const filePath = path.join(testDir, 'episodic-000001.jsonl');
+      const filePath = path.join(storeDir, 'episodic-000001.jsonl');
       const content = await fs.readFile(filePath, 'utf-8');
       const lines = content.split('\n').filter((l) => l.trim());
 

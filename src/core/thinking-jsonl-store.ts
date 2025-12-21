@@ -10,6 +10,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import path from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
 import {
   type ThinkingMemory,
@@ -30,6 +31,9 @@ import { logger } from '../utils/logger.js';
 
 /** File prefix for thinking memories (creates thinking-000001.jsonl, etc.) */
 const THINKING_FILE_PREFIX = 'thinking';
+
+/** Subdirectory for thinking memories */
+const THINKING_SUBDIR = 'thinking-memory';
 
 /**
  * Compute SHA-256 hash of content (16-char prefix)
@@ -80,17 +84,21 @@ export interface ThinkingJsonlStoreOptions {
  * Thinking JSONL Store
  *
  * Provides CRUD operations for thinking memories using JSONL storage.
+ * JSONL files are stored in the thinking-memory subdirectory.
  */
 export class ThinkingJsonlStore {
   private store: JsonlStore<ThinkingEntry, ThinkingMemory>;
   private baseDir: string;
+  private storeDir: string;
 
   constructor(options: ThinkingJsonlStoreOptions = {}) {
     const config = getConfig();
     this.baseDir = options.baseDir ?? config.memoryDir;
+    // JSONL files go in the thinking-memory subdirectory
+    this.storeDir = path.join(this.baseDir, THINKING_SUBDIR);
 
     this.store = new JsonlStore<ThinkingEntry, ThinkingMemory>({
-      baseDir: this.baseDir,
+      baseDir: this.storeDir,
       filePrefix: THINKING_FILE_PREFIX,
       entrySchema: thinkingEntrySchema,
       entryToMemory,
