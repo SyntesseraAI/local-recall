@@ -1,7 +1,7 @@
 {
   "name": "local-recall",
   "description": "Local markdown-powered memory system for AI coding assistants. Enables persistent memory across sessions - stores decisions, preferences, and reasoning patterns. Search memories BEFORE making architectural decisions, debugging, or implementing features.",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "author": {
     "name": "SyntesseraAI",
     "url": "https://github.com/SyntesseraAI"
