@@ -24689,6 +24689,10 @@ recall.log
 
 # Synced transcripts (local copies, originals in ~/.claude)
 transcripts/
+
+# Processed transcript tracking (local state, regenerated from transcripts)
+processed-log.jsonl
+thinking-processed-log.jsonl
 `;
 async function ensureGitignore(baseDir) {
   const gitignorePath = path3.join(baseDir, ".gitignore");

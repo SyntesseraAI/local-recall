@@ -1,0 +1,23 @@
+---
+id: 46d5b797-2dea-4ee4-ba50-35d9bdedba4b
+subject: >-
+  Now I need to modify the MemoryManager to use the EpisodicJsonlStore instead
+  of the markdown file...
+applies_to: global
+occurred_at: '2025-12-21T17:51:06.228Z'
+content_hash: 36e2bd19210a1142
+---
+## Thought
+
+Now I need to modify the MemoryManager to use the EpisodicJsonlStore instead of the markdown file operations. The key is to keep the public API unchanged while replacing the internal implementation.Looking at the current MemoryManager, it:1. Has a constructor that sets up directory paths
+2. Has CRUD methods: createMemory, getMemory, listMemories, deleteMemory
+3. Has findDuplicate for checking duplicates
+4. Uses the vector store for search integrationI need to:
+1. Replace the internal file operations with EpisodicJsonlStore
+2. Keep the vector store integration (we'll update VectorStore later to use embeddings from JSONL)
+
+Let me rewrite the MemoryManager.
+
+## Output
+
+Now let me modify the MemoryManager to use the JSONL store:
