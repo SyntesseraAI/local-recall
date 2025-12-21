@@ -29,7 +29,7 @@ export function createTools(): Tool[] {
     {
       name: 'episodic_create',
       description:
-        'Create a new episodic memory to persist important information across sessions. Use when learning architectural decisions, bug fixes with root causes, user preferences, configuration rationale, or any knowledge that should be remembered. Memories are stored as markdown files and searchable via semantic similarity.',
+        'Create a new episodic memory to persist important information across sessions. Use when learning architectural decisions, bug fixes with root causes, user preferences, configuration rationale, or any knowledge that should be remembered. Memories are stored as JSONL files and searchable via semantic similarity.',
       inputSchema: {
         type: 'object',
         properties: {

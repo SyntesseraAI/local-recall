@@ -20049,7 +20049,7 @@ async function main() {
           for (const result of episodicResults) {
             const similarity = (result.score * 100).toFixed(0);
             logger.hooks.debug(
-              `  - ${result.memory.id}.md | ${similarity}% | "${result.memory.subject}"`
+              `  - ${result.memory.id} | ${similarity}% | "${result.memory.subject}"`
             );
           }
           contextParts.push(formatEpisodicResults(episodicResults));
@@ -20087,7 +20087,7 @@ async function main() {
           for (const result of thinkingResults) {
             const similarity = (result.score * 100).toFixed(0);
             logger.hooks.debug(
-              `  - ${result.memory.id}.md | ${similarity}% | "${result.memory.subject}"`
+              `  - ${result.memory.id} | ${similarity}% | "${result.memory.subject}"`
             );
           }
           contextParts.push(formatThinkingResults(thinkingResults));

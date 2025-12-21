@@ -92,35 +92,19 @@ export class MigrationService {
   }
 
   /**
-   * Check if any JSONL files exist in a directory
-   */
-  private async hasJsonlFiles(dir: string): Promise<boolean> {
-    try {
-      const files = await fs.readdir(dir);
-      return files.some((f) => f.match(/^(episodic|thinking)-\d{6}\.jsonl$/));
-    } catch {
-      return false;
-    }
-  }
-
-  /**
    * Check if migration is needed
    *
-   * Migration is needed when:
-   * - Markdown files exist in the memory directory
-   * - No JSONL files exist yet (or we want to re-migrate)
+   * Migration is needed when markdown files exist in the memory directory.
+   * The JSONL store handles deduplication, so we can safely re-migrate.
    */
   async checkMigrationStatus(): Promise<MigrationStatus> {
     const episodicMdFiles = await this.getMarkdownFiles(this.episodicDir);
     const thinkingMdFiles = await this.getMarkdownFiles(this.thinkingDir);
 
-    const episodicHasJsonl = await this.hasJsonlFiles(this.episodicDir);
-    const thinkingHasJsonl = await this.hasJsonlFiles(this.thinkingDir);
-
     return {
-      // Need migration if we have markdown files and no JSONL files
-      episodicNeedsMigration: episodicMdFiles.length > 0 && !episodicHasJsonl,
-      thinkingNeedsMigration: thinkingMdFiles.length > 0 && !thinkingHasJsonl,
+      // Need migration if we have markdown files (JSONL store handles deduplication)
+      episodicNeedsMigration: episodicMdFiles.length > 0,
+      thinkingNeedsMigration: thinkingMdFiles.length > 0,
       episodicMarkdownCount: episodicMdFiles.length,
       thinkingMarkdownCount: thinkingMdFiles.length,
     };
