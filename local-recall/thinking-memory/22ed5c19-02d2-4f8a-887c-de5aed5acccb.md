@@ -1,0 +1,16 @@
+---
+id: 22ed5c19-02d2-4f8a-887c-de5aed5acccb
+subject: >-
+  Done. Changed the concurrency from 10 to 20. The user should rebuild to apply
+  this change.
+applies_to: global
+occurred_at: '2025-11-30T21:21:19.425Z'
+content_hash: 68b2ac6ff4441570
+---
+## Thought
+
+Done. Changed the concurrency from 10 to 20. The user should rebuild to apply this change.
+
+## Output
+
+Done. Changed the concurrent extractors from 10 to 20 in `src/core/memory-extractor.ts:39`. Run `npm run build` to apply the change.

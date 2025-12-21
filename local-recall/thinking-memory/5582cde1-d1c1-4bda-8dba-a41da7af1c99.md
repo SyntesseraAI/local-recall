@@ -1,0 +1,16 @@
+---
+id: 5582cde1-d1c1-4bda-8dba-a41da7af1c99
+subject: >-
+  Now I need to update the `syncTranscripts()` method to use this new check.
+  Looking at the current...
+applies_to: global
+occurred_at: '2025-12-03T09:08:38.851Z'
+content_hash: bade261ee834f391
+---
+## Thought
+
+Now I need to update the `syncTranscripts()` method to use this new check. Looking at the current flow, after checking for synthetic transcripts, I should also check if the transcript contains thinking blocks.
+
+## Output
+
+Now I'll update `syncTranscripts()` to skip transcripts that don't contain thinking:
