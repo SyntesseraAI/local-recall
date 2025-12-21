@@ -42,7 +42,7 @@ describe('MemoryManager', () => {
       expect(memory.occurred_at).toBeDefined();
     });
 
-    it('should create memory file on disk', async () => {
+    it('should create memory in JSONL file on disk', async () => {
       const input = {
         subject: 'Disk test',
         keywords: ['disk'],
@@ -51,10 +51,15 @@ describe('MemoryManager', () => {
       };
 
       const memory = await memoryManager.createMemory(input);
-      const filePath = path.join(testDir, 'episodic-memory', `${memory.id}.md`);
+      const filePath = path.join(testDir, 'episodic.jsonl');
 
       const exists = await fs.access(filePath).then(() => true).catch(() => false);
       expect(exists).toBe(true);
+
+      // Verify the memory is in the JSONL file
+      const content = await fs.readFile(filePath, 'utf-8');
+      expect(content).toContain(memory.id);
+      expect(content).toContain('"action":"add"');
     });
 
     it('should create memory with file scope', async () => {

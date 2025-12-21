@@ -3407,7 +3407,7 @@ var require_parse = __commonJS({
 var require_gray_matter = __commonJS({
   "node_modules/gray-matter/index.js"(exports2, module2) {
     "use strict";
-    var fs7 = __require("fs");
+    var fs6 = __require("fs");
     var sections = require_section_matter();
     var defaults = require_defaults();
     var stringify = require_stringify();
@@ -3491,7 +3491,7 @@ var require_gray_matter = __commonJS({
       return stringify(file, data, options2);
     };
     matter2.read = function(filepath, options2) {
-      const str2 = fs7.readFileSync(filepath, "utf8");
+      const str2 = fs6.readFileSync(filepath, "utf8");
       const file = matter2(str2, options2);
       file.path = filepath;
       return file;
@@ -8407,8 +8407,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path8, errorMaps, issueData } = params;
-  const fullPath = [...path8, ...issueData.path || []];
+  const { data, path: path9, errorMaps, issueData } = params;
+  const fullPath = [...path9, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -8524,11 +8524,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path8, key) {
+  constructor(parent, value, path9, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path8;
+    this._path = path9;
     this._key = key;
   }
   get path() {
@@ -12106,24 +12106,6 @@ function getConfig() {
 
 // src/utils/markdown.ts
 var import_gray_matter = __toESM(require_gray_matter(), 1);
-function parseMarkdown(content) {
-  const { data, content: body } = (0, import_gray_matter.default)(content);
-  return {
-    frontmatter: data,
-    body: body.trim()
-  };
-}
-function serializeMemory(memory) {
-  const frontmatter = {
-    id: memory.id,
-    subject: memory.subject,
-    keywords: memory.keywords,
-    applies_to: memory.applies_to,
-    occurred_at: memory.occurred_at,
-    content_hash: memory.content_hash
-  };
-  return import_gray_matter.default.stringify(memory.content, frontmatter);
-}
 function formatMemoryForDisplay(memory) {
   const lines = [
     `## ${memory.subject}`,
@@ -12138,16 +12120,6 @@ function formatMemoryForDisplay(memory) {
     memory.content
   ];
   return lines.join("\n");
-}
-function serializeThinkingMemory(memory) {
-  const frontmatter = {
-    id: memory.id,
-    subject: memory.subject,
-    applies_to: memory.applies_to,
-    occurred_at: memory.occurred_at,
-    content_hash: memory.content_hash
-  };
-  return import_gray_matter.default.stringify(memory.content, frontmatter);
 }
 function formatThinkingMemoryForDisplay(memory) {
   const lines = [
@@ -12277,58 +12249,6 @@ var logger = {
   transcript: createLoggerWithErrors("transcript"),
   extractor: createLoggerWithErrors("extractor")
 };
-
-// src/core/memory.ts
-import { promises as fs4 } from "node:fs";
-import path5 from "node:path";
-import { createHash } from "node:crypto";
-
-// node_modules/uuid/dist/esm-node/stringify.js
-var byteToHex = [];
-for (let i = 0; i < 256; ++i) {
-  byteToHex.push((i + 256).toString(16).slice(1));
-}
-function unsafeStringify(arr, offset = 0) {
-  return (byteToHex[arr[offset + 0]] + byteToHex[arr[offset + 1]] + byteToHex[arr[offset + 2]] + byteToHex[arr[offset + 3]] + "-" + byteToHex[arr[offset + 4]] + byteToHex[arr[offset + 5]] + "-" + byteToHex[arr[offset + 6]] + byteToHex[arr[offset + 7]] + "-" + byteToHex[arr[offset + 8]] + byteToHex[arr[offset + 9]] + "-" + byteToHex[arr[offset + 10]] + byteToHex[arr[offset + 11]] + byteToHex[arr[offset + 12]] + byteToHex[arr[offset + 13]] + byteToHex[arr[offset + 14]] + byteToHex[arr[offset + 15]]).toLowerCase();
-}
-
-// node_modules/uuid/dist/esm-node/rng.js
-import crypto from "node:crypto";
-var rnds8Pool = new Uint8Array(256);
-var poolPtr = rnds8Pool.length;
-function rng() {
-  if (poolPtr > rnds8Pool.length - 16) {
-    crypto.randomFillSync(rnds8Pool);
-    poolPtr = 0;
-  }
-  return rnds8Pool.slice(poolPtr, poolPtr += 16);
-}
-
-// node_modules/uuid/dist/esm-node/native.js
-import crypto2 from "node:crypto";
-var native_default = {
-  randomUUID: crypto2.randomUUID
-};
-
-// node_modules/uuid/dist/esm-node/v4.js
-function v4(options2, buf, offset) {
-  if (native_default.randomUUID && !buf && !options2) {
-    return native_default.randomUUID();
-  }
-  options2 = options2 || {};
-  const rnds = options2.random || (options2.rng || rng)();
-  rnds[6] = rnds[6] & 15 | 64;
-  rnds[8] = rnds[8] & 63 | 128;
-  if (buf) {
-    offset = offset || 0;
-    for (let i = 0; i < 16; ++i) {
-      buf[offset + i] = rnds[i];
-    }
-    return buf;
-  }
-  return unsafeStringify(rnds);
-}
-var v4_default = v4;
 
 // src/utils/gitignore.ts
 import { promises as fs2 } from "node:fs";
@@ -12565,15 +12485,15 @@ function getDocumentProperties(doc, paths) {
   const properties = {};
   const pathsLength = paths.length;
   for (let i = 0; i < pathsLength; i++) {
-    const path8 = paths[i];
-    const pathTokens = path8.split(".");
+    const path9 = paths[i];
+    const pathTokens = path9.split(".");
     let current = doc;
     const pathTokensLength = pathTokens.length;
     for (let j = 0; j < pathTokensLength; j++) {
       current = current[pathTokens[j]];
       if (typeof current === "object") {
         if (current !== null && "lat" in current && "lon" in current && typeof current.lat === "number" && typeof current.lon === "number") {
-          current = properties[path8] = current;
+          current = properties[path9] = current;
           break;
         } else if (!Array.isArray(current) && current !== null && j === pathTokensLength - 1) {
           current = void 0;
@@ -12585,14 +12505,14 @@ function getDocumentProperties(doc, paths) {
       }
     }
     if (typeof current !== "undefined") {
-      properties[path8] = current;
+      properties[path9] = current;
     }
   }
   return properties;
 }
-function getNested(obj, path8) {
-  const props = getDocumentProperties(obj, [path8]);
-  return props[path8];
+function getNested(obj, path9) {
+  const props = getDocumentProperties(obj, [path9]);
+  return props[path9];
 }
 var mapDistanceToMeters = {
   cm: 0.01,
@@ -12616,10 +12536,10 @@ function removeVectorsFromHits(searchResult, vectorProperties) {
       ...result.document,
       // Remove embeddings from the result
       ...vectorProperties.reduce((acc, prop) => {
-        const path8 = prop.split(".");
-        const lastKey = path8.pop();
+        const path9 = prop.split(".");
+        const lastKey = path9.pop();
         let obj = acc;
-        for (const key of path8) {
+        for (const key of path9) {
           obj[key] = obj[key] ?? {};
           obj = obj[key];
         }
@@ -13216,15 +13136,15 @@ var AVLTree = class _AVLTree {
     if (node === null) {
       return new AVLNode(key, [value]);
     }
-    const path8 = [];
+    const path9 = [];
     let current = node;
     let parent = null;
     while (current !== null) {
-      path8.push({ parent, node: current });
+      path9.push({ parent, node: current });
       if (key < current.k) {
         if (current.l === null) {
           current.l = new AVLNode(key, [value]);
-          path8.push({ parent: current, node: current.l });
+          path9.push({ parent: current, node: current.l });
           break;
         } else {
           parent = current;
@@ -13233,7 +13153,7 @@ var AVLTree = class _AVLTree {
       } else if (key > current.k) {
         if (current.r === null) {
           current.r = new AVLNode(key, [value]);
-          path8.push({ parent: current, node: current.r });
+          path9.push({ parent: current, node: current.r });
           break;
         } else {
           parent = current;
@@ -13248,8 +13168,8 @@ var AVLTree = class _AVLTree {
     if (this.insertCount++ % rebalanceThreshold === 0) {
       needRebalance = true;
     }
-    for (let i = path8.length - 1; i >= 0; i--) {
-      const { parent: parent2, node: currentNode } = path8[i];
+    for (let i = path9.length - 1; i >= 0; i--) {
+      const { parent: parent2, node: currentNode } = path9[i];
       currentNode.updateHeight();
       if (needRebalance) {
         const rebalancedNode = this.rebalanceNode(currentNode);
@@ -13355,10 +13275,10 @@ var AVLTree = class _AVLTree {
   removeNode(node, key) {
     if (node === null)
       return null;
-    const path8 = [];
+    const path9 = [];
     let current = node;
     while (current !== null && current.k !== key) {
-      path8.push(current);
+      path9.push(current);
       if (key < current.k) {
         current = current.l;
       } else {
@@ -13370,10 +13290,10 @@ var AVLTree = class _AVLTree {
     }
     if (current.l === null || current.r === null) {
       const child = current.l ? current.l : current.r;
-      if (path8.length === 0) {
+      if (path9.length === 0) {
         node = child;
       } else {
-        const parent = path8[path8.length - 1];
+        const parent = path9[path9.length - 1];
         if (parent.l === current) {
           parent.l = child;
         } else {
@@ -13396,13 +13316,13 @@ var AVLTree = class _AVLTree {
       }
       current = successorParent;
     }
-    path8.push(current);
-    for (let i = path8.length - 1; i >= 0; i--) {
-      const currentNode = path8[i];
+    path9.push(current);
+    for (let i = path9.length - 1; i >= 0; i--) {
+      const currentNode = path9[i];
       currentNode.updateHeight();
       const rebalancedNode = this.rebalanceNode(currentNode);
       if (i > 0) {
-        const parent = path8[i - 1];
+        const parent = path9[i - 1];
         if (parent.l === currentNode) {
           parent.l = rebalancedNode;
         } else if (parent.r === currentNode) {
@@ -14490,15 +14410,15 @@ function create2(orama, sharedInternalDocumentStore, schema, index, prefix = "")
     };
   }
   for (const [prop, type] of Object.entries(schema)) {
-    const path8 = `${prefix}${prefix ? "." : ""}${prop}`;
+    const path9 = `${prefix}${prefix ? "." : ""}${prop}`;
     if (typeof type === "object" && !Array.isArray(type)) {
-      create2(orama, sharedInternalDocumentStore, type, index, path8);
+      create2(orama, sharedInternalDocumentStore, type, index, path9);
       continue;
     }
     if (isVectorType(type)) {
-      index.searchableProperties.push(path8);
-      index.searchablePropertiesWithTypes[path8] = type;
-      index.vectorIndexes[path8] = {
+      index.searchableProperties.push(path9);
+      index.searchablePropertiesWithTypes[path9] = type;
+      index.vectorIndexes[path9] = {
         type: "Vector",
         node: new VectorIndex(getVectorSize(type)),
         isArray: false
@@ -14508,32 +14428,32 @@ function create2(orama, sharedInternalDocumentStore, schema, index, prefix = "")
       switch (type) {
         case "boolean":
         case "boolean[]":
-          index.indexes[path8] = { type: "Bool", node: new BoolNode(), isArray };
+          index.indexes[path9] = { type: "Bool", node: new BoolNode(), isArray };
           break;
         case "number":
         case "number[]":
-          index.indexes[path8] = { type: "AVL", node: new AVLTree(0, []), isArray };
+          index.indexes[path9] = { type: "AVL", node: new AVLTree(0, []), isArray };
           break;
         case "string":
         case "string[]":
-          index.indexes[path8] = { type: "Radix", node: new RadixTree(), isArray };
-          index.avgFieldLength[path8] = 0;
-          index.frequencies[path8] = {};
-          index.tokenOccurrences[path8] = {};
-          index.fieldLengths[path8] = {};
+          index.indexes[path9] = { type: "Radix", node: new RadixTree(), isArray };
+          index.avgFieldLength[path9] = 0;
+          index.frequencies[path9] = {};
+          index.tokenOccurrences[path9] = {};
+          index.fieldLengths[path9] = {};
           break;
         case "enum":
         case "enum[]":
-          index.indexes[path8] = { type: "Flat", node: new FlatTree(), isArray };
+          index.indexes[path9] = { type: "Flat", node: new FlatTree(), isArray };
           break;
         case "geopoint":
-          index.indexes[path8] = { type: "BKD", node: new BKDTree(), isArray };
+          index.indexes[path9] = { type: "BKD", node: new BKDTree(), isArray };
           break;
         default:
-          throw createError("INVALID_SCHEMA_TYPE", Array.isArray(type) ? "array" : type, path8);
+          throw createError("INVALID_SCHEMA_TYPE", Array.isArray(type) ? "array" : type, path9);
       }
-      index.searchableProperties.push(path8);
-      index.searchablePropertiesWithTypes[path8] = type;
+      index.searchableProperties.push(path9);
+      index.searchablePropertiesWithTypes[path9] = type;
     }
   }
   return index;
@@ -15081,12 +15001,12 @@ function innerCreate(orama, sharedInternalDocumentStore, schema, sortableDeniedP
     sorts: {}
   };
   for (const [prop, type] of Object.entries(schema)) {
-    const path8 = `${prefix}${prefix ? "." : ""}${prop}`;
-    if (sortableDeniedProperties.includes(path8)) {
+    const path9 = `${prefix}${prefix ? "." : ""}${prop}`;
+    if (sortableDeniedProperties.includes(path9)) {
       continue;
     }
     if (typeof type === "object" && !Array.isArray(type)) {
-      const ret = innerCreate(orama, sharedInternalDocumentStore, type, sortableDeniedProperties, path8);
+      const ret = innerCreate(orama, sharedInternalDocumentStore, type, sortableDeniedProperties, path9);
       safeArrayPush(sorter.sortableProperties, ret.sortableProperties);
       sorter.sorts = {
         ...sorter.sorts,
@@ -15103,9 +15023,9 @@ function innerCreate(orama, sharedInternalDocumentStore, schema, sortableDeniedP
         case "boolean":
         case "number":
         case "string":
-          sorter.sortableProperties.push(path8);
-          sorter.sortablePropertiesWithTypes[path8] = type;
-          sorter.sorts[path8] = {
+          sorter.sortableProperties.push(path9);
+          sorter.sortablePropertiesWithTypes[path9] = type;
+          sorter.sorts[path9] = {
             docs: /* @__PURE__ */ new Map(),
             orderedDocsToRemove: /* @__PURE__ */ new Map(),
             orderedDocs: [],
@@ -15121,7 +15041,7 @@ function innerCreate(orama, sharedInternalDocumentStore, schema, sortableDeniedP
         case "string[]":
           continue;
         default:
-          throw createError("INVALID_SORT_SCHEMA_TYPE", Array.isArray(type) ? "array" : type, path8);
+          throw createError("INVALID_SORT_SCHEMA_TYPE", Array.isArray(type) ? "array" : type, path9);
       }
     }
   }
@@ -16632,8 +16552,8 @@ function innerFullTextSearch(orama, params, language) {
 function escapeRegex(str2) {
   return str2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-function getPropValue(obj, path8) {
-  const keys = path8.split(".");
+function getPropValue(obj, path9) {
+  const keys = path9.split(".");
   let value = obj;
   for (const key of keys) {
     if (value && typeof value === "object" && key in value) {
@@ -18273,61 +18193,438 @@ function getVectorStore(options2 = {}) {
   return new VectorStore({ baseDir, readonly });
 }
 
-// src/core/memory.ts
+// src/core/episodic-jsonl-store.ts
+import path6 from "node:path";
+import { createHash } from "node:crypto";
+
+// node_modules/uuid/dist/esm-node/stringify.js
+var byteToHex = [];
+for (let i = 0; i < 256; ++i) {
+  byteToHex.push((i + 256).toString(16).slice(1));
+}
+function unsafeStringify(arr, offset = 0) {
+  return (byteToHex[arr[offset + 0]] + byteToHex[arr[offset + 1]] + byteToHex[arr[offset + 2]] + byteToHex[arr[offset + 3]] + "-" + byteToHex[arr[offset + 4]] + byteToHex[arr[offset + 5]] + "-" + byteToHex[arr[offset + 6]] + byteToHex[arr[offset + 7]] + "-" + byteToHex[arr[offset + 8]] + byteToHex[arr[offset + 9]] + "-" + byteToHex[arr[offset + 10]] + byteToHex[arr[offset + 11]] + byteToHex[arr[offset + 12]] + byteToHex[arr[offset + 13]] + byteToHex[arr[offset + 14]] + byteToHex[arr[offset + 15]]).toLowerCase();
+}
+
+// node_modules/uuid/dist/esm-node/rng.js
+import crypto from "node:crypto";
+var rnds8Pool = new Uint8Array(256);
+var poolPtr = rnds8Pool.length;
+function rng() {
+  if (poolPtr > rnds8Pool.length - 16) {
+    crypto.randomFillSync(rnds8Pool);
+    poolPtr = 0;
+  }
+  return rnds8Pool.slice(poolPtr, poolPtr += 16);
+}
+
+// node_modules/uuid/dist/esm-node/native.js
+import crypto2 from "node:crypto";
+var native_default = {
+  randomUUID: crypto2.randomUUID
+};
+
+// node_modules/uuid/dist/esm-node/v4.js
+function v4(options2, buf, offset) {
+  if (native_default.randomUUID && !buf && !options2) {
+    return native_default.randomUUID();
+  }
+  options2 = options2 || {};
+  const rnds = options2.random || (options2.rng || rng)();
+  rnds[6] = rnds[6] & 15 | 64;
+  rnds[8] = rnds[8] & 63 | 128;
+  if (buf) {
+    offset = offset || 0;
+    for (let i = 0; i < 16; ++i) {
+      buf[offset + i] = rnds[i];
+    }
+    return buf;
+  }
+  return unsafeStringify(rnds);
+}
+var v4_default = v4;
+
+// src/core/jsonl-types.ts
+var scopeSchema = external_exports.string().refine(
+  (val) => val === "global" || val.startsWith("file:") || val.startsWith("area:"),
+  { message: "Scope must be 'global', 'file:<path>', or 'area:<name>'" }
+);
+var episodicAddEntrySchema = external_exports.object({
+  action: external_exports.literal("add"),
+  id: external_exports.string().uuid(),
+  subject: external_exports.string().min(1).max(200),
+  keywords: external_exports.array(external_exports.string().min(1).max(50)).min(1).max(20),
+  applies_to: scopeSchema,
+  occurred_at: external_exports.string().datetime(),
+  content_hash: external_exports.string(),
+  content: external_exports.string().min(10),
+  timestamp: external_exports.string().datetime()
+});
+var thinkingAddEntrySchema = external_exports.object({
+  action: external_exports.literal("add"),
+  id: external_exports.string().uuid(),
+  subject: external_exports.string().min(1).max(200),
+  applies_to: scopeSchema,
+  occurred_at: external_exports.string().datetime(),
+  content_hash: external_exports.string(),
+  content: external_exports.string().min(10),
+  timestamp: external_exports.string().datetime()
+});
+var deleteEntrySchema = external_exports.object({
+  action: external_exports.literal("delete"),
+  id: external_exports.string().uuid(),
+  timestamp: external_exports.string().datetime()
+});
+var embeddingEntrySchema = external_exports.object({
+  action: external_exports.literal("embedding"),
+  id: external_exports.string().uuid(),
+  embedding: external_exports.array(external_exports.number()),
+  timestamp: external_exports.string().datetime()
+});
+var episodicEntrySchema = external_exports.discriminatedUnion("action", [
+  episodicAddEntrySchema,
+  deleteEntrySchema,
+  embeddingEntrySchema
+]);
+var thinkingEntrySchema = external_exports.discriminatedUnion("action", [
+  thinkingAddEntrySchema,
+  deleteEntrySchema,
+  embeddingEntrySchema
+]);
+var compactionConfigSchema = external_exports.object({
+  /** Maximum file size in MB before triggering compaction */
+  maxFileSizeMb: external_exports.number().positive().default(50),
+  /** Maximum ratio of delete entries before triggering compaction */
+  maxDeleteRatio: external_exports.number().min(0).max(1).default(0.3),
+  /** Minimum number of entries before checking delete ratio */
+  minEntriesForRatioCheck: external_exports.number().positive().default(100)
+});
+
+// src/core/jsonl-store.ts
+import { promises as fs4 } from "node:fs";
+import path5 from "node:path";
+var JsonlStore = class {
+  filePath;
+  entrySchema;
+  entryToMemory;
+  getEntryId;
+  isDeleteEntry;
+  isEmbeddingEntry;
+  getEmbedding;
+  compactionConfig;
+  // In-memory state
+  memories = null;
+  embeddings = null;
+  stats = null;
+  constructor(options2) {
+    this.filePath = options2.filePath;
+    this.entrySchema = options2.entrySchema;
+    this.entryToMemory = options2.entryToMemory;
+    this.getEntryId = options2.getEntryId;
+    this.isDeleteEntry = options2.isDeleteEntry;
+    this.isEmbeddingEntry = options2.isEmbeddingEntry;
+    this.getEmbedding = options2.getEmbedding;
+    this.compactionConfig = compactionConfigSchema.parse(options2.compactionConfig ?? {});
+  }
+  /**
+   * Load the JSONL file and replay entries to build state
+   */
+  async load() {
+    if (this.memories !== null) {
+      return;
+    }
+    this.memories = /* @__PURE__ */ new Map();
+    this.embeddings = /* @__PURE__ */ new Map();
+    this.stats = {
+      totalEntries: 0,
+      addEntries: 0,
+      deleteEntries: 0,
+      embeddingEntries: 0,
+      activeMemories: 0,
+      memoriesWithEmbeddings: 0,
+      fileSizeBytes: 0
+    };
+    try {
+      const content = await fs4.readFile(this.filePath, "utf-8");
+      this.stats.fileSizeBytes = Buffer.byteLength(content, "utf-8");
+      const lines = content.split("\n").filter((line) => line.trim());
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        try {
+          const parsed = JSON.parse(line);
+          const entry = this.entrySchema.parse(parsed);
+          this.applyEntry(entry);
+          this.stats.totalEntries++;
+        } catch {
+          if (i === lines.length - 1) {
+            logger.memory.warn(`Truncated last line in JSONL, skipping: ${line.slice(0, 50)}...`);
+          } else {
+            logger.memory.warn(`Invalid JSONL entry at line ${i + 1}, skipping: ${line.slice(0, 50)}...`);
+          }
+        }
+      }
+      this.stats.activeMemories = this.memories.size;
+      this.stats.memoriesWithEmbeddings = this.embeddings.size;
+      logger.memory.debug(
+        `Loaded JSONL: ${this.memories.size} memories, ${this.embeddings.size} embeddings`
+      );
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        logger.memory.debug("No JSONL file found, starting fresh");
+      } else {
+        logger.memory.error(`Failed to load JSONL file: ${error}`);
+        throw error;
+      }
+    }
+  }
+  /**
+   * Apply an entry to the in-memory state
+   */
+  applyEntry(entry) {
+    const id = this.getEntryId(entry);
+    if (this.isDeleteEntry(entry)) {
+      this.memories?.delete(id);
+      this.embeddings?.delete(id);
+      if (this.stats) this.stats.deleteEntries++;
+    } else if (this.isEmbeddingEntry(entry)) {
+      const embedding = this.getEmbedding(entry);
+      if (embedding && this.embeddings) {
+        this.embeddings.set(id, embedding);
+      }
+      if (this.stats) this.stats.embeddingEntries++;
+    } else {
+      const memory = this.entryToMemory(entry);
+      if (memory && this.memories) {
+        this.memories.set(id, memory);
+      }
+      if (this.stats) this.stats.addEntries++;
+    }
+  }
+  /**
+   * Append an entry to the JSONL file
+   */
+  async appendEntry(entry) {
+    await this.load();
+    const dir = path5.dirname(this.filePath);
+    await fs4.mkdir(dir, { recursive: true });
+    const line = JSON.stringify(entry) + "\n";
+    await fs4.appendFile(this.filePath, line, "utf-8");
+    this.applyEntry(entry);
+    if (this.stats) {
+      this.stats.totalEntries++;
+      this.stats.fileSizeBytes += Buffer.byteLength(line, "utf-8");
+      this.stats.activeMemories = this.memories?.size ?? 0;
+      this.stats.memoriesWithEmbeddings = this.embeddings?.size ?? 0;
+    }
+  }
+  /**
+   * Get a memory by ID
+   */
+  async getMemory(id) {
+    await this.load();
+    return this.memories?.get(id) ?? null;
+  }
+  /**
+   * Get all memories
+   */
+  async listMemories() {
+    await this.load();
+    return Array.from(this.memories?.values() ?? []);
+  }
+  /**
+   * Get the number of active memories
+   */
+  async count() {
+    await this.load();
+    return this.memories?.size ?? 0;
+  }
+  /**
+   * Check if a memory exists
+   */
+  async has(id) {
+    await this.load();
+    return this.memories?.has(id) ?? false;
+  }
+  /**
+   * Get embedding for a memory
+   */
+  async getEmbeddingForMemory(id) {
+    await this.load();
+    return this.embeddings?.get(id) ?? null;
+  }
+  /**
+   * Get all embeddings
+   */
+  async getAllEmbeddings() {
+    await this.load();
+    return new Map(this.embeddings ?? []);
+  }
+  /**
+   * Get memories that don't have embeddings
+   */
+  async getMemoriesWithoutEmbeddings() {
+    await this.load();
+    const result = [];
+    if (this.memories && this.embeddings) {
+      for (const [id, memory] of this.memories) {
+        if (!this.embeddings.has(id)) {
+          result.push(memory);
+        }
+      }
+    }
+    return result;
+  }
+  /**
+   * Get current statistics
+   */
+  async getStats() {
+    await this.load();
+    return { ...this.stats };
+  }
+  /**
+   * Check if compaction is needed
+   */
+  async needsCompaction() {
+    await this.load();
+    if (!this.stats) {
+      return { needsCompaction: false };
+    }
+    const fileSizeMb = this.stats.fileSizeBytes / (1024 * 1024);
+    if (fileSizeMb > this.compactionConfig.maxFileSizeMb) {
+      return {
+        needsCompaction: true,
+        reason: "file_size",
+        fileSizeMb
+      };
+    }
+    if (this.stats.totalEntries >= this.compactionConfig.minEntriesForRatioCheck) {
+      const deleteRatio = this.stats.deleteEntries / this.stats.totalEntries;
+      if (deleteRatio > this.compactionConfig.maxDeleteRatio) {
+        return {
+          needsCompaction: true,
+          reason: "delete_ratio",
+          deleteRatio,
+          totalEntries: this.stats.totalEntries
+        };
+      }
+    }
+    return { needsCompaction: false };
+  }
+  /**
+   * Compact the JSONL file by rewriting only current state
+   *
+   * @param createAddEntry - Function to create an add entry from a memory
+   * @param createEmbeddingEntry - Function to create an embedding entry
+   */
+  async compact(createAddEntry, createEmbeddingEntry) {
+    await this.load();
+    const originalLines = this.stats?.totalEntries ?? 0;
+    if (!this.memories || this.memories.size === 0) {
+      try {
+        await fs4.unlink(this.filePath);
+      } catch {
+      }
+      this.clearCache();
+      return { originalLines, newLines: 0 };
+    }
+    const backupPath = `${this.filePath}.backup-${Date.now()}`;
+    try {
+      await fs4.copyFile(this.filePath, backupPath);
+    } catch {
+    }
+    try {
+      const lines = [];
+      for (const [id, memory] of this.memories) {
+        const addEntry = createAddEntry(memory);
+        lines.push(JSON.stringify(addEntry));
+        const embedding = this.embeddings?.get(id);
+        if (embedding) {
+          const embeddingEntry = createEmbeddingEntry(id, embedding);
+          lines.push(JSON.stringify(embeddingEntry));
+        }
+      }
+      const tempPath = `${this.filePath}.compact.tmp`;
+      await fs4.writeFile(tempPath, lines.join("\n") + "\n", "utf-8");
+      await fs4.rename(tempPath, this.filePath);
+      this.clearCache();
+      try {
+        await fs4.unlink(backupPath);
+      } catch {
+      }
+      logger.memory.info(`Compacted JSONL: ${originalLines} \u2192 ${lines.length} entries`);
+      return { originalLines, newLines: lines.length };
+    } catch (error) {
+      try {
+        await fs4.copyFile(backupPath, this.filePath);
+      } catch {
+      }
+      throw error;
+    }
+  }
+  /**
+   * Clear the in-memory cache (forces reload on next access)
+   */
+  clearCache() {
+    this.memories = null;
+    this.embeddings = null;
+    this.stats = null;
+  }
+  /**
+   * Get the file path
+   */
+  getFilePath() {
+    return this.filePath;
+  }
+};
+
+// src/core/episodic-jsonl-store.ts
+var EPISODIC_JSONL_FILENAME = "episodic.jsonl";
 function computeContentHash(content) {
   return createHash("sha256").update(content).digest("hex").slice(0, 16);
 }
-var MemoryManager = class {
-  _baseDir;
-  memoriesDir;
-  constructor(baseDir) {
-    const config = getConfig();
-    this._baseDir = baseDir ?? config.memoryDir;
-    this.memoriesDir = path5.join(this._baseDir, "episodic-memory");
-  }
-  /**
-   * Get the base directory used by this manager
-   */
-  get baseDir() {
-    return this._baseDir;
-  }
-  /**
-   * Ensure the memories directory exists and .gitignore is present
-   */
-  async ensureDir() {
-    await fs4.mkdir(this.memoriesDir, { recursive: true });
-    await ensureGitignore(this._baseDir);
-  }
-  /**
-   * Get the file path for a memory by ID
-   */
-  getFilePath(id) {
-    return path5.join(this.memoriesDir, `${id}.md`);
-  }
-  /**
-   * Check if a memory with the same occurred_at and content_hash already exists
-   */
-  async findDuplicate(occurredAt, contentHash) {
-    await this.ensureDir();
-    const files = await fs4.readdir(this.memoriesDir);
-    const mdFiles = files.filter((f) => f.endsWith(".md"));
-    for (const file of mdFiles) {
-      const filePath = path5.join(this.memoriesDir, file);
-      const content = await fs4.readFile(filePath, "utf-8");
-      const memory = this.parseMemory(content);
-      if (memory && memory.occurred_at === occurredAt && memory.content_hash === contentHash) {
-        return memory;
-      }
-    }
+function entryToMemory(entry) {
+  if (entry.action !== "add") {
     return null;
+  }
+  return {
+    id: entry.id,
+    subject: entry.subject,
+    keywords: entry.keywords,
+    applies_to: entry.applies_to,
+    occurred_at: entry.occurred_at,
+    content_hash: entry.content_hash,
+    content: entry.content
+  };
+}
+var EpisodicJsonlStore = class {
+  store;
+  baseDir;
+  constructor(options2 = {}) {
+    const config = getConfig();
+    this.baseDir = options2.baseDir ?? config.memoryDir;
+    const filePath = path6.join(this.baseDir, EPISODIC_JSONL_FILENAME);
+    this.store = new JsonlStore({
+      filePath,
+      entrySchema: episodicEntrySchema,
+      entryToMemory,
+      getEntryId: (entry) => entry.id,
+      isDeleteEntry: (entry) => entry.action === "delete",
+      isEmbeddingEntry: (entry) => entry.action === "embedding",
+      getEmbedding: (entry) => entry.action === "embedding" ? entry.embedding : null
+    });
+  }
+  /**
+   * Initialize the store (loads existing data)
+   */
+  async initialize() {
+    await this.store.load();
   }
   /**
    * Create a new memory (idempotent - returns existing if duplicate)
    */
   async createMemory(input) {
-    logger.memory.debug(`Creating memory: "${input.subject}"`);
+    logger.memory.debug(`Creating episodic memory: "${input.subject}"`);
     const validated = createMemoryInputSchema.parse(input);
-    await this.ensureDir();
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const occurredAt = validated.occurred_at ?? now;
     const contentHash = computeContentHash(validated.content);
@@ -18346,52 +18643,54 @@ var MemoryManager = class {
       content_hash: contentHash,
       content: validated.content
     };
-    await this.writeMemory(memory);
-    try {
-      const vectorStore = getVectorStore({ baseDir: this._baseDir });
-      await vectorStore.add(memory);
-    } catch (error) {
-      logger.memory.warn(`Failed to add memory to vector store: ${error}`);
-    }
-    logger.memory.info(`Created memory ${id}: "${memory.subject}"`);
+    const entry = {
+      action: "add",
+      id: memory.id,
+      subject: memory.subject,
+      keywords: memory.keywords,
+      applies_to: memory.applies_to,
+      occurred_at: memory.occurred_at,
+      content_hash: memory.content_hash,
+      content: memory.content,
+      timestamp: now
+    };
+    await this.store.appendEntry(entry);
+    logger.memory.info(`Created episodic memory ${id}: "${memory.subject}"`);
     return memory;
   }
   /**
    * Get a memory by ID
    */
   async getMemory(id) {
-    const filePath = this.getFilePath(id);
-    try {
-      const content = await fs4.readFile(filePath, "utf-8");
-      return this.parseMemory(content);
-    } catch (error) {
-      if (error.code === "ENOENT") {
-        return null;
-      }
-      throw error;
+    return this.store.getMemory(id);
+  }
+  /**
+   * Delete a memory by ID
+   */
+  async deleteMemory(id) {
+    const exists = await this.store.has(id);
+    if (!exists) {
+      return false;
     }
+    const entry = {
+      action: "delete",
+      id,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    await this.store.appendEntry(entry);
+    logger.memory.info(`Deleted episodic memory ${id}`);
+    return true;
   }
   /**
    * List all memories with optional filtering
    */
   async listMemories(filter) {
-    await this.ensureDir();
-    const files = await fs4.readdir(this.memoriesDir);
-    const mdFiles = files.filter((f) => f.endsWith(".md"));
-    const memories = [];
-    for (const file of mdFiles) {
-      const filePath = path5.join(this.memoriesDir, file);
-      const content = await fs4.readFile(filePath, "utf-8");
-      const memory = this.parseMemory(content);
-      if (memory) {
-        if (filter?.scope && memory.applies_to !== filter.scope) {
-          continue;
-        }
-        if (filter?.keyword && !memory.keywords.includes(filter.keyword)) {
-          continue;
-        }
-        memories.push(memory);
-      }
+    let memories = await this.store.listMemories();
+    if (filter?.scope) {
+      memories = memories.filter((m) => m.applies_to === filter.scope);
+    }
+    if (filter?.keyword) {
+      memories = memories.filter((m) => m.keywords.includes(filter.keyword));
     }
     memories.sort(
       (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()
@@ -18401,61 +18700,236 @@ var MemoryManager = class {
     return memories.slice(offset, offset + limit);
   }
   /**
+   * Find a duplicate memory by occurred_at and content_hash
+   */
+  async findDuplicate(occurredAt, contentHash) {
+    const memories = await this.store.listMemories();
+    return memories.find(
+      (m) => m.occurred_at === occurredAt && m.content_hash === contentHash
+    ) ?? null;
+  }
+  /**
+   * Store an embedding for a memory
+   */
+  async storeEmbedding(id, embedding) {
+    const exists = await this.store.has(id);
+    if (!exists) {
+      logger.memory.warn(`Cannot store embedding: memory ${id} not found`);
+      return;
+    }
+    const entry = {
+      action: "embedding",
+      id,
+      embedding,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    await this.store.appendEntry(entry);
+    logger.memory.debug(`Stored embedding for memory ${id}`);
+  }
+  /**
+   * Get embedding for a memory
+   */
+  async getEmbedding(id) {
+    return this.store.getEmbeddingForMemory(id);
+  }
+  /**
+   * Get all embeddings
+   */
+  async getAllEmbeddings() {
+    return this.store.getAllEmbeddings();
+  }
+  /**
+   * Get memories that don't have embeddings yet
+   */
+  async getMemoriesNeedingEmbeddings() {
+    return this.store.getMemoriesWithoutEmbeddings();
+  }
+  /**
+   * Get the number of active memories
+   */
+  async count() {
+    return this.store.count();
+  }
+  /**
+   * Check if compaction is needed
+   */
+  async needsCompaction() {
+    const status = await this.store.needsCompaction();
+    return status.needsCompaction;
+  }
+  /**
+   * Compact the JSONL file
+   */
+  async compact() {
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    return this.store.compact(
+      // Create add entry from memory
+      (memory) => ({
+        action: "add",
+        id: memory.id,
+        subject: memory.subject,
+        keywords: memory.keywords,
+        applies_to: memory.applies_to,
+        occurred_at: memory.occurred_at,
+        content_hash: memory.content_hash,
+        content: memory.content,
+        timestamp: now
+      }),
+      // Create embedding entry
+      (id, embedding) => ({
+        action: "embedding",
+        id,
+        embedding,
+        timestamp: now
+      })
+    );
+  }
+  /**
+   * Clear the in-memory cache
+   */
+  clearCache() {
+    this.store.clearCache();
+  }
+  /**
+   * Get the base directory
+   */
+  getBaseDir() {
+    return this.baseDir;
+  }
+  /**
+   * Get the JSONL file path
+   */
+  getFilePath() {
+    return this.store.getFilePath();
+  }
+};
+
+// src/core/memory.ts
+var MemoryManager = class {
+  _baseDir;
+  store;
+  constructor(baseDir) {
+    const config = getConfig();
+    this._baseDir = baseDir ?? config.memoryDir;
+    this.store = new EpisodicJsonlStore({ baseDir: this._baseDir });
+  }
+  /**
+   * Get the base directory used by this manager
+   */
+  get baseDir() {
+    return this._baseDir;
+  }
+  /**
+   * Initialize the manager (ensures directory and gitignore exist)
+   */
+  async initialize() {
+    await ensureGitignore(this._baseDir);
+    await this.store.initialize();
+  }
+  /**
+   * Check if a memory with the same occurred_at and content_hash already exists
+   */
+  async findDuplicate(occurredAt, contentHash) {
+    return this.store.findDuplicate(occurredAt, contentHash);
+  }
+  /**
+   * Create a new memory (idempotent - returns existing if duplicate)
+   */
+  async createMemory(input) {
+    const memory = await this.store.createMemory(input);
+    try {
+      const vectorStore = getVectorStore({ baseDir: this._baseDir });
+      await vectorStore.add(memory);
+    } catch (error) {
+      logger.memory.warn(`Failed to add memory to vector store: ${error}`);
+    }
+    return memory;
+  }
+  /**
+   * Get a memory by ID
+   */
+  async getMemory(id) {
+    return this.store.getMemory(id);
+  }
+  /**
+   * List all memories with optional filtering
+   */
+  async listMemories(filter) {
+    return this.store.listMemories(filter);
+  }
+  /**
    * Delete a memory by ID
    */
   async deleteMemory(id) {
-    const filePath = this.getFilePath(id);
-    try {
-      await fs4.unlink(filePath);
+    const deleted = await this.store.deleteMemory(id);
+    if (deleted) {
       try {
         const vectorStore = getVectorStore({ baseDir: this._baseDir });
         await vectorStore.remove(id);
       } catch (error) {
         logger.memory.warn(`Failed to remove memory from vector store: ${error}`);
       }
-      logger.memory.info(`Deleted memory ${id}`);
-      return true;
-    } catch (error) {
-      if (error.code === "ENOENT") {
-        return false;
-      }
-      throw error;
     }
+    return deleted;
   }
   /**
-   * Write a memory to disk using the markdown utility
+   * Store an embedding for a memory in the JSONL file
    */
-  async writeMemory(memory) {
-    const fileContent = serializeMemory(memory);
-    const filePath = this.getFilePath(memory.id);
-    const tempPath = `${filePath}.tmp`;
-    await fs4.writeFile(tempPath, fileContent, "utf-8");
-    await fs4.rename(tempPath, filePath);
+  async storeEmbedding(id, embedding) {
+    await this.store.storeEmbedding(id, embedding);
   }
   /**
-   * Parse a memory from markdown content using the markdown utility
+   * Get embedding for a memory from the JSONL file
    */
-  parseMemory(content) {
-    try {
-      const { frontmatter, body } = parseMarkdown(content);
-      const validated = memoryFrontmatterSchema.parse(frontmatter);
-      return {
-        ...validated,
-        content: body
-      };
-    } catch {
-      return null;
-    }
+  async getEmbedding(id) {
+    return this.store.getEmbedding(id);
+  }
+  /**
+   * Get all embeddings from the JSONL file
+   */
+  async getAllEmbeddings() {
+    return this.store.getAllEmbeddings();
+  }
+  /**
+   * Get memories that don't have embeddings yet
+   */
+  async getMemoriesNeedingEmbeddings() {
+    return this.store.getMemoriesNeedingEmbeddings();
+  }
+  /**
+   * Get the number of active memories
+   */
+  async count() {
+    return this.store.count();
+  }
+  /**
+   * Check if compaction is needed
+   */
+  async needsCompaction() {
+    return this.store.needsCompaction();
+  }
+  /**
+   * Compact the JSONL file
+   */
+  async compact() {
+    return this.store.compact();
+  }
+  /**
+   * Clear the in-memory cache (forces reload on next access)
+   */
+  clearCache() {
+    this.store.clearCache();
+  }
+  /**
+   * Get the JSONL file path
+   */
+  getFilePath() {
+    return this.store.getFilePath();
   }
 };
 
-// src/core/thinking-memory.ts
-import { promises as fs6 } from "node:fs";
-import path7 from "node:path";
-import { createHash as createHash2 } from "node:crypto";
-
 // src/core/thinking-vector-store.ts
-import path6 from "node:path";
+import path7 from "node:path";
 import { promises as fs5 } from "node:fs";
 var INDEX_FILENAME2 = "orama-thinking-index.json";
 var THINKING_SCHEMA = {
@@ -18478,7 +18952,7 @@ var ThinkingVectorStore = class {
   constructor(options2 = {}) {
     const config = getConfig();
     this.baseDir = options2.baseDir ?? config.memoryDir;
-    this.indexPath = path6.join(this.baseDir, INDEX_FILENAME2);
+    this.indexPath = path7.join(this.baseDir, INDEX_FILENAME2);
     this.embeddingService = getEmbeddingService();
     this.readonly = options2.readonly ?? false;
   }
@@ -18706,53 +19180,56 @@ function getThinkingVectorStore(options2 = {}) {
   return new ThinkingVectorStore({ baseDir, readonly });
 }
 
-// src/core/thinking-memory.ts
+// src/core/thinking-jsonl-store.ts
+import path8 from "node:path";
+import { createHash as createHash2 } from "node:crypto";
+var THINKING_JSONL_FILENAME = "thinking.jsonl";
 function computeContentHash2(content) {
   return createHash2("sha256").update(content).digest("hex").slice(0, 16);
 }
-var ThinkingMemoryManager = class {
-  baseDir;
-  memoriesDir;
-  constructor(baseDir) {
-    const config = getConfig();
-    this.baseDir = baseDir ?? config.memoryDir;
-    this.memoriesDir = path7.join(this.baseDir, "thinking-memory");
+function generateSubjectFromContent(content) {
+  const firstParagraph = content.split("\n").find((line) => line.trim().length > 0) ?? content;
+  const cleaned = firstParagraph.replace(/^#+\s*/, "").trim();
+  if (cleaned.length <= 100) {
+    return cleaned;
   }
-  /**
-   * Ensure the memories directory exists and .gitignore is present
-   */
-  async ensureDir() {
-    await fs6.mkdir(this.memoriesDir, { recursive: true });
-    await ensureGitignore(this.baseDir);
-  }
-  /**
-   * Get the file path for a memory by ID
-   */
-  getFilePath(id) {
-    return path7.join(this.memoriesDir, `${id}.md`);
-  }
-  /**
-   * Check if a thinking memory with the same occurred_at and content_hash already exists
-   */
-  async findDuplicate(occurredAt, contentHash) {
-    await this.ensureDir();
-    try {
-      const files = await fs6.readdir(this.memoriesDir);
-      const mdFiles = files.filter((f) => f.endsWith(".md"));
-      for (const file of mdFiles) {
-        const filePath = path7.join(this.memoriesDir, file);
-        const content = await fs6.readFile(filePath, "utf-8");
-        const memory = this.parseMemory(content);
-        if (memory && memory.occurred_at === occurredAt && memory.content_hash === contentHash) {
-          return memory;
-        }
-      }
-    } catch (error) {
-      if (error.code !== "ENOENT") {
-        throw error;
-      }
-    }
+  return cleaned.slice(0, 97) + "...";
+}
+function entryToMemory2(entry) {
+  if (entry.action !== "add") {
     return null;
+  }
+  return {
+    id: entry.id,
+    subject: entry.subject,
+    applies_to: entry.applies_to,
+    occurred_at: entry.occurred_at,
+    content_hash: entry.content_hash,
+    content: entry.content
+  };
+}
+var ThinkingJsonlStore = class {
+  store;
+  baseDir;
+  constructor(options2 = {}) {
+    const config = getConfig();
+    this.baseDir = options2.baseDir ?? config.memoryDir;
+    const filePath = path8.join(this.baseDir, THINKING_JSONL_FILENAME);
+    this.store = new JsonlStore({
+      filePath,
+      entrySchema: thinkingEntrySchema,
+      entryToMemory: entryToMemory2,
+      getEntryId: (entry) => entry.id,
+      isDeleteEntry: (entry) => entry.action === "delete",
+      isEmbeddingEntry: (entry) => entry.action === "embedding",
+      getEmbedding: (entry) => entry.action === "embedding" ? entry.embedding : null
+    });
+  }
+  /**
+   * Initialize the store (loads existing data)
+   */
+  async initialize() {
+    await this.store.load();
   }
   /**
    * Create a new thinking memory (idempotent - returns existing if duplicate)
@@ -18760,7 +19237,6 @@ var ThinkingMemoryManager = class {
   async createMemory(input) {
     logger.memory.debug(`Creating thinking memory: "${input.subject}"`);
     const validated = createThinkingMemoryInputSchema.parse(input);
-    await this.ensureDir();
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const occurredAt = validated.occurred_at ?? now;
     const contentHash = computeContentHash2(validated.content);
@@ -18770,93 +19246,238 @@ var ThinkingMemoryManager = class {
       return existing;
     }
     const id = v4_default();
+    const subject = validated.subject.length <= 200 ? validated.subject : generateSubjectFromContent(validated.content);
     const memory = {
       id,
-      subject: validated.subject,
+      subject,
       applies_to: validated.applies_to,
       occurred_at: occurredAt,
       content_hash: contentHash,
       content: validated.content
     };
-    await this.writeMemory(memory);
+    const entry = {
+      action: "add",
+      id: memory.id,
+      subject: memory.subject,
+      applies_to: memory.applies_to,
+      occurred_at: memory.occurred_at,
+      content_hash: memory.content_hash,
+      content: memory.content,
+      timestamp: now
+    };
+    await this.store.appendEntry(entry);
+    logger.memory.info(`Created thinking memory ${id}: "${memory.subject.slice(0, 50)}..."`);
+    return memory;
+  }
+  /**
+   * Get a memory by ID
+   */
+  async getMemory(id) {
+    return this.store.getMemory(id);
+  }
+  /**
+   * Delete a memory by ID
+   */
+  async deleteMemory(id) {
+    const exists = await this.store.has(id);
+    if (!exists) {
+      return false;
+    }
+    const entry = {
+      action: "delete",
+      id,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    await this.store.appendEntry(entry);
+    logger.memory.info(`Deleted thinking memory ${id}`);
+    return true;
+  }
+  /**
+   * List all memories with optional filtering
+   */
+  async listMemories(filter) {
+    let memories = await this.store.listMemories();
+    if (filter?.scope) {
+      memories = memories.filter((m) => m.applies_to === filter.scope);
+    }
+    memories.sort(
+      (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()
+    );
+    const offset = filter?.offset ?? 0;
+    const limit = filter?.limit ?? memories.length;
+    return memories.slice(offset, offset + limit);
+  }
+  /**
+   * Find a duplicate memory by occurred_at and content_hash
+   */
+  async findDuplicate(occurredAt, contentHash) {
+    const memories = await this.store.listMemories();
+    return memories.find(
+      (m) => m.occurred_at === occurredAt && m.content_hash === contentHash
+    ) ?? null;
+  }
+  /**
+   * Store an embedding for a memory
+   */
+  async storeEmbedding(id, embedding) {
+    const exists = await this.store.has(id);
+    if (!exists) {
+      logger.memory.warn(`Cannot store embedding: thinking memory ${id} not found`);
+      return;
+    }
+    const entry = {
+      action: "embedding",
+      id,
+      embedding,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    await this.store.appendEntry(entry);
+    logger.memory.debug(`Stored embedding for thinking memory ${id}`);
+  }
+  /**
+   * Get embedding for a memory
+   */
+  async getEmbedding(id) {
+    return this.store.getEmbeddingForMemory(id);
+  }
+  /**
+   * Get all embeddings
+   */
+  async getAllEmbeddings() {
+    return this.store.getAllEmbeddings();
+  }
+  /**
+   * Get memories that don't have embeddings yet
+   */
+  async getMemoriesNeedingEmbeddings() {
+    return this.store.getMemoriesWithoutEmbeddings();
+  }
+  /**
+   * Get the number of active memories
+   */
+  async count() {
+    return this.store.count();
+  }
+  /**
+   * Check if compaction is needed
+   */
+  async needsCompaction() {
+    const status = await this.store.needsCompaction();
+    return status.needsCompaction;
+  }
+  /**
+   * Compact the JSONL file
+   */
+  async compact() {
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    return this.store.compact(
+      // Create add entry from memory
+      (memory) => ({
+        action: "add",
+        id: memory.id,
+        subject: memory.subject,
+        applies_to: memory.applies_to,
+        occurred_at: memory.occurred_at,
+        content_hash: memory.content_hash,
+        content: memory.content,
+        timestamp: now
+      }),
+      // Create embedding entry
+      (id, embedding) => ({
+        action: "embedding",
+        id,
+        embedding,
+        timestamp: now
+      })
+    );
+  }
+  /**
+   * Clear the in-memory cache
+   */
+  clearCache() {
+    this.store.clearCache();
+  }
+  /**
+   * Get the base directory
+   */
+  getBaseDir() {
+    return this.baseDir;
+  }
+  /**
+   * Get the JSONL file path
+   */
+  getFilePath() {
+    return this.store.getFilePath();
+  }
+};
+
+// src/core/thinking-memory.ts
+var ThinkingMemoryManager = class {
+  _baseDir;
+  store;
+  constructor(baseDir) {
+    const config = getConfig();
+    this._baseDir = baseDir ?? config.memoryDir;
+    this.store = new ThinkingJsonlStore({ baseDir: this._baseDir });
+  }
+  /**
+   * Get the base directory used by this manager
+   */
+  get baseDir() {
+    return this._baseDir;
+  }
+  /**
+   * Initialize the manager (ensures directory and gitignore exist)
+   */
+  async initialize() {
+    await ensureGitignore(this._baseDir);
+    await this.store.initialize();
+  }
+  /**
+   * Check if a thinking memory with the same occurred_at and content_hash already exists
+   */
+  async findDuplicate(occurredAt, contentHash) {
+    return this.store.findDuplicate(occurredAt, contentHash);
+  }
+  /**
+   * Create a new thinking memory (idempotent - returns existing if duplicate)
+   */
+  async createMemory(input) {
+    const memory = await this.store.createMemory(input);
     try {
-      const vectorStore = getThinkingVectorStore({ baseDir: this.baseDir });
+      const vectorStore = getThinkingVectorStore({ baseDir: this._baseDir });
       await vectorStore.add(memory);
     } catch (error) {
       logger.memory.warn(`Failed to add thinking memory to vector store: ${error}`);
     }
-    logger.memory.info(`Created thinking memory ${id}: "${memory.subject}"`);
     return memory;
   }
   /**
    * Get a thinking memory by ID
    */
   async getMemory(id) {
-    const filePath = this.getFilePath(id);
-    try {
-      const content = await fs6.readFile(filePath, "utf-8");
-      return this.parseMemory(content);
-    } catch (error) {
-      if (error.code === "ENOENT") {
-        return null;
-      }
-      throw error;
-    }
+    return this.store.getMemory(id);
   }
   /**
    * List all thinking memories with optional filtering
    */
   async listMemories(filter) {
-    await this.ensureDir();
-    try {
-      const files = await fs6.readdir(this.memoriesDir);
-      const mdFiles = files.filter((f) => f.endsWith(".md"));
-      const memories = [];
-      for (const file of mdFiles) {
-        const filePath = path7.join(this.memoriesDir, file);
-        const content = await fs6.readFile(filePath, "utf-8");
-        const memory = this.parseMemory(content);
-        if (memory) {
-          if (filter?.scope && memory.applies_to !== filter.scope) {
-            continue;
-          }
-          memories.push(memory);
-        }
-      }
-      memories.sort(
-        (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()
-      );
-      const offset = filter?.offset ?? 0;
-      const limit = filter?.limit ?? memories.length;
-      return memories.slice(offset, offset + limit);
-    } catch (error) {
-      if (error.code === "ENOENT") {
-        return [];
-      }
-      throw error;
-    }
+    return this.store.listMemories(filter);
   }
   /**
    * Delete a thinking memory by ID
    */
   async deleteMemory(id) {
-    const filePath = this.getFilePath(id);
-    try {
-      await fs6.unlink(filePath);
+    const deleted = await this.store.deleteMemory(id);
+    if (deleted) {
       try {
-        const vectorStore = getThinkingVectorStore({ baseDir: this.baseDir });
+        const vectorStore = getThinkingVectorStore({ baseDir: this._baseDir });
         await vectorStore.remove(id);
       } catch (error) {
         logger.memory.warn(`Failed to remove thinking memory from vector store: ${error}`);
       }
-      logger.memory.info(`Deleted thinking memory ${id}`);
-      return true;
-    } catch (error) {
-      if (error.code === "ENOENT") {
-        return false;
-      }
-      throw error;
     }
+    return deleted;
   }
   /**
    * Delete all thinking memories for a specific transcript
@@ -18867,29 +19488,58 @@ var ThinkingMemoryManager = class {
     return 0;
   }
   /**
-   * Write a thinking memory to disk using the markdown utility
+   * Store an embedding for a memory in the JSONL file
    */
-  async writeMemory(memory) {
-    const fileContent = serializeThinkingMemory(memory);
-    const filePath = this.getFilePath(memory.id);
-    const tempPath = `${filePath}.tmp`;
-    await fs6.writeFile(tempPath, fileContent, "utf-8");
-    await fs6.rename(tempPath, filePath);
+  async storeEmbedding(id, embedding) {
+    await this.store.storeEmbedding(id, embedding);
   }
   /**
-   * Parse a thinking memory from markdown content using the markdown utility
+   * Get embedding for a memory from the JSONL file
    */
-  parseMemory(content) {
-    try {
-      const { frontmatter, body } = parseMarkdown(content);
-      const validated = thinkingMemoryFrontmatterSchema.parse(frontmatter);
-      return {
-        ...validated,
-        content: body
-      };
-    } catch {
-      return null;
-    }
+  async getEmbedding(id) {
+    return this.store.getEmbedding(id);
+  }
+  /**
+   * Get all embeddings from the JSONL file
+   */
+  async getAllEmbeddings() {
+    return this.store.getAllEmbeddings();
+  }
+  /**
+   * Get memories that don't have embeddings yet
+   */
+  async getMemoriesNeedingEmbeddings() {
+    return this.store.getMemoriesNeedingEmbeddings();
+  }
+  /**
+   * Get the number of active memories
+   */
+  async count() {
+    return this.store.count();
+  }
+  /**
+   * Check if compaction is needed
+   */
+  async needsCompaction() {
+    return this.store.needsCompaction();
+  }
+  /**
+   * Compact the JSONL file
+   */
+  async compact() {
+    return this.store.compact();
+  }
+  /**
+   * Clear the in-memory cache (forces reload on next access)
+   */
+  clearCache() {
+    this.store.clearCache();
+  }
+  /**
+   * Get the JSONL file path
+   */
+  getFilePath() {
+    return this.store.getFilePath();
   }
 };
 
@@ -18940,44 +19590,62 @@ async function main() {
       logger.hooks.info(`SessionStart: Found ${thinkingMemories.length} recent thinking memories`);
     }
     if (episodicMemories.length === 0 && thinkingMemories.length === 0) {
-      console.log("# Local Recall: No memories loaded");
-      console.log("");
-      console.log("No prior memories found for this session. Memories will be created as the session progresses.");
+      const output2 = {
+        hookSpecificOutput: {
+          hookEventName: "SessionStart",
+          additionalContext: "# Local Recall: No memories loaded\n\nNo prior memories found for this session. Memories will be created as the session progresses."
+        }
+      };
+      console.log(JSON.stringify(output2));
       logger.hooks.info("SessionStart hook completed (no memories)");
       process.exit(0);
     }
+    const contextParts = [];
     if (episodicMemories.length > 0) {
-      console.log("# Local Recall: Recent Memories");
-      console.log("");
-      console.log(`Found ${episodicMemories.length} recent episodic memories for context.`);
-      console.log("");
+      const parts = [
+        "# Local Recall: Recent Memories",
+        "",
+        `Found ${episodicMemories.length} recent episodic memories for context.`,
+        ""
+      ];
       for (const memory of episodicMemories) {
-        console.log(formatMemoryForDisplay(memory));
-        console.log("");
-        console.log("---");
-        console.log("");
+        parts.push(formatMemoryForDisplay(memory));
+        parts.push("");
+        parts.push("---");
+        parts.push("");
       }
+      contextParts.push(parts.join("\n"));
     }
     if (thinkingMemories.length > 0) {
-      console.log("# Local Recall: Recent Thoughts");
-      console.log("");
-      console.log(`Found ${thinkingMemories.length} recent thinking memories for context.`);
-      console.log("");
+      const parts = [
+        "# Local Recall: Recent Thoughts",
+        "",
+        `Found ${thinkingMemories.length} recent thinking memories for context.`,
+        ""
+      ];
       for (const memory of thinkingMemories) {
-        console.log(formatThinkingMemoryForDisplay(memory));
-        console.log("");
-        console.log("---");
-        console.log("");
+        parts.push(formatThinkingMemoryForDisplay(memory));
+        parts.push("");
+        parts.push("---");
+        parts.push("");
       }
+      contextParts.push(parts.join("\n"));
     }
-    console.log("## Memory Status");
-    console.log("");
+    const statsLines = ["## Memory Status", ""];
     if (config.episodicEnabled) {
-      console.log(`- Total episodic memories: ${totalEpisodic}`);
+      statsLines.push(`- Total episodic memories: ${totalEpisodic}`);
     }
     if (config.thinkingEnabled) {
-      console.log(`- Total thinking memories: ${totalThinking}`);
+      statsLines.push(`- Total thinking memories: ${totalThinking}`);
     }
+    contextParts.push(statsLines.join("\n"));
+    const output = {
+      hookSpecificOutput: {
+        hookEventName: "SessionStart",
+        additionalContext: contextParts.join("\n\n")
+      }
+    };
+    console.log(JSON.stringify(output));
     logger.hooks.info("SessionStart hook completed successfully");
     process.exit(0);
   } catch (error) {

@@ -1,6 +1,6 @@
 {
   "name": "local-recall",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "A local markdown-powered memory system for AI coding assistants",
   "type": "module",
   "main": "dist/index.js",

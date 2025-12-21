@@ -1,38 +1,28 @@
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
-import { createHash } from 'node:crypto';
-import { v4 as uuidv4 } from 'uuid';
 import {
   type Memory,
   type CreateMemoryInput,
   type MemoryScope,
-  createMemoryInputSchema,
-  memoryFrontmatterSchema,
 } from './types.js';
 import { getConfig } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
-import { serializeMemory, parseMarkdown } from '../utils/markdown.js';
 import { ensureGitignore } from '../utils/gitignore.js';
 import { getVectorStore } from './vector-store.js';
+import { EpisodicJsonlStore } from './episodic-jsonl-store.js';
 
 /**
- * Compute SHA-256 hash of content
- */
-function computeContentHash(content: string): string {
-  return createHash('sha256').update(content).digest('hex').slice(0, 16);
-}
-
-/**
- * Memory Manager - handles CRUD operations for memory files
+ * Memory Manager - handles CRUD operations for episodic memories
+ *
+ * Uses JSONL storage format with the EpisodicJsonlStore.
+ * Integrates with VectorStore for semantic search.
  */
 export class MemoryManager {
   private _baseDir: string;
-  private memoriesDir: string;
+  private store: EpisodicJsonlStore;
 
   constructor(baseDir?: string) {
     const config = getConfig();
     this._baseDir = baseDir ?? config.memoryDir;
-    this.memoriesDir = path.join(this._baseDir, 'episodic-memory');
+    this.store = new EpisodicJsonlStore({ baseDir: this._baseDir });
   }
 
   /**
@@ -43,72 +33,25 @@ export class MemoryManager {
   }
 
   /**
-   * Ensure the memories directory exists and .gitignore is present
+   * Initialize the manager (ensures directory and gitignore exist)
    */
-  private async ensureDir(): Promise<void> {
-    await fs.mkdir(this.memoriesDir, { recursive: true });
+  async initialize(): Promise<void> {
     await ensureGitignore(this._baseDir);
-  }
-
-  /**
-   * Get the file path for a memory by ID
-   */
-  private getFilePath(id: string): string {
-    return path.join(this.memoriesDir, `${id}.md`);
+    await this.store.initialize();
   }
 
   /**
    * Check if a memory with the same occurred_at and content_hash already exists
    */
   async findDuplicate(occurredAt: string, contentHash: string): Promise<Memory | null> {
-    await this.ensureDir();
-    const files = await fs.readdir(this.memoriesDir);
-    const mdFiles = files.filter((f) => f.endsWith('.md'));
-
-    for (const file of mdFiles) {
-      const filePath = path.join(this.memoriesDir, file);
-      const content = await fs.readFile(filePath, 'utf-8');
-      const memory = this.parseMemory(content);
-
-      if (memory && memory.occurred_at === occurredAt && memory.content_hash === contentHash) {
-        return memory;
-      }
-    }
-    return null;
+    return this.store.findDuplicate(occurredAt, contentHash);
   }
 
   /**
    * Create a new memory (idempotent - returns existing if duplicate)
    */
   async createMemory(input: CreateMemoryInput): Promise<Memory> {
-    logger.memory.debug(`Creating memory: "${input.subject}"`);
-    const validated = createMemoryInputSchema.parse(input);
-    await this.ensureDir();
-
-    const now = new Date().toISOString();
-    const occurredAt = validated.occurred_at ?? now;
-    const contentHash = computeContentHash(validated.content);
-
-    // Check for existing duplicate
-    const existing = await this.findDuplicate(occurredAt, contentHash);
-    if (existing) {
-      logger.memory.info(`Duplicate memory found (${existing.id}), skipping creation`);
-      return existing;
-    }
-
-    const id = uuidv4();
-
-    const memory: Memory = {
-      id,
-      subject: validated.subject,
-      keywords: validated.keywords,
-      applies_to: validated.applies_to as MemoryScope,
-      occurred_at: occurredAt,
-      content_hash: contentHash,
-      content: validated.content,
-    };
-
-    await this.writeMemory(memory);
+    const memory = await this.store.createMemory(input);
 
     // Add to vector store for immediate searchability
     try {
@@ -119,7 +62,6 @@ export class MemoryManager {
       logger.memory.warn(`Failed to add memory to vector store: ${error}`);
     }
 
-    logger.memory.info(`Created memory ${id}: "${memory.subject}"`);
     return memory;
   }
 
@@ -127,16 +69,7 @@ export class MemoryManager {
    * Get a memory by ID
    */
   async getMemory(id: string): Promise<Memory | null> {
-    const filePath = this.getFilePath(id);
-    try {
-      const content = await fs.readFile(filePath, 'utf-8');
-      return this.parseMemory(content);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        return null;
-      }
-      throw error;
-    }
+    return this.store.getMemory(id);
   }
 
   /**
@@ -148,50 +81,16 @@ export class MemoryManager {
     limit?: number;
     offset?: number;
   }): Promise<Memory[]> {
-    await this.ensureDir();
-
-    const files = await fs.readdir(this.memoriesDir);
-    const mdFiles = files.filter((f) => f.endsWith('.md'));
-
-    const memories: Memory[] = [];
-
-    for (const file of mdFiles) {
-      const filePath = path.join(this.memoriesDir, file);
-      const content = await fs.readFile(filePath, 'utf-8');
-      const memory = this.parseMemory(content);
-
-      if (memory) {
-        // Apply filters
-        if (filter?.scope && memory.applies_to !== filter.scope) {
-          continue;
-        }
-        if (filter?.keyword && !memory.keywords.includes(filter.keyword)) {
-          continue;
-        }
-        memories.push(memory);
-      }
-    }
-
-    // Sort by occurred_at descending
-    memories.sort((a, b) =>
-      new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()
-    );
-
-    // Apply pagination
-    const offset = filter?.offset ?? 0;
-    const limit = filter?.limit ?? memories.length;
-
-    return memories.slice(offset, offset + limit);
+    return this.store.listMemories(filter);
   }
 
   /**
    * Delete a memory by ID
    */
   async deleteMemory(id: string): Promise<boolean> {
-    const filePath = this.getFilePath(id);
-    try {
-      await fs.unlink(filePath);
+    const deleted = await this.store.deleteMemory(id);
 
+    if (deleted) {
       // Remove from vector store
       try {
         const vectorStore = getVectorStore({ baseDir: this._baseDir });
@@ -199,44 +98,71 @@ export class MemoryManager {
       } catch (error) {
         logger.memory.warn(`Failed to remove memory from vector store: ${error}`);
       }
-
-      logger.memory.info(`Deleted memory ${id}`);
-      return true;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        return false;
-      }
-      throw error;
     }
+
+    return deleted;
   }
 
   /**
-   * Write a memory to disk using the markdown utility
+   * Store an embedding for a memory in the JSONL file
    */
-  private async writeMemory(memory: Memory): Promise<void> {
-    const fileContent = serializeMemory(memory);
-    const filePath = this.getFilePath(memory.id);
-
-    // Write to temp file first, then rename for atomicity
-    const tempPath = `${filePath}.tmp`;
-    await fs.writeFile(tempPath, fileContent, 'utf-8');
-    await fs.rename(tempPath, filePath);
+  async storeEmbedding(id: string, embedding: number[]): Promise<void> {
+    await this.store.storeEmbedding(id, embedding);
   }
 
   /**
-   * Parse a memory from markdown content using the markdown utility
+   * Get embedding for a memory from the JSONL file
    */
-  private parseMemory(content: string): Memory | null {
-    try {
-      const { frontmatter, body } = parseMarkdown(content);
-      const validated = memoryFrontmatterSchema.parse(frontmatter);
+  async getEmbedding(id: string): Promise<number[] | null> {
+    return this.store.getEmbedding(id);
+  }
 
-      return {
-        ...validated,
-        content: body,
-      };
-    } catch {
-      return null;
-    }
+  /**
+   * Get all embeddings from the JSONL file
+   */
+  async getAllEmbeddings(): Promise<Map<string, number[]>> {
+    return this.store.getAllEmbeddings();
+  }
+
+  /**
+   * Get memories that don't have embeddings yet
+   */
+  async getMemoriesNeedingEmbeddings(): Promise<Memory[]> {
+    return this.store.getMemoriesNeedingEmbeddings();
+  }
+
+  /**
+   * Get the number of active memories
+   */
+  async count(): Promise<number> {
+    return this.store.count();
+  }
+
+  /**
+   * Check if compaction is needed
+   */
+  async needsCompaction(): Promise<boolean> {
+    return this.store.needsCompaction();
+  }
+
+  /**
+   * Compact the JSONL file
+   */
+  async compact(): Promise<{ originalLines: number; newLines: number }> {
+    return this.store.compact();
+  }
+
+  /**
+   * Clear the in-memory cache (forces reload on next access)
+   */
+  clearCache(): void {
+    this.store.clearCache();
+  }
+
+  /**
+   * Get the JSONL file path
+   */
+  getFilePath(): string {
+    return this.store.getFilePath();
   }
 }

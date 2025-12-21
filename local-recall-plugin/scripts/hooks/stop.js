@@ -36,6 +36,4412 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
+// node_modules/@msgpack/msgpack/dist.cjs/utils/utf8.cjs
+var require_utf8 = __commonJS({
+  "node_modules/@msgpack/msgpack/dist.cjs/utils/utf8.cjs"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.utf8Count = utf8Count;
+    exports2.utf8EncodeJs = utf8EncodeJs;
+    exports2.utf8EncodeTE = utf8EncodeTE;
+    exports2.utf8Encode = utf8Encode;
+    exports2.utf8DecodeJs = utf8DecodeJs;
+    exports2.utf8DecodeTD = utf8DecodeTD;
+    exports2.utf8Decode = utf8Decode;
+    function utf8Count(str2) {
+      const strLength = str2.length;
+      let byteLength = 0;
+      let pos = 0;
+      while (pos < strLength) {
+        let value = str2.charCodeAt(pos++);
+        if ((value & 4294967168) === 0) {
+          byteLength++;
+          continue;
+        } else if ((value & 4294965248) === 0) {
+          byteLength += 2;
+        } else {
+          if (value >= 55296 && value <= 56319) {
+            if (pos < strLength) {
+              const extra = str2.charCodeAt(pos);
+              if ((extra & 64512) === 56320) {
+                ++pos;
+                value = ((value & 1023) << 10) + (extra & 1023) + 65536;
+              }
+            }
+          }
+          if ((value & 4294901760) === 0) {
+            byteLength += 3;
+          } else {
+            byteLength += 4;
+          }
+        }
+      }
+      return byteLength;
+    }
+    function utf8EncodeJs(str2, output, outputOffset) {
+      const strLength = str2.length;
+      let offset = outputOffset;
+      let pos = 0;
+      while (pos < strLength) {
+        let value = str2.charCodeAt(pos++);
+        if ((value & 4294967168) === 0) {
+          output[offset++] = value;
+          continue;
+        } else if ((value & 4294965248) === 0) {
+          output[offset++] = value >> 6 & 31 | 192;
+        } else {
+          if (value >= 55296 && value <= 56319) {
+            if (pos < strLength) {
+              const extra = str2.charCodeAt(pos);
+              if ((extra & 64512) === 56320) {
+                ++pos;
+                value = ((value & 1023) << 10) + (extra & 1023) + 65536;
+              }
+            }
+          }
+          if ((value & 4294901760) === 0) {
+            output[offset++] = value >> 12 & 15 | 224;
+            output[offset++] = value >> 6 & 63 | 128;
+          } else {
+            output[offset++] = value >> 18 & 7 | 240;
+            output[offset++] = value >> 12 & 63 | 128;
+            output[offset++] = value >> 6 & 63 | 128;
+          }
+        }
+        output[offset++] = value & 63 | 128;
+      }
+    }
+    var sharedTextEncoder = new TextEncoder();
+    var TEXT_ENCODER_THRESHOLD = 50;
+    function utf8EncodeTE(str2, output, outputOffset) {
+      sharedTextEncoder.encodeInto(str2, output.subarray(outputOffset));
+    }
+    function utf8Encode(str2, output, outputOffset) {
+      if (str2.length > TEXT_ENCODER_THRESHOLD) {
+        utf8EncodeTE(str2, output, outputOffset);
+      } else {
+        utf8EncodeJs(str2, output, outputOffset);
+      }
+    }
+    var CHUNK_SIZE = 4096;
+    function utf8DecodeJs(bytes, inputOffset, byteLength) {
+      let offset = inputOffset;
+      const end = offset + byteLength;
+      const units = [];
+      let result = "";
+      while (offset < end) {
+        const byte1 = bytes[offset++];
+        if ((byte1 & 128) === 0) {
+          units.push(byte1);
+        } else if ((byte1 & 224) === 192) {
+          const byte2 = bytes[offset++] & 63;
+          units.push((byte1 & 31) << 6 | byte2);
+        } else if ((byte1 & 240) === 224) {
+          const byte2 = bytes[offset++] & 63;
+          const byte3 = bytes[offset++] & 63;
+          units.push((byte1 & 31) << 12 | byte2 << 6 | byte3);
+        } else if ((byte1 & 248) === 240) {
+          const byte2 = bytes[offset++] & 63;
+          const byte3 = bytes[offset++] & 63;
+          const byte4 = bytes[offset++] & 63;
+          let unit = (byte1 & 7) << 18 | byte2 << 12 | byte3 << 6 | byte4;
+          if (unit > 65535) {
+            unit -= 65536;
+            units.push(unit >>> 10 & 1023 | 55296);
+            unit = 56320 | unit & 1023;
+          }
+          units.push(unit);
+        } else {
+          units.push(byte1);
+        }
+        if (units.length >= CHUNK_SIZE) {
+          result += String.fromCharCode(...units);
+          units.length = 0;
+        }
+      }
+      if (units.length > 0) {
+        result += String.fromCharCode(...units);
+      }
+      return result;
+    }
+    var sharedTextDecoder = new TextDecoder();
+    var TEXT_DECODER_THRESHOLD = 200;
+    function utf8DecodeTD(bytes, inputOffset, byteLength) {
+      const stringBytes = bytes.subarray(inputOffset, inputOffset + byteLength);
+      return sharedTextDecoder.decode(stringBytes);
+    }
+    function utf8Decode(bytes, inputOffset, byteLength) {
+      if (byteLength > TEXT_DECODER_THRESHOLD) {
+        return utf8DecodeTD(bytes, inputOffset, byteLength);
+      } else {
+        return utf8DecodeJs(bytes, inputOffset, byteLength);
+      }
+    }
+  }
+});
+
+// node_modules/@msgpack/msgpack/dist.cjs/ExtData.cjs
+var require_ExtData = __commonJS({
+  "node_modules/@msgpack/msgpack/dist.cjs/ExtData.cjs"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.ExtData = void 0;
+    var ExtData = class {
+      constructor(type, data) {
+        this.type = type;
+        this.data = data;
+      }
+    };
+    exports2.ExtData = ExtData;
+  }
+});
+
+// node_modules/@msgpack/msgpack/dist.cjs/DecodeError.cjs
+var require_DecodeError = __commonJS({
+  "node_modules/@msgpack/msgpack/dist.cjs/DecodeError.cjs"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.DecodeError = void 0;
+    var DecodeError = class _DecodeError extends Error {
+      constructor(message) {
+        super(message);
+        const proto = Object.create(_DecodeError.prototype);
+        Object.setPrototypeOf(this, proto);
+        Object.defineProperty(this, "name", {
+          configurable: true,
+          enumerable: false,
+          value: _DecodeError.name
+        });
+      }
+    };
+    exports2.DecodeError = DecodeError;
+  }
+});
+
+// node_modules/@msgpack/msgpack/dist.cjs/utils/int.cjs
+var require_int = __commonJS({
+  "node_modules/@msgpack/msgpack/dist.cjs/utils/int.cjs"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.UINT32_MAX = void 0;
+    exports2.setUint64 = setUint64;
+    exports2.setInt64 = setInt64;
+    exports2.getInt64 = getInt64;
+    exports2.getUint64 = getUint64;
+    exports2.UINT32_MAX = 4294967295;
+    function setUint64(view, offset, value) {
+      const high = value / 4294967296;
+      const low = value;
+      view.setUint32(offset, high);
+      view.setUint32(offset + 4, low);
+    }
+    function setInt64(view, offset, value) {
+      const high = Math.floor(value / 4294967296);
+      const low = value;
+      view.setUint32(offset, high);
+      view.setUint32(offset + 4, low);
+    }
+    function getInt64(view, offset) {
+      const high = view.getInt32(offset);
+      const low = view.getUint32(offset + 4);
+      return high * 4294967296 + low;
+    }
+    function getUint64(view, offset) {
+      const high = view.getUint32(offset);
+      const low = view.getUint32(offset + 4);
+      return high * 4294967296 + low;
+    }
+  }
+});
+
+// node_modules/@msgpack/msgpack/dist.cjs/timestamp.cjs
+var require_timestamp = __commonJS({
+  "node_modules/@msgpack/msgpack/dist.cjs/timestamp.cjs"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.timestampExtension = exports2.EXT_TIMESTAMP = void 0;
+    exports2.encodeTimeSpecToTimestamp = encodeTimeSpecToTimestamp;
+    exports2.encodeDateToTimeSpec = encodeDateToTimeSpec;
+    exports2.encodeTimestampExtension = encodeTimestampExtension;
+    exports2.decodeTimestampToTimeSpec = decodeTimestampToTimeSpec;
+    exports2.decodeTimestampExtension = decodeTimestampExtension;
+    var DecodeError_ts_1 = require_DecodeError();
+    var int_ts_1 = require_int();
+    exports2.EXT_TIMESTAMP = -1;
+    var TIMESTAMP32_MAX_SEC = 4294967296 - 1;
+    var TIMESTAMP64_MAX_SEC = 17179869184 - 1;
+    function encodeTimeSpecToTimestamp({ sec, nsec }) {
+      if (sec >= 0 && nsec >= 0 && sec <= TIMESTAMP64_MAX_SEC) {
+        if (nsec === 0 && sec <= TIMESTAMP32_MAX_SEC) {
+          const rv = new Uint8Array(4);
+          const view = new DataView(rv.buffer);
+          view.setUint32(0, sec);
+          return rv;
+        } else {
+          const secHigh = sec / 4294967296;
+          const secLow = sec & 4294967295;
+          const rv = new Uint8Array(8);
+          const view = new DataView(rv.buffer);
+          view.setUint32(0, nsec << 2 | secHigh & 3);
+          view.setUint32(4, secLow);
+          return rv;
+        }
+      } else {
+        const rv = new Uint8Array(12);
+        const view = new DataView(rv.buffer);
+        view.setUint32(0, nsec);
+        (0, int_ts_1.setInt64)(view, 4, sec);
+        return rv;
+      }
+    }
+    function encodeDateToTimeSpec(date) {
+      const msec = date.getTime();
+      const sec = Math.floor(msec / 1e3);
+      const nsec = (msec - sec * 1e3) * 1e6;
+      const nsecInSec = Math.floor(nsec / 1e9);
+      return {
+        sec: sec + nsecInSec,
+        nsec: nsec - nsecInSec * 1e9
+      };
+    }
+    function encodeTimestampExtension(object) {
+      if (object instanceof Date) {
+        const timeSpec = encodeDateToTimeSpec(object);
+        return encodeTimeSpecToTimestamp(timeSpec);
+      } else {
+        return null;
+      }
+    }
+    function decodeTimestampToTimeSpec(data) {
+      const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+      switch (data.byteLength) {
+        case 4: {
+          const sec = view.getUint32(0);
+          const nsec = 0;
+          return { sec, nsec };
+        }
+        case 8: {
+          const nsec30AndSecHigh2 = view.getUint32(0);
+          const secLow32 = view.getUint32(4);
+          const sec = (nsec30AndSecHigh2 & 3) * 4294967296 + secLow32;
+          const nsec = nsec30AndSecHigh2 >>> 2;
+          return { sec, nsec };
+        }
+        case 12: {
+          const sec = (0, int_ts_1.getInt64)(view, 4);
+          const nsec = view.getUint32(0);
+          return { sec, nsec };
+        }
+        default:
+          throw new DecodeError_ts_1.DecodeError(`Unrecognized data size for timestamp (expected 4, 8, or 12): ${data.length}`);
+      }
+    }
+    function decodeTimestampExtension(data) {
+      const timeSpec = decodeTimestampToTimeSpec(data);
+      return new Date(timeSpec.sec * 1e3 + timeSpec.nsec / 1e6);
+    }
+    exports2.timestampExtension = {
+      type: exports2.EXT_TIMESTAMP,
+      encode: encodeTimestampExtension,
+      decode: decodeTimestampExtension
+    };
+  }
+});
+
+// node_modules/@msgpack/msgpack/dist.cjs/ExtensionCodec.cjs
+var require_ExtensionCodec = __commonJS({
+  "node_modules/@msgpack/msgpack/dist.cjs/ExtensionCodec.cjs"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.ExtensionCodec = void 0;
+    var ExtData_ts_1 = require_ExtData();
+    var timestamp_ts_1 = require_timestamp();
+    var ExtensionCodec = class {
+      constructor() {
+        this.builtInEncoders = [];
+        this.builtInDecoders = [];
+        this.encoders = [];
+        this.decoders = [];
+        this.register(timestamp_ts_1.timestampExtension);
+      }
+      register({ type, encode: encode2, decode: decode2 }) {
+        if (type >= 0) {
+          this.encoders[type] = encode2;
+          this.decoders[type] = decode2;
+        } else {
+          const index = -1 - type;
+          this.builtInEncoders[index] = encode2;
+          this.builtInDecoders[index] = decode2;
+        }
+      }
+      tryToEncode(object, context) {
+        for (let i = 0; i < this.builtInEncoders.length; i++) {
+          const encodeExt = this.builtInEncoders[i];
+          if (encodeExt != null) {
+            const data = encodeExt(object, context);
+            if (data != null) {
+              const type = -1 - i;
+              return new ExtData_ts_1.ExtData(type, data);
+            }
+          }
+        }
+        for (let i = 0; i < this.encoders.length; i++) {
+          const encodeExt = this.encoders[i];
+          if (encodeExt != null) {
+            const data = encodeExt(object, context);
+            if (data != null) {
+              const type = i;
+              return new ExtData_ts_1.ExtData(type, data);
+            }
+          }
+        }
+        if (object instanceof ExtData_ts_1.ExtData) {
+          return object;
+        }
+        return null;
+      }
+      decode(data, type, context) {
+        const decodeExt = type < 0 ? this.builtInDecoders[-1 - type] : this.decoders[type];
+        if (decodeExt) {
+          return decodeExt(data, type, context);
+        } else {
+          return new ExtData_ts_1.ExtData(type, data);
+        }
+      }
+    };
+    exports2.ExtensionCodec = ExtensionCodec;
+    ExtensionCodec.defaultCodec = new ExtensionCodec();
+  }
+});
+
+// node_modules/@msgpack/msgpack/dist.cjs/utils/typedArrays.cjs
+var require_typedArrays = __commonJS({
+  "node_modules/@msgpack/msgpack/dist.cjs/utils/typedArrays.cjs"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.ensureUint8Array = ensureUint8Array;
+    function isArrayBufferLike(buffer) {
+      return buffer instanceof ArrayBuffer || typeof SharedArrayBuffer !== "undefined" && buffer instanceof SharedArrayBuffer;
+    }
+    function ensureUint8Array(buffer) {
+      if (buffer instanceof Uint8Array) {
+        return buffer;
+      } else if (ArrayBuffer.isView(buffer)) {
+        return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+      } else if (isArrayBufferLike(buffer)) {
+        return new Uint8Array(buffer);
+      } else {
+        return Uint8Array.from(buffer);
+      }
+    }
+  }
+});
+
+// node_modules/@msgpack/msgpack/dist.cjs/Encoder.cjs
+var require_Encoder = __commonJS({
+  "node_modules/@msgpack/msgpack/dist.cjs/Encoder.cjs"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.Encoder = exports2.DEFAULT_INITIAL_BUFFER_SIZE = exports2.DEFAULT_MAX_DEPTH = void 0;
+    var utf8_ts_1 = require_utf8();
+    var ExtensionCodec_ts_1 = require_ExtensionCodec();
+    var int_ts_1 = require_int();
+    var typedArrays_ts_1 = require_typedArrays();
+    exports2.DEFAULT_MAX_DEPTH = 100;
+    exports2.DEFAULT_INITIAL_BUFFER_SIZE = 2048;
+    var Encoder = class _Encoder {
+      constructor(options2) {
+        this.entered = false;
+        this.extensionCodec = options2?.extensionCodec ?? ExtensionCodec_ts_1.ExtensionCodec.defaultCodec;
+        this.context = options2?.context;
+        this.useBigInt64 = options2?.useBigInt64 ?? false;
+        this.maxDepth = options2?.maxDepth ?? exports2.DEFAULT_MAX_DEPTH;
+        this.initialBufferSize = options2?.initialBufferSize ?? exports2.DEFAULT_INITIAL_BUFFER_SIZE;
+        this.sortKeys = options2?.sortKeys ?? false;
+        this.forceFloat32 = options2?.forceFloat32 ?? false;
+        this.ignoreUndefined = options2?.ignoreUndefined ?? false;
+        this.forceIntegerToFloat = options2?.forceIntegerToFloat ?? false;
+        this.pos = 0;
+        this.view = new DataView(new ArrayBuffer(this.initialBufferSize));
+        this.bytes = new Uint8Array(this.view.buffer);
+      }
+      clone() {
+        return new _Encoder({
+          extensionCodec: this.extensionCodec,
+          context: this.context,
+          useBigInt64: this.useBigInt64,
+          maxDepth: this.maxDepth,
+          initialBufferSize: this.initialBufferSize,
+          sortKeys: this.sortKeys,
+          forceFloat32: this.forceFloat32,
+          ignoreUndefined: this.ignoreUndefined,
+          forceIntegerToFloat: this.forceIntegerToFloat
+        });
+      }
+      reinitializeState() {
+        this.pos = 0;
+      }
+      /**
+       * This is almost equivalent to {@link Encoder#encode}, but it returns an reference of the encoder's internal buffer and thus much faster than {@link Encoder#encode}.
+       *
+       * @returns Encodes the object and returns a shared reference the encoder's internal buffer.
+       */
+      encodeSharedRef(object) {
+        if (this.entered) {
+          const instance = this.clone();
+          return instance.encodeSharedRef(object);
+        }
+        try {
+          this.entered = true;
+          this.reinitializeState();
+          this.doEncode(object, 1);
+          return this.bytes.subarray(0, this.pos);
+        } finally {
+          this.entered = false;
+        }
+      }
+      /**
+       * @returns Encodes the object and returns a copy of the encoder's internal buffer.
+       */
+      encode(object) {
+        if (this.entered) {
+          const instance = this.clone();
+          return instance.encode(object);
+        }
+        try {
+          this.entered = true;
+          this.reinitializeState();
+          this.doEncode(object, 1);
+          return this.bytes.slice(0, this.pos);
+        } finally {
+          this.entered = false;
+        }
+      }
+      doEncode(object, depth) {
+        if (depth > this.maxDepth) {
+          throw new Error(`Too deep objects in depth ${depth}`);
+        }
+        if (object == null) {
+          this.encodeNil();
+        } else if (typeof object === "boolean") {
+          this.encodeBoolean(object);
+        } else if (typeof object === "number") {
+          if (!this.forceIntegerToFloat) {
+            this.encodeNumber(object);
+          } else {
+            this.encodeNumberAsFloat(object);
+          }
+        } else if (typeof object === "string") {
+          this.encodeString(object);
+        } else if (this.useBigInt64 && typeof object === "bigint") {
+          this.encodeBigInt64(object);
+        } else {
+          this.encodeObject(object, depth);
+        }
+      }
+      ensureBufferSizeToWrite(sizeToWrite) {
+        const requiredSize = this.pos + sizeToWrite;
+        if (this.view.byteLength < requiredSize) {
+          this.resizeBuffer(requiredSize * 2);
+        }
+      }
+      resizeBuffer(newSize) {
+        const newBuffer = new ArrayBuffer(newSize);
+        const newBytes = new Uint8Array(newBuffer);
+        const newView = new DataView(newBuffer);
+        newBytes.set(this.bytes);
+        this.view = newView;
+        this.bytes = newBytes;
+      }
+      encodeNil() {
+        this.writeU8(192);
+      }
+      encodeBoolean(object) {
+        if (object === false) {
+          this.writeU8(194);
+        } else {
+          this.writeU8(195);
+        }
+      }
+      encodeNumber(object) {
+        if (!this.forceIntegerToFloat && Number.isSafeInteger(object)) {
+          if (object >= 0) {
+            if (object < 128) {
+              this.writeU8(object);
+            } else if (object < 256) {
+              this.writeU8(204);
+              this.writeU8(object);
+            } else if (object < 65536) {
+              this.writeU8(205);
+              this.writeU16(object);
+            } else if (object < 4294967296) {
+              this.writeU8(206);
+              this.writeU32(object);
+            } else if (!this.useBigInt64) {
+              this.writeU8(207);
+              this.writeU64(object);
+            } else {
+              this.encodeNumberAsFloat(object);
+            }
+          } else {
+            if (object >= -32) {
+              this.writeU8(224 | object + 32);
+            } else if (object >= -128) {
+              this.writeU8(208);
+              this.writeI8(object);
+            } else if (object >= -32768) {
+              this.writeU8(209);
+              this.writeI16(object);
+            } else if (object >= -2147483648) {
+              this.writeU8(210);
+              this.writeI32(object);
+            } else if (!this.useBigInt64) {
+              this.writeU8(211);
+              this.writeI64(object);
+            } else {
+              this.encodeNumberAsFloat(object);
+            }
+          }
+        } else {
+          this.encodeNumberAsFloat(object);
+        }
+      }
+      encodeNumberAsFloat(object) {
+        if (this.forceFloat32) {
+          this.writeU8(202);
+          this.writeF32(object);
+        } else {
+          this.writeU8(203);
+          this.writeF64(object);
+        }
+      }
+      encodeBigInt64(object) {
+        if (object >= BigInt(0)) {
+          this.writeU8(207);
+          this.writeBigUint64(object);
+        } else {
+          this.writeU8(211);
+          this.writeBigInt64(object);
+        }
+      }
+      writeStringHeader(byteLength) {
+        if (byteLength < 32) {
+          this.writeU8(160 + byteLength);
+        } else if (byteLength < 256) {
+          this.writeU8(217);
+          this.writeU8(byteLength);
+        } else if (byteLength < 65536) {
+          this.writeU8(218);
+          this.writeU16(byteLength);
+        } else if (byteLength < 4294967296) {
+          this.writeU8(219);
+          this.writeU32(byteLength);
+        } else {
+          throw new Error(`Too long string: ${byteLength} bytes in UTF-8`);
+        }
+      }
+      encodeString(object) {
+        const maxHeaderSize = 1 + 4;
+        const byteLength = (0, utf8_ts_1.utf8Count)(object);
+        this.ensureBufferSizeToWrite(maxHeaderSize + byteLength);
+        this.writeStringHeader(byteLength);
+        (0, utf8_ts_1.utf8Encode)(object, this.bytes, this.pos);
+        this.pos += byteLength;
+      }
+      encodeObject(object, depth) {
+        const ext = this.extensionCodec.tryToEncode(object, this.context);
+        if (ext != null) {
+          this.encodeExtension(ext);
+        } else if (Array.isArray(object)) {
+          this.encodeArray(object, depth);
+        } else if (ArrayBuffer.isView(object)) {
+          this.encodeBinary(object);
+        } else if (typeof object === "object") {
+          this.encodeMap(object, depth);
+        } else {
+          throw new Error(`Unrecognized object: ${Object.prototype.toString.apply(object)}`);
+        }
+      }
+      encodeBinary(object) {
+        const size = object.byteLength;
+        if (size < 256) {
+          this.writeU8(196);
+          this.writeU8(size);
+        } else if (size < 65536) {
+          this.writeU8(197);
+          this.writeU16(size);
+        } else if (size < 4294967296) {
+          this.writeU8(198);
+          this.writeU32(size);
+        } else {
+          throw new Error(`Too large binary: ${size}`);
+        }
+        const bytes = (0, typedArrays_ts_1.ensureUint8Array)(object);
+        this.writeU8a(bytes);
+      }
+      encodeArray(object, depth) {
+        const size = object.length;
+        if (size < 16) {
+          this.writeU8(144 + size);
+        } else if (size < 65536) {
+          this.writeU8(220);
+          this.writeU16(size);
+        } else if (size < 4294967296) {
+          this.writeU8(221);
+          this.writeU32(size);
+        } else {
+          throw new Error(`Too large array: ${size}`);
+        }
+        for (const item of object) {
+          this.doEncode(item, depth + 1);
+        }
+      }
+      countWithoutUndefined(object, keys) {
+        let count3 = 0;
+        for (const key of keys) {
+          if (object[key] !== void 0) {
+            count3++;
+          }
+        }
+        return count3;
+      }
+      encodeMap(object, depth) {
+        const keys = Object.keys(object);
+        if (this.sortKeys) {
+          keys.sort();
+        }
+        const size = this.ignoreUndefined ? this.countWithoutUndefined(object, keys) : keys.length;
+        if (size < 16) {
+          this.writeU8(128 + size);
+        } else if (size < 65536) {
+          this.writeU8(222);
+          this.writeU16(size);
+        } else if (size < 4294967296) {
+          this.writeU8(223);
+          this.writeU32(size);
+        } else {
+          throw new Error(`Too large map object: ${size}`);
+        }
+        for (const key of keys) {
+          const value = object[key];
+          if (!(this.ignoreUndefined && value === void 0)) {
+            this.encodeString(key);
+            this.doEncode(value, depth + 1);
+          }
+        }
+      }
+      encodeExtension(ext) {
+        if (typeof ext.data === "function") {
+          const data = ext.data(this.pos + 6);
+          const size2 = data.length;
+          if (size2 >= 4294967296) {
+            throw new Error(`Too large extension object: ${size2}`);
+          }
+          this.writeU8(201);
+          this.writeU32(size2);
+          this.writeI8(ext.type);
+          this.writeU8a(data);
+          return;
+        }
+        const size = ext.data.length;
+        if (size === 1) {
+          this.writeU8(212);
+        } else if (size === 2) {
+          this.writeU8(213);
+        } else if (size === 4) {
+          this.writeU8(214);
+        } else if (size === 8) {
+          this.writeU8(215);
+        } else if (size === 16) {
+          this.writeU8(216);
+        } else if (size < 256) {
+          this.writeU8(199);
+          this.writeU8(size);
+        } else if (size < 65536) {
+          this.writeU8(200);
+          this.writeU16(size);
+        } else if (size < 4294967296) {
+          this.writeU8(201);
+          this.writeU32(size);
+        } else {
+          throw new Error(`Too large extension object: ${size}`);
+        }
+        this.writeI8(ext.type);
+        this.writeU8a(ext.data);
+      }
+      writeU8(value) {
+        this.ensureBufferSizeToWrite(1);
+        this.view.setUint8(this.pos, value);
+        this.pos++;
+      }
+      writeU8a(values) {
+        const size = values.length;
+        this.ensureBufferSizeToWrite(size);
+        this.bytes.set(values, this.pos);
+        this.pos += size;
+      }
+      writeI8(value) {
+        this.ensureBufferSizeToWrite(1);
+        this.view.setInt8(this.pos, value);
+        this.pos++;
+      }
+      writeU16(value) {
+        this.ensureBufferSizeToWrite(2);
+        this.view.setUint16(this.pos, value);
+        this.pos += 2;
+      }
+      writeI16(value) {
+        this.ensureBufferSizeToWrite(2);
+        this.view.setInt16(this.pos, value);
+        this.pos += 2;
+      }
+      writeU32(value) {
+        this.ensureBufferSizeToWrite(4);
+        this.view.setUint32(this.pos, value);
+        this.pos += 4;
+      }
+      writeI32(value) {
+        this.ensureBufferSizeToWrite(4);
+        this.view.setInt32(this.pos, value);
+        this.pos += 4;
+      }
+      writeF32(value) {
+        this.ensureBufferSizeToWrite(4);
+        this.view.setFloat32(this.pos, value);
+        this.pos += 4;
+      }
+      writeF64(value) {
+        this.ensureBufferSizeToWrite(8);
+        this.view.setFloat64(this.pos, value);
+        this.pos += 8;
+      }
+      writeU64(value) {
+        this.ensureBufferSizeToWrite(8);
+        (0, int_ts_1.setUint64)(this.view, this.pos, value);
+        this.pos += 8;
+      }
+      writeI64(value) {
+        this.ensureBufferSizeToWrite(8);
+        (0, int_ts_1.setInt64)(this.view, this.pos, value);
+        this.pos += 8;
+      }
+      writeBigUint64(value) {
+        this.ensureBufferSizeToWrite(8);
+        this.view.setBigUint64(this.pos, value);
+        this.pos += 8;
+      }
+      writeBigInt64(value) {
+        this.ensureBufferSizeToWrite(8);
+        this.view.setBigInt64(this.pos, value);
+        this.pos += 8;
+      }
+    };
+    exports2.Encoder = Encoder;
+  }
+});
+
+// node_modules/@msgpack/msgpack/dist.cjs/encode.cjs
+var require_encode = __commonJS({
+  "node_modules/@msgpack/msgpack/dist.cjs/encode.cjs"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.encode = encode2;
+    var Encoder_ts_1 = require_Encoder();
+    function encode2(value, options2) {
+      const encoder = new Encoder_ts_1.Encoder(options2);
+      return encoder.encodeSharedRef(value);
+    }
+  }
+});
+
+// node_modules/@msgpack/msgpack/dist.cjs/utils/prettyByte.cjs
+var require_prettyByte = __commonJS({
+  "node_modules/@msgpack/msgpack/dist.cjs/utils/prettyByte.cjs"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.prettyByte = prettyByte;
+    function prettyByte(byte) {
+      return `${byte < 0 ? "-" : ""}0x${Math.abs(byte).toString(16).padStart(2, "0")}`;
+    }
+  }
+});
+
+// node_modules/@msgpack/msgpack/dist.cjs/CachedKeyDecoder.cjs
+var require_CachedKeyDecoder = __commonJS({
+  "node_modules/@msgpack/msgpack/dist.cjs/CachedKeyDecoder.cjs"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.CachedKeyDecoder = void 0;
+    var utf8_ts_1 = require_utf8();
+    var DEFAULT_MAX_KEY_LENGTH = 16;
+    var DEFAULT_MAX_LENGTH_PER_KEY = 16;
+    var CachedKeyDecoder = class {
+      constructor(maxKeyLength = DEFAULT_MAX_KEY_LENGTH, maxLengthPerKey = DEFAULT_MAX_LENGTH_PER_KEY) {
+        this.hit = 0;
+        this.miss = 0;
+        this.maxKeyLength = maxKeyLength;
+        this.maxLengthPerKey = maxLengthPerKey;
+        this.caches = [];
+        for (let i = 0; i < this.maxKeyLength; i++) {
+          this.caches.push([]);
+        }
+      }
+      canBeCached(byteLength) {
+        return byteLength > 0 && byteLength <= this.maxKeyLength;
+      }
+      find(bytes, inputOffset, byteLength) {
+        const records = this.caches[byteLength - 1];
+        FIND_CHUNK: for (const record of records) {
+          const recordBytes = record.bytes;
+          for (let j = 0; j < byteLength; j++) {
+            if (recordBytes[j] !== bytes[inputOffset + j]) {
+              continue FIND_CHUNK;
+            }
+          }
+          return record.str;
+        }
+        return null;
+      }
+      store(bytes, value) {
+        const records = this.caches[bytes.length - 1];
+        const record = { bytes, str: value };
+        if (records.length >= this.maxLengthPerKey) {
+          records[Math.random() * records.length | 0] = record;
+        } else {
+          records.push(record);
+        }
+      }
+      decode(bytes, inputOffset, byteLength) {
+        const cachedValue = this.find(bytes, inputOffset, byteLength);
+        if (cachedValue != null) {
+          this.hit++;
+          return cachedValue;
+        }
+        this.miss++;
+        const str2 = (0, utf8_ts_1.utf8DecodeJs)(bytes, inputOffset, byteLength);
+        const slicedCopyOfBytes = Uint8Array.prototype.slice.call(bytes, inputOffset, inputOffset + byteLength);
+        this.store(slicedCopyOfBytes, str2);
+        return str2;
+      }
+    };
+    exports2.CachedKeyDecoder = CachedKeyDecoder;
+  }
+});
+
+// node_modules/@msgpack/msgpack/dist.cjs/Decoder.cjs
+var require_Decoder = __commonJS({
+  "node_modules/@msgpack/msgpack/dist.cjs/Decoder.cjs"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.Decoder = void 0;
+    var prettyByte_ts_1 = require_prettyByte();
+    var ExtensionCodec_ts_1 = require_ExtensionCodec();
+    var int_ts_1 = require_int();
+    var utf8_ts_1 = require_utf8();
+    var typedArrays_ts_1 = require_typedArrays();
+    var CachedKeyDecoder_ts_1 = require_CachedKeyDecoder();
+    var DecodeError_ts_1 = require_DecodeError();
+    var STATE_ARRAY = "array";
+    var STATE_MAP_KEY = "map_key";
+    var STATE_MAP_VALUE = "map_value";
+    var mapKeyConverter = (key) => {
+      if (typeof key === "string" || typeof key === "number") {
+        return key;
+      }
+      throw new DecodeError_ts_1.DecodeError("The type of key must be string or number but " + typeof key);
+    };
+    var StackPool = class {
+      constructor() {
+        this.stack = [];
+        this.stackHeadPosition = -1;
+      }
+      get length() {
+        return this.stackHeadPosition + 1;
+      }
+      top() {
+        return this.stack[this.stackHeadPosition];
+      }
+      pushArrayState(size) {
+        const state = this.getUninitializedStateFromPool();
+        state.type = STATE_ARRAY;
+        state.position = 0;
+        state.size = size;
+        state.array = new Array(size);
+      }
+      pushMapState(size) {
+        const state = this.getUninitializedStateFromPool();
+        state.type = STATE_MAP_KEY;
+        state.readCount = 0;
+        state.size = size;
+        state.map = {};
+      }
+      getUninitializedStateFromPool() {
+        this.stackHeadPosition++;
+        if (this.stackHeadPosition === this.stack.length) {
+          const partialState = {
+            type: void 0,
+            size: 0,
+            array: void 0,
+            position: 0,
+            readCount: 0,
+            map: void 0,
+            key: null
+          };
+          this.stack.push(partialState);
+        }
+        return this.stack[this.stackHeadPosition];
+      }
+      release(state) {
+        const topStackState = this.stack[this.stackHeadPosition];
+        if (topStackState !== state) {
+          throw new Error("Invalid stack state. Released state is not on top of the stack.");
+        }
+        if (state.type === STATE_ARRAY) {
+          const partialState = state;
+          partialState.size = 0;
+          partialState.array = void 0;
+          partialState.position = 0;
+          partialState.type = void 0;
+        }
+        if (state.type === STATE_MAP_KEY || state.type === STATE_MAP_VALUE) {
+          const partialState = state;
+          partialState.size = 0;
+          partialState.map = void 0;
+          partialState.readCount = 0;
+          partialState.type = void 0;
+        }
+        this.stackHeadPosition--;
+      }
+      reset() {
+        this.stack.length = 0;
+        this.stackHeadPosition = -1;
+      }
+    };
+    var HEAD_BYTE_REQUIRED = -1;
+    var EMPTY_VIEW = new DataView(new ArrayBuffer(0));
+    var EMPTY_BYTES = new Uint8Array(EMPTY_VIEW.buffer);
+    try {
+      EMPTY_VIEW.getInt8(0);
+    } catch (e) {
+      if (!(e instanceof RangeError)) {
+        throw new Error("This module is not supported in the current JavaScript engine because DataView does not throw RangeError on out-of-bounds access");
+      }
+    }
+    var MORE_DATA = new RangeError("Insufficient data");
+    var sharedCachedKeyDecoder = new CachedKeyDecoder_ts_1.CachedKeyDecoder();
+    var Decoder = class _Decoder {
+      constructor(options2) {
+        this.totalPos = 0;
+        this.pos = 0;
+        this.view = EMPTY_VIEW;
+        this.bytes = EMPTY_BYTES;
+        this.headByte = HEAD_BYTE_REQUIRED;
+        this.stack = new StackPool();
+        this.entered = false;
+        this.extensionCodec = options2?.extensionCodec ?? ExtensionCodec_ts_1.ExtensionCodec.defaultCodec;
+        this.context = options2?.context;
+        this.useBigInt64 = options2?.useBigInt64 ?? false;
+        this.rawStrings = options2?.rawStrings ?? false;
+        this.maxStrLength = options2?.maxStrLength ?? int_ts_1.UINT32_MAX;
+        this.maxBinLength = options2?.maxBinLength ?? int_ts_1.UINT32_MAX;
+        this.maxArrayLength = options2?.maxArrayLength ?? int_ts_1.UINT32_MAX;
+        this.maxMapLength = options2?.maxMapLength ?? int_ts_1.UINT32_MAX;
+        this.maxExtLength = options2?.maxExtLength ?? int_ts_1.UINT32_MAX;
+        this.keyDecoder = options2?.keyDecoder !== void 0 ? options2.keyDecoder : sharedCachedKeyDecoder;
+        this.mapKeyConverter = options2?.mapKeyConverter ?? mapKeyConverter;
+      }
+      clone() {
+        return new _Decoder({
+          extensionCodec: this.extensionCodec,
+          context: this.context,
+          useBigInt64: this.useBigInt64,
+          rawStrings: this.rawStrings,
+          maxStrLength: this.maxStrLength,
+          maxBinLength: this.maxBinLength,
+          maxArrayLength: this.maxArrayLength,
+          maxMapLength: this.maxMapLength,
+          maxExtLength: this.maxExtLength,
+          keyDecoder: this.keyDecoder
+        });
+      }
+      reinitializeState() {
+        this.totalPos = 0;
+        this.headByte = HEAD_BYTE_REQUIRED;
+        this.stack.reset();
+      }
+      setBuffer(buffer) {
+        const bytes = (0, typedArrays_ts_1.ensureUint8Array)(buffer);
+        this.bytes = bytes;
+        this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+        this.pos = 0;
+      }
+      appendBuffer(buffer) {
+        if (this.headByte === HEAD_BYTE_REQUIRED && !this.hasRemaining(1)) {
+          this.setBuffer(buffer);
+        } else {
+          const remainingData = this.bytes.subarray(this.pos);
+          const newData = (0, typedArrays_ts_1.ensureUint8Array)(buffer);
+          const newBuffer = new Uint8Array(remainingData.length + newData.length);
+          newBuffer.set(remainingData);
+          newBuffer.set(newData, remainingData.length);
+          this.setBuffer(newBuffer);
+        }
+      }
+      hasRemaining(size) {
+        return this.view.byteLength - this.pos >= size;
+      }
+      createExtraByteError(posToShow) {
+        const { view, pos } = this;
+        return new RangeError(`Extra ${view.byteLength - pos} of ${view.byteLength} byte(s) found at buffer[${posToShow}]`);
+      }
+      /**
+       * @throws {@link DecodeError}
+       * @throws {@link RangeError}
+       */
+      decode(buffer) {
+        if (this.entered) {
+          const instance = this.clone();
+          return instance.decode(buffer);
+        }
+        try {
+          this.entered = true;
+          this.reinitializeState();
+          this.setBuffer(buffer);
+          const object = this.doDecodeSync();
+          if (this.hasRemaining(1)) {
+            throw this.createExtraByteError(this.pos);
+          }
+          return object;
+        } finally {
+          this.entered = false;
+        }
+      }
+      *decodeMulti(buffer) {
+        if (this.entered) {
+          const instance = this.clone();
+          yield* instance.decodeMulti(buffer);
+          return;
+        }
+        try {
+          this.entered = true;
+          this.reinitializeState();
+          this.setBuffer(buffer);
+          while (this.hasRemaining(1)) {
+            yield this.doDecodeSync();
+          }
+        } finally {
+          this.entered = false;
+        }
+      }
+      async decodeAsync(stream) {
+        if (this.entered) {
+          const instance = this.clone();
+          return instance.decodeAsync(stream);
+        }
+        try {
+          this.entered = true;
+          let decoded = false;
+          let object;
+          for await (const buffer of stream) {
+            if (decoded) {
+              this.entered = false;
+              throw this.createExtraByteError(this.totalPos);
+            }
+            this.appendBuffer(buffer);
+            try {
+              object = this.doDecodeSync();
+              decoded = true;
+            } catch (e) {
+              if (!(e instanceof RangeError)) {
+                throw e;
+              }
+            }
+            this.totalPos += this.pos;
+          }
+          if (decoded) {
+            if (this.hasRemaining(1)) {
+              throw this.createExtraByteError(this.totalPos);
+            }
+            return object;
+          }
+          const { headByte, pos, totalPos } = this;
+          throw new RangeError(`Insufficient data in parsing ${(0, prettyByte_ts_1.prettyByte)(headByte)} at ${totalPos} (${pos} in the current buffer)`);
+        } finally {
+          this.entered = false;
+        }
+      }
+      decodeArrayStream(stream) {
+        return this.decodeMultiAsync(stream, true);
+      }
+      decodeStream(stream) {
+        return this.decodeMultiAsync(stream, false);
+      }
+      async *decodeMultiAsync(stream, isArray) {
+        if (this.entered) {
+          const instance = this.clone();
+          yield* instance.decodeMultiAsync(stream, isArray);
+          return;
+        }
+        try {
+          this.entered = true;
+          let isArrayHeaderRequired = isArray;
+          let arrayItemsLeft = -1;
+          for await (const buffer of stream) {
+            if (isArray && arrayItemsLeft === 0) {
+              throw this.createExtraByteError(this.totalPos);
+            }
+            this.appendBuffer(buffer);
+            if (isArrayHeaderRequired) {
+              arrayItemsLeft = this.readArraySize();
+              isArrayHeaderRequired = false;
+              this.complete();
+            }
+            try {
+              while (true) {
+                yield this.doDecodeSync();
+                if (--arrayItemsLeft === 0) {
+                  break;
+                }
+              }
+            } catch (e) {
+              if (!(e instanceof RangeError)) {
+                throw e;
+              }
+            }
+            this.totalPos += this.pos;
+          }
+        } finally {
+          this.entered = false;
+        }
+      }
+      doDecodeSync() {
+        DECODE: while (true) {
+          const headByte = this.readHeadByte();
+          let object;
+          if (headByte >= 224) {
+            object = headByte - 256;
+          } else if (headByte < 192) {
+            if (headByte < 128) {
+              object = headByte;
+            } else if (headByte < 144) {
+              const size = headByte - 128;
+              if (size !== 0) {
+                this.pushMapState(size);
+                this.complete();
+                continue DECODE;
+              } else {
+                object = {};
+              }
+            } else if (headByte < 160) {
+              const size = headByte - 144;
+              if (size !== 0) {
+                this.pushArrayState(size);
+                this.complete();
+                continue DECODE;
+              } else {
+                object = [];
+              }
+            } else {
+              const byteLength = headByte - 160;
+              object = this.decodeString(byteLength, 0);
+            }
+          } else if (headByte === 192) {
+            object = null;
+          } else if (headByte === 194) {
+            object = false;
+          } else if (headByte === 195) {
+            object = true;
+          } else if (headByte === 202) {
+            object = this.readF32();
+          } else if (headByte === 203) {
+            object = this.readF64();
+          } else if (headByte === 204) {
+            object = this.readU8();
+          } else if (headByte === 205) {
+            object = this.readU16();
+          } else if (headByte === 206) {
+            object = this.readU32();
+          } else if (headByte === 207) {
+            if (this.useBigInt64) {
+              object = this.readU64AsBigInt();
+            } else {
+              object = this.readU64();
+            }
+          } else if (headByte === 208) {
+            object = this.readI8();
+          } else if (headByte === 209) {
+            object = this.readI16();
+          } else if (headByte === 210) {
+            object = this.readI32();
+          } else if (headByte === 211) {
+            if (this.useBigInt64) {
+              object = this.readI64AsBigInt();
+            } else {
+              object = this.readI64();
+            }
+          } else if (headByte === 217) {
+            const byteLength = this.lookU8();
+            object = this.decodeString(byteLength, 1);
+          } else if (headByte === 218) {
+            const byteLength = this.lookU16();
+            object = this.decodeString(byteLength, 2);
+          } else if (headByte === 219) {
+            const byteLength = this.lookU32();
+            object = this.decodeString(byteLength, 4);
+          } else if (headByte === 220) {
+            const size = this.readU16();
+            if (size !== 0) {
+              this.pushArrayState(size);
+              this.complete();
+              continue DECODE;
+            } else {
+              object = [];
+            }
+          } else if (headByte === 221) {
+            const size = this.readU32();
+            if (size !== 0) {
+              this.pushArrayState(size);
+              this.complete();
+              continue DECODE;
+            } else {
+              object = [];
+            }
+          } else if (headByte === 222) {
+            const size = this.readU16();
+            if (size !== 0) {
+              this.pushMapState(size);
+              this.complete();
+              continue DECODE;
+            } else {
+              object = {};
+            }
+          } else if (headByte === 223) {
+            const size = this.readU32();
+            if (size !== 0) {
+              this.pushMapState(size);
+              this.complete();
+              continue DECODE;
+            } else {
+              object = {};
+            }
+          } else if (headByte === 196) {
+            const size = this.lookU8();
+            object = this.decodeBinary(size, 1);
+          } else if (headByte === 197) {
+            const size = this.lookU16();
+            object = this.decodeBinary(size, 2);
+          } else if (headByte === 198) {
+            const size = this.lookU32();
+            object = this.decodeBinary(size, 4);
+          } else if (headByte === 212) {
+            object = this.decodeExtension(1, 0);
+          } else if (headByte === 213) {
+            object = this.decodeExtension(2, 0);
+          } else if (headByte === 214) {
+            object = this.decodeExtension(4, 0);
+          } else if (headByte === 215) {
+            object = this.decodeExtension(8, 0);
+          } else if (headByte === 216) {
+            object = this.decodeExtension(16, 0);
+          } else if (headByte === 199) {
+            const size = this.lookU8();
+            object = this.decodeExtension(size, 1);
+          } else if (headByte === 200) {
+            const size = this.lookU16();
+            object = this.decodeExtension(size, 2);
+          } else if (headByte === 201) {
+            const size = this.lookU32();
+            object = this.decodeExtension(size, 4);
+          } else {
+            throw new DecodeError_ts_1.DecodeError(`Unrecognized type byte: ${(0, prettyByte_ts_1.prettyByte)(headByte)}`);
+          }
+          this.complete();
+          const stack = this.stack;
+          while (stack.length > 0) {
+            const state = stack.top();
+            if (state.type === STATE_ARRAY) {
+              state.array[state.position] = object;
+              state.position++;
+              if (state.position === state.size) {
+                object = state.array;
+                stack.release(state);
+              } else {
+                continue DECODE;
+              }
+            } else if (state.type === STATE_MAP_KEY) {
+              if (object === "__proto__") {
+                throw new DecodeError_ts_1.DecodeError("The key __proto__ is not allowed");
+              }
+              state.key = this.mapKeyConverter(object);
+              state.type = STATE_MAP_VALUE;
+              continue DECODE;
+            } else {
+              state.map[state.key] = object;
+              state.readCount++;
+              if (state.readCount === state.size) {
+                object = state.map;
+                stack.release(state);
+              } else {
+                state.key = null;
+                state.type = STATE_MAP_KEY;
+                continue DECODE;
+              }
+            }
+          }
+          return object;
+        }
+      }
+      readHeadByte() {
+        if (this.headByte === HEAD_BYTE_REQUIRED) {
+          this.headByte = this.readU8();
+        }
+        return this.headByte;
+      }
+      complete() {
+        this.headByte = HEAD_BYTE_REQUIRED;
+      }
+      readArraySize() {
+        const headByte = this.readHeadByte();
+        switch (headByte) {
+          case 220:
+            return this.readU16();
+          case 221:
+            return this.readU32();
+          default: {
+            if (headByte < 160) {
+              return headByte - 144;
+            } else {
+              throw new DecodeError_ts_1.DecodeError(`Unrecognized array type byte: ${(0, prettyByte_ts_1.prettyByte)(headByte)}`);
+            }
+          }
+        }
+      }
+      pushMapState(size) {
+        if (size > this.maxMapLength) {
+          throw new DecodeError_ts_1.DecodeError(`Max length exceeded: map length (${size}) > maxMapLengthLength (${this.maxMapLength})`);
+        }
+        this.stack.pushMapState(size);
+      }
+      pushArrayState(size) {
+        if (size > this.maxArrayLength) {
+          throw new DecodeError_ts_1.DecodeError(`Max length exceeded: array length (${size}) > maxArrayLength (${this.maxArrayLength})`);
+        }
+        this.stack.pushArrayState(size);
+      }
+      decodeString(byteLength, headerOffset) {
+        if (!this.rawStrings || this.stateIsMapKey()) {
+          return this.decodeUtf8String(byteLength, headerOffset);
+        }
+        return this.decodeBinary(byteLength, headerOffset);
+      }
+      /**
+       * @throws {@link RangeError}
+       */
+      decodeUtf8String(byteLength, headerOffset) {
+        if (byteLength > this.maxStrLength) {
+          throw new DecodeError_ts_1.DecodeError(`Max length exceeded: UTF-8 byte length (${byteLength}) > maxStrLength (${this.maxStrLength})`);
+        }
+        if (this.bytes.byteLength < this.pos + headerOffset + byteLength) {
+          throw MORE_DATA;
+        }
+        const offset = this.pos + headerOffset;
+        let object;
+        if (this.stateIsMapKey() && this.keyDecoder?.canBeCached(byteLength)) {
+          object = this.keyDecoder.decode(this.bytes, offset, byteLength);
+        } else {
+          object = (0, utf8_ts_1.utf8Decode)(this.bytes, offset, byteLength);
+        }
+        this.pos += headerOffset + byteLength;
+        return object;
+      }
+      stateIsMapKey() {
+        if (this.stack.length > 0) {
+          const state = this.stack.top();
+          return state.type === STATE_MAP_KEY;
+        }
+        return false;
+      }
+      /**
+       * @throws {@link RangeError}
+       */
+      decodeBinary(byteLength, headOffset) {
+        if (byteLength > this.maxBinLength) {
+          throw new DecodeError_ts_1.DecodeError(`Max length exceeded: bin length (${byteLength}) > maxBinLength (${this.maxBinLength})`);
+        }
+        if (!this.hasRemaining(byteLength + headOffset)) {
+          throw MORE_DATA;
+        }
+        const offset = this.pos + headOffset;
+        const object = this.bytes.subarray(offset, offset + byteLength);
+        this.pos += headOffset + byteLength;
+        return object;
+      }
+      decodeExtension(size, headOffset) {
+        if (size > this.maxExtLength) {
+          throw new DecodeError_ts_1.DecodeError(`Max length exceeded: ext length (${size}) > maxExtLength (${this.maxExtLength})`);
+        }
+        const extType = this.view.getInt8(this.pos + headOffset);
+        const data = this.decodeBinary(
+          size,
+          headOffset + 1
+          /* extType */
+        );
+        return this.extensionCodec.decode(data, extType, this.context);
+      }
+      lookU8() {
+        return this.view.getUint8(this.pos);
+      }
+      lookU16() {
+        return this.view.getUint16(this.pos);
+      }
+      lookU32() {
+        return this.view.getUint32(this.pos);
+      }
+      readU8() {
+        const value = this.view.getUint8(this.pos);
+        this.pos++;
+        return value;
+      }
+      readI8() {
+        const value = this.view.getInt8(this.pos);
+        this.pos++;
+        return value;
+      }
+      readU16() {
+        const value = this.view.getUint16(this.pos);
+        this.pos += 2;
+        return value;
+      }
+      readI16() {
+        const value = this.view.getInt16(this.pos);
+        this.pos += 2;
+        return value;
+      }
+      readU32() {
+        const value = this.view.getUint32(this.pos);
+        this.pos += 4;
+        return value;
+      }
+      readI32() {
+        const value = this.view.getInt32(this.pos);
+        this.pos += 4;
+        return value;
+      }
+      readU64() {
+        const value = (0, int_ts_1.getUint64)(this.view, this.pos);
+        this.pos += 8;
+        return value;
+      }
+      readI64() {
+        const value = (0, int_ts_1.getInt64)(this.view, this.pos);
+        this.pos += 8;
+        return value;
+      }
+      readU64AsBigInt() {
+        const value = this.view.getBigUint64(this.pos);
+        this.pos += 8;
+        return value;
+      }
+      readI64AsBigInt() {
+        const value = this.view.getBigInt64(this.pos);
+        this.pos += 8;
+        return value;
+      }
+      readF32() {
+        const value = this.view.getFloat32(this.pos);
+        this.pos += 4;
+        return value;
+      }
+      readF64() {
+        const value = this.view.getFloat64(this.pos);
+        this.pos += 8;
+        return value;
+      }
+    };
+    exports2.Decoder = Decoder;
+  }
+});
+
+// node_modules/@msgpack/msgpack/dist.cjs/decode.cjs
+var require_decode = __commonJS({
+  "node_modules/@msgpack/msgpack/dist.cjs/decode.cjs"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.decode = decode2;
+    exports2.decodeMulti = decodeMulti;
+    var Decoder_ts_1 = require_Decoder();
+    function decode2(buffer, options2) {
+      const decoder = new Decoder_ts_1.Decoder(options2);
+      return decoder.decode(buffer);
+    }
+    function decodeMulti(buffer, options2) {
+      const decoder = new Decoder_ts_1.Decoder(options2);
+      return decoder.decodeMulti(buffer);
+    }
+  }
+});
+
+// node_modules/@msgpack/msgpack/dist.cjs/utils/stream.cjs
+var require_stream = __commonJS({
+  "node_modules/@msgpack/msgpack/dist.cjs/utils/stream.cjs"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.isAsyncIterable = isAsyncIterable;
+    exports2.asyncIterableFromStream = asyncIterableFromStream;
+    exports2.ensureAsyncIterable = ensureAsyncIterable;
+    function isAsyncIterable(object) {
+      return object[Symbol.asyncIterator] != null;
+    }
+    async function* asyncIterableFromStream(stream) {
+      const reader = stream.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            return;
+          }
+          yield value;
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    }
+    function ensureAsyncIterable(streamLike) {
+      if (isAsyncIterable(streamLike)) {
+        return streamLike;
+      } else {
+        return asyncIterableFromStream(streamLike);
+      }
+    }
+  }
+});
+
+// node_modules/@msgpack/msgpack/dist.cjs/decodeAsync.cjs
+var require_decodeAsync = __commonJS({
+  "node_modules/@msgpack/msgpack/dist.cjs/decodeAsync.cjs"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.decodeAsync = decodeAsync;
+    exports2.decodeArrayStream = decodeArrayStream;
+    exports2.decodeMultiStream = decodeMultiStream;
+    var Decoder_ts_1 = require_Decoder();
+    var stream_ts_1 = require_stream();
+    async function decodeAsync(streamLike, options2) {
+      const stream = (0, stream_ts_1.ensureAsyncIterable)(streamLike);
+      const decoder = new Decoder_ts_1.Decoder(options2);
+      return decoder.decodeAsync(stream);
+    }
+    function decodeArrayStream(streamLike, options2) {
+      const stream = (0, stream_ts_1.ensureAsyncIterable)(streamLike);
+      const decoder = new Decoder_ts_1.Decoder(options2);
+      return decoder.decodeArrayStream(stream);
+    }
+    function decodeMultiStream(streamLike, options2) {
+      const stream = (0, stream_ts_1.ensureAsyncIterable)(streamLike);
+      const decoder = new Decoder_ts_1.Decoder(options2);
+      return decoder.decodeStream(stream);
+    }
+  }
+});
+
+// node_modules/@msgpack/msgpack/dist.cjs/index.cjs
+var require_dist = __commonJS({
+  "node_modules/@msgpack/msgpack/dist.cjs/index.cjs"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.decodeTimestampExtension = exports2.encodeTimestampExtension = exports2.decodeTimestampToTimeSpec = exports2.encodeTimeSpecToTimestamp = exports2.encodeDateToTimeSpec = exports2.EXT_TIMESTAMP = exports2.ExtData = exports2.ExtensionCodec = exports2.Encoder = exports2.DecodeError = exports2.Decoder = exports2.decodeMultiStream = exports2.decodeArrayStream = exports2.decodeAsync = exports2.decodeMulti = exports2.decode = exports2.encode = void 0;
+    var encode_ts_1 = require_encode();
+    Object.defineProperty(exports2, "encode", { enumerable: true, get: function() {
+      return encode_ts_1.encode;
+    } });
+    var decode_ts_1 = require_decode();
+    Object.defineProperty(exports2, "decode", { enumerable: true, get: function() {
+      return decode_ts_1.decode;
+    } });
+    Object.defineProperty(exports2, "decodeMulti", { enumerable: true, get: function() {
+      return decode_ts_1.decodeMulti;
+    } });
+    var decodeAsync_ts_1 = require_decodeAsync();
+    Object.defineProperty(exports2, "decodeAsync", { enumerable: true, get: function() {
+      return decodeAsync_ts_1.decodeAsync;
+    } });
+    Object.defineProperty(exports2, "decodeArrayStream", { enumerable: true, get: function() {
+      return decodeAsync_ts_1.decodeArrayStream;
+    } });
+    Object.defineProperty(exports2, "decodeMultiStream", { enumerable: true, get: function() {
+      return decodeAsync_ts_1.decodeMultiStream;
+    } });
+    var Decoder_ts_1 = require_Decoder();
+    Object.defineProperty(exports2, "Decoder", { enumerable: true, get: function() {
+      return Decoder_ts_1.Decoder;
+    } });
+    var DecodeError_ts_1 = require_DecodeError();
+    Object.defineProperty(exports2, "DecodeError", { enumerable: true, get: function() {
+      return DecodeError_ts_1.DecodeError;
+    } });
+    var Encoder_ts_1 = require_Encoder();
+    Object.defineProperty(exports2, "Encoder", { enumerable: true, get: function() {
+      return Encoder_ts_1.Encoder;
+    } });
+    var ExtensionCodec_ts_1 = require_ExtensionCodec();
+    Object.defineProperty(exports2, "ExtensionCodec", { enumerable: true, get: function() {
+      return ExtensionCodec_ts_1.ExtensionCodec;
+    } });
+    var ExtData_ts_1 = require_ExtData();
+    Object.defineProperty(exports2, "ExtData", { enumerable: true, get: function() {
+      return ExtData_ts_1.ExtData;
+    } });
+    var timestamp_ts_1 = require_timestamp();
+    Object.defineProperty(exports2, "EXT_TIMESTAMP", { enumerable: true, get: function() {
+      return timestamp_ts_1.EXT_TIMESTAMP;
+    } });
+    Object.defineProperty(exports2, "encodeDateToTimeSpec", { enumerable: true, get: function() {
+      return timestamp_ts_1.encodeDateToTimeSpec;
+    } });
+    Object.defineProperty(exports2, "encodeTimeSpecToTimestamp", { enumerable: true, get: function() {
+      return timestamp_ts_1.encodeTimeSpecToTimestamp;
+    } });
+    Object.defineProperty(exports2, "decodeTimestampToTimeSpec", { enumerable: true, get: function() {
+      return timestamp_ts_1.decodeTimestampToTimeSpec;
+    } });
+    Object.defineProperty(exports2, "encodeTimestampExtension", { enumerable: true, get: function() {
+      return timestamp_ts_1.encodeTimestampExtension;
+    } });
+    Object.defineProperty(exports2, "decodeTimestampExtension", { enumerable: true, get: function() {
+      return timestamp_ts_1.decodeTimestampExtension;
+    } });
+  }
+});
+
+// node_modules/dpack/lib/serialize.js
+var require_serialize = __commonJS({
+  "node_modules/dpack/lib/serialize.js"(exports2) {
+    "use strict";
+    var PROPERTY_CODE = 0;
+    var TYPE_CODE = 3;
+    var STRING_CODE = 2;
+    var NUMBER_CODE = 1;
+    var SEQUENCE_CODE = 7;
+    var NULL = 0;
+    var FALSE = 3;
+    var TRUE = 4;
+    var UNDEFINED = 5;
+    var DEFAULT_TYPE = 6;
+    var ARRAY_TYPE = 7;
+    var REFERENCING_TYPE = 8;
+    var NUMBER_TYPE = 9;
+    var METADATA_TYPE = 11;
+    var REFERENCING_POSITION = 13;
+    var ERROR_METADATA = 500;
+    var OPEN_SEQUENCE = 12;
+    var END_SEQUENCE = 14;
+    var DEFERRED_REFERENCE = 15;
+    var nextId = 1;
+    var iteratorSymbol = typeof Symbol !== "undefined" ? Symbol.iterator : "__iterator_symbol__";
+    function createSerializer(options2) {
+      if (!options2)
+        options2 = {};
+      var extendedTypes = options2.converterByConstructor;
+      if (!extendedTypes) {
+        extendedTypes = /* @__PURE__ */ new Map();
+      }
+      extendedTypes.set(Map, {
+        name: "Map",
+        toValue: writeMap
+      });
+      extendedTypes.set(Set, {
+        name: "Set",
+        toValue: writeSet
+      });
+      extendedTypes.set(Date, {
+        name: "Date",
+        toValue: writeDate
+      });
+      var avoidShareUpdate = options2.outlet || options2.avoidShareUpdate;
+      var charEncoder = typeof global != "undefined" && global.Buffer && !(options2 && options2.encoding === "utf16le") ? exports2.nodeCharEncoder(options2) : browserCharEncoder(options2);
+      var writeString = charEncoder.writeString;
+      var writeToken = charEncoder.writeToken;
+      var startSequence = charEncoder.startSequence;
+      var endSequence = charEncoder.endSequence;
+      var writeBuffer = charEncoder.writeBuffer;
+      var forProperty = options2.forProperty;
+      var propertyUsed;
+      var valueUsed;
+      if (options2.shared) {
+        propertyUsed = options2.shared.propertyUsed;
+        valueUsed = options2.shared.propertyUsed;
+      }
+      var pendingEncodings = [];
+      var nextPropertyIndex = 8;
+      var property;
+      var bufferSymbol = exports2.bufferSymbol || "_bufferSymbol_";
+      var targetSymbol = exports2.targetSymbol || "_targetSymbol_";
+      var propertyComparisons = 0;
+      var serializerId = nextId++;
+      var writers = [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        writeAsDefault,
+        writeAsArray,
+        writeAsReferencing,
+        writeAsNumber,
+        writeOnlyNull
+      ];
+      function writeNumber(number) {
+        writeToken(NUMBER_CODE, number);
+      }
+      function writeInlineString(string) {
+        writeToken(STRING_CODE, string.length);
+        writeString(string);
+      }
+      function writeAsReferencing(value) {
+        var type, values = property.values;
+        if (values) {
+          if (values.resetTo > -1 && values.serializer !== serializerId) {
+            values.serializer = serializerId;
+            if (values.resetTo < values.length)
+              values.length = values.resetTo;
+            writeToken(TYPE_CODE, REFERENCING_POSITION);
+            writeToken(NUMBER_CODE, values.resetTo);
+          }
+          var reference = values.indexOf(value);
+          if (reference > -1) {
+            return writeNumber(reference);
+          }
+        }
+        if ((type = typeof value) === "string" || type === "object" && value) {
+          if (property.writeSharedValue) {
+            if (property.writeSharedValue(value, writeToken, serializerId))
+              return;
+          } else if (values) {
+            var index = values.length;
+            if (index < 12)
+              values[index] = value;
+          }
+        }
+        if (type === "string") {
+          writeInlineString(value);
+        } else {
+          writeAsDefault(value);
+        }
+      }
+      function writeAsNumber(number) {
+        var type = typeof number;
+        if (type === "number") {
+          if (number >>> 0 === number || number > 0 && number < 70368744177664 && number % 1 === 0) {
+            writeToken(NUMBER_CODE, number);
+          } else {
+            var asString = number.toString();
+            writeInlineString(asString);
+          }
+        } else if (type === "object") {
+          writeAsDefault(number);
+        } else {
+          writeTypedValue(number);
+        }
+      }
+      function writeTypedValue(value) {
+        if (value === null)
+          writeToken(TYPE_CODE, NULL);
+        else if (value === false)
+          writeToken(TYPE_CODE, FALSE);
+        else if (value === true)
+          writeToken(TYPE_CODE, TRUE);
+        else if (value === void 0)
+          writeToken(TYPE_CODE, UNDEFINED);
+        else {
+          writeTypedNonConstant(value);
+        }
+      }
+      function writeTypedNonConstant(value) {
+        var type = typeof value;
+        var extendedType;
+        if (type === "object") {
+          if (value) {
+            var constructor2 = value.constructor;
+            if (constructor2 === Object) {
+            } else if (constructor2 === Array) {
+              type = "array";
+            } else {
+              extendedType = extendedTypes.get(constructor2);
+              if (extendedType && extendedType.toValue) {
+                value = extendedType.toValue(value);
+                type = typeof value;
+                if (value && type === "object" && value.constructor === Array) {
+                  type = "array";
+                }
+                if (property.type === type) {
+                  if (property.extendedType !== extendedType) {
+                    property.extendedType = extendedType;
+                    writeToken(TYPE_CODE, METADATA_TYPE);
+                    writeInlineString(extendedType.name);
+                  }
+                  return writers[property.code](value);
+                }
+              } else {
+                extendedType = false;
+              }
+            }
+          } else {
+            type = "undefined";
+          }
+        } else if (type === "boolean") {
+          type = "undefined";
+        } else if (type === "function") {
+          value = value.toString();
+          type = "string";
+        }
+        property = writeProperty(null, type, extendedType);
+        writers[property.code](value);
+      }
+      function writeOnlyNull() {
+        writeToken(TYPE_CODE, NULL);
+      }
+      function writeAsDefault(value, isRoot) {
+        var type = typeof value;
+        if (type === "object") {
+          if (!value) {
+            return writeToken(TYPE_CODE, NULL);
+          }
+        } else if (type === "string") {
+          return writeInlineString(value);
+        } else if (type === "number" && (value >>> 0 === value || value > 0 && value < 70368744177664 && value % 1 === 0)) {
+          return writeToken(NUMBER_CODE, value);
+        } else {
+          return writeTypedValue(value);
+        }
+        var object = value;
+        var constructor2 = object.constructor;
+        var notPlainObject;
+        if (object[targetSymbol]) {
+          return writeBlockReference(value);
+        } else if (constructor2 === Object) {
+          notPlainObject = false;
+        } else if (constructor2 === Array) {
+          property = writeProperty(property.key, "array");
+          return writers[property.code](value);
+        } else {
+          if (object.then) {
+            return writeBlockReference(value);
+          }
+          extendedType = extendedTypes.get(constructor2);
+          if (extendedType) {
+            if (extendedType.toValue) {
+              return writeTypedValue(object);
+            }
+          } else {
+            if (object[iteratorSymbol]) {
+              property = writeProperty(property.key, "array");
+              return writeAsIterable(object, isRoot);
+            }
+            extendedTypes.set(constructor2, extendedType = {
+              name: constructor2.name
+            });
+          }
+          if (property.constructs !== constructor2) {
+            writeToken(TYPE_CODE, METADATA_TYPE);
+            writeInlineString(extendedType.name);
+            property.constructs = constructor2;
+          }
+          notPlainObject = true;
+        }
+        var thisProperty = property;
+        if (thisProperty.resetTo < thisProperty.length && thisProperty.serializer != serializerId) {
+          thisProperty.length = thisProperty.resetTo;
+          thisProperty.serializer = serializerId;
+        }
+        startSequence();
+        var i = 0;
+        var resumeIndex = -2;
+        var propertyIndex = 0;
+        for (var key in object) {
+          if (notPlainObject && !object.hasOwnProperty(key))
+            continue;
+          var value = object[key];
+          type = typeof value;
+          property = thisProperty[propertyIndex];
+          var constructor2;
+          var extendedType = false;
+          if (type === "object") {
+            if (value) {
+              constructor2 = value.constructor;
+              if (constructor2 === Object) {
+              } else if (constructor2 === Array) {
+                type = "array";
+              } else {
+                extendedType = extendedTypes.get(constructor2);
+                if (extendedType && extendedType.toValue) {
+                  value = extendedType.toValue(value);
+                  type = typeof value;
+                  if (value && type === "object" && value.constructor === Array) {
+                    type = "array";
+                  }
+                } else if (value[iteratorSymbol] && !value.then) {
+                  type = "array";
+                } else {
+                  extendedType = false;
+                }
+              }
+            } else {
+              type = "undefined";
+            }
+          }
+          if (!property || property.key !== key || property.type !== type && type !== "boolean" && type !== "undefined" && !(type === "string" && property.type !== "number") || extendedType && property.extendedType !== constructor2) {
+            var lastPropertyIndex = propertyIndex;
+            if (resumeIndex > -2)
+              propertyIndex = resumeIndex;
+            do {
+              property = thisProperty[++propertyIndex];
+            } while (property && (property.key !== key || property.type !== type && type !== "boolean" && type !== "undefined" && !(type === "string" && property.type !== "number") || extendedType && property.extendedType !== constructor2));
+            if (property) {
+              writeToken(PROPERTY_CODE, propertyIndex);
+              if (resumeIndex === -2) {
+                resumeIndex = lastPropertyIndex - 1;
+              }
+            } else if (thisProperty.getProperty) {
+              property = thisProperty.getProperty(value, key, type, extendedType, writeProperty, writeToken, lastPropertyIndex);
+              propertyIndex = property.index;
+              if (lastPropertyIndex !== propertyIndex && resumeIndex === -2) {
+                resumeIndex = lastPropertyIndex - 1;
+              }
+            } else {
+              if (lastPropertyIndex === thisProperty.length) {
+                propertyIndex = lastPropertyIndex;
+              } else {
+                writeToken(PROPERTY_CODE, propertyIndex = thisProperty.length);
+                if (resumeIndex === -2) {
+                  resumeIndex = lastPropertyIndex - 1;
+                }
+              }
+              if (propertyIndex < thisProperty.resetTo) {
+                debugger;
+                throw new Error("overwriting frozen property");
+              }
+              property = thisProperty[propertyIndex] = writeProperty(key, type, extendedType);
+            }
+          }
+          if (propertyUsed)
+            propertyUsed(property, object, serializerId, i);
+          var code = property.code;
+          if (code > 7) {
+            if (code === 8)
+              writeAsReferencing(value);
+            else
+              writeAsNumber(value);
+          } else {
+            if (code === 6)
+              writeAsDefault(value);
+            else
+              writeAsArray(value);
+          }
+          propertyIndex++;
+          i++;
+        }
+        property = thisProperty;
+        endSequence(i);
+      }
+      function writeProperty(key, type, extendedType) {
+        var property2;
+        property2 = [];
+        property2.key = key;
+        property2.type = type;
+        if (type === "string") {
+          writeToken(TYPE_CODE, REFERENCING_TYPE);
+          property2.values = [];
+          property2.code = REFERENCING_TYPE;
+        } else if (type === "number") {
+          writeToken(TYPE_CODE, NUMBER_TYPE);
+          property2.code = NUMBER_TYPE;
+        } else if (type === "object") {
+          writeToken(TYPE_CODE, DEFAULT_TYPE);
+          property2.code = DEFAULT_TYPE;
+        } else if (type === "array") {
+          writeToken(TYPE_CODE, ARRAY_TYPE);
+          property2.code = ARRAY_TYPE;
+        } else if (type === "boolean" || type === "undefined") {
+          property2.type = "object";
+          writeToken(TYPE_CODE, DEFAULT_TYPE);
+          property2.code = DEFAULT_TYPE;
+        } else {
+          writeToken(TYPE_CODE, DEFAULT_TYPE);
+          property2.code = 10;
+          console.error("Unable to write value of type " + type);
+        }
+        if (typeof key === "string") {
+          writeInlineString(key);
+        } else if (!(key === null && (type === "object" || type === "array"))) {
+          writeAsDefault(key);
+        }
+        if (extendedType) {
+          property2.extendedType = extendedType;
+          writeToken(TYPE_CODE, METADATA_TYPE);
+          writeInlineString(extendedType.name);
+        }
+        return property2;
+      }
+      function writeAsIterable(iterable, isRoot, iterator) {
+        try {
+          if (!iterator) {
+            writeToken(SEQUENCE_CODE, OPEN_SEQUENCE);
+            iterator = iterable[iteratorSymbol]();
+          }
+          var arrayProperty = property;
+          property = arrayProperty.child || (arrayProperty.child = arrayProperty);
+          var result;
+          while (!(result = iterator.next()).done) {
+            writers[property.code](result.value, arrayProperty);
+            if (isRoot && charEncoder.hasWritten) {
+              charEncoder.hasWritten = false;
+              property = arrayProperty;
+              pendingEncodings.unshift({
+                then: function(callback) {
+                  writeAsIterable(null, true, iterator);
+                  return callback();
+                }
+              });
+              return;
+            }
+          }
+        } catch (error) {
+          writeToken(TYPE_CODE, METADATA_TYPE);
+          writeToken(NUMBER_CODE, ERROR_METADATA);
+          writeAsDefault(Object.assign(new (typeof error == "object" && error ? error.constructor : Error)(), {
+            name: error && error.name,
+            // make these enumerable so they will serialize
+            message: error && error.message || error
+          }));
+          throw error;
+        }
+        if (property !== arrayProperty.child) {
+          arrayProperty.child = property;
+        }
+        property = arrayProperty;
+        writeToken(SEQUENCE_CODE, END_SEQUENCE);
+      }
+      function writeAsArray(array) {
+        if (!array) {
+          writeTypedValue(array);
+        } else if (array[targetSymbol]) {
+          return writeBlockReference(array);
+        } else if (array.constructor === Array) {
+          var length = array.length;
+          var needsClosing;
+          if (length > 11) {
+            writeToken(SEQUENCE_CODE, OPEN_SEQUENCE);
+            needsClosing = true;
+          } else {
+            writeToken(SEQUENCE_CODE, length);
+          }
+          var arrayProperty = property;
+          property = arrayProperty[0];
+          if (arrayProperty.resetTo < arrayProperty.length && arrayProperty.serializer != serializerId) {
+            arrayProperty.length = arrayProperty.resetTo;
+            arrayProperty.serializer = serializerId;
+          }
+          var propertyIndex = 0;
+          for (var i = 0; i < length; i++) {
+            var value = array[i];
+            var type = typeof value;
+            if (type === "object") {
+              if (value) {
+                var constructor2 = value.constructor;
+                if (constructor2 === Object) {
+                } else if (constructor2 === Array) {
+                  type = "array";
+                } else {
+                  var extendedType = extendedTypes.get(constructor2);
+                  if (extendedType && extendedType.toValue) {
+                    value = extendedType.toValue(value);
+                    type = typeof value;
+                    if (value && type === "object" && value.constructor === Array) {
+                      type = "array";
+                    }
+                  } else {
+                    extendedType = false;
+                  }
+                }
+              } else {
+                type = "undefined";
+              }
+            }
+            if (!property) {
+              if (arrayProperty.getProperty) {
+                property = arrayProperty.getProperty(value, null, type, extendedType, writeProperty, writeToken, 0);
+              } else {
+                if (type === "string" || type === "number" || type === "array")
+                  property = writeProperty(null, type, extendedType);
+                else {
+                  property = [];
+                  property.type = type;
+                  property.key = null;
+                  property.code = DEFAULT_TYPE;
+                }
+                arrayProperty[0] = property;
+              }
+            } else if (property.type !== type && type !== "boolean" && type !== "undefined" && !(type === "string" && property.type !== "number") || extendedType && property.extendedType !== constructor2) {
+              propertyIndex = -1;
+              do {
+                property = arrayProperty[++propertyIndex];
+              } while (property && (property.type !== type && type !== "boolean" && type !== "undefined" && !(type === "string" && property.type !== "number") || extendedType && property.extendedType !== constructor2));
+              if (property) {
+                writeToken(PROPERTY_CODE, propertyIndex);
+              } else if (arrayProperty.getProperty) {
+                property = arrayProperty.getProperty(value, null, type, extendedType, writeProperty, writeToken, -1);
+              } else {
+                writeToken(PROPERTY_CODE, propertyIndex);
+                property = writeProperty(null, type, extendedType);
+                arrayProperty[propertyIndex] = property;
+              }
+            }
+            if (propertyUsed)
+              propertyUsed(property, array, serializerId, i);
+            var code = property.code;
+            if (code > 7) {
+              if (code === 8)
+                writeAsReferencing(value);
+              else
+                writeAsNumber(value);
+            } else {
+              if (code === 6)
+                writeAsDefault(value);
+              else
+                writeAsArray(value);
+            }
+          }
+          if (needsClosing) {
+            writeToken(SEQUENCE_CODE, END_SEQUENCE);
+          }
+          property = arrayProperty;
+        } else if (typeof array == "object" && array[iteratorSymbol]) {
+          return writeAsIterable(array);
+        } else if (type === "string") {
+          return writeInlineString(value);
+        } else if (type === "number" && (value >>> 0 === value || value > 0 && value < 70368744177664 && value % 1 === 0)) {
+          return writeToken(NUMBER_CODE, value);
+        } else {
+          writeTypedValue(array);
+        }
+      }
+      var blockProperty;
+      function writeBlockReference(block, writer) {
+        writeToken(SEQUENCE_CODE, DEFERRED_REFERENCE);
+        var blockProperty2 = property;
+        var lazyPromise = block[targetSymbol] ? {
+          then
+        } : {
+          then: function(callback) {
+            return block.then(function(value) {
+              block = value;
+              then(callback);
+            }, function(error) {
+              block = Object.assign(new (typeof error == "object" && error ? error.constructor : Error)(), {
+                name: error && error.name,
+                // make these enumerable so they will serialize
+                message: error && error.message || error
+              });
+              if (!blockProperty2.upgrade) {
+                writeToken(TYPE_CODE, METADATA_TYPE);
+                writeToken(NUMBER_CODE, ERROR_METADATA);
+              }
+              then(callback);
+            });
+          }
+        };
+        function then(callback) {
+          if (options2.forBlock && block) {
+            options2.forBlock(block, blockProperty2);
+          } else {
+            var buffer = block && block[bufferSymbol] && block[bufferSymbol](blockProperty2);
+            if (buffer) {
+              writeBuffer(buffer);
+            } else {
+              property = blockProperty2;
+              var lastPendingEncodings = pendingEncodings;
+              pendingEncodings = [];
+              writeAsDefault(block, true);
+              lastPendingEncodings.unshift.apply(lastPendingEncodings, pendingEncodings);
+              pendingEncodings = lastPendingEncodings;
+            }
+          }
+          callback();
+        }
+        pendingEncodings.push(lazyPromise);
+      }
+      var serializer = {
+        serialize: function(value, sharedProperty) {
+          var buffer = value && value[bufferSymbol] && value[bufferSymbol](sharedProperty);
+          if (buffer) {
+            charEncoder.writeBuffer(buffer);
+            return;
+          }
+          if (sharedProperty) {
+            property = sharedProperty;
+            writers[property.code](value);
+          } else {
+            property = [];
+            property.key = null;
+            writeAsDefault(value, true);
+          }
+        },
+        getSerialized: function() {
+          if (pendingEncodings.length > 0) {
+            var promises = [];
+            while (pendingEncodings.length > 0) {
+              var finished = false;
+              var promise = pendingEncodings.shift().then(function() {
+                finished = true;
+              });
+              if (!finished) {
+                promises.push(promise);
+              }
+            }
+            if (promises.length > 0) {
+              return Promise.all(promises).then(function() {
+                return serializer.getSerialized();
+              });
+            }
+          }
+          if (options2 && options2.encoding === "utf16le") {
+            return Buffer.from(charEncoder.getSerialized(), "utf16le");
+          }
+          return charEncoder.getSerialized();
+        },
+        flush: charEncoder.flush,
+        setOffset: charEncoder.setOffset,
+        finish: charEncoder.finish,
+        pendingEncodings,
+        getWriters: function() {
+          return {
+            writeProperty,
+            writeToken,
+            writeAsDefault,
+            writeBuffer
+          };
+        }
+      };
+      return serializer;
+    }
+    function serialize2(value, options2) {
+      var serializer = createSerializer(options2);
+      var sharedProperty = options2 && options2.shared;
+      var buffer;
+      if (sharedProperty && sharedProperty.startWrite) {
+        sharedProperty.startWrite(options2.avoidShareUpdate, value);
+      }
+      serializer.serialize(value, sharedProperty);
+      buffer = serializer.getSerialized();
+      if (sharedProperty && sharedProperty.endWrite) {
+        sharedProperty.endWrite(options2.avoidShareUpdate, value);
+      }
+      if (serializer.finish)
+        serializer.finish();
+      var sizeTable = value && value[exports2.sizeTableSymbol];
+      if (sizeTable) {
+        buffer.sizeTable = sizeTable;
+      }
+      if (options2 && options2.lazy) {
+        return Buffer.concat([value[exports2.sizeTableSymbol], buffer]);
+      }
+      return buffer;
+    }
+    exports2.serialize = serialize2;
+    exports2.createSerializer = createSerializer;
+    function browserCharEncoder() {
+      var serialized = "";
+      function writeToken(type, number) {
+        var serializedToken;
+        if (number < 16) {
+          serializedToken = String.fromCharCode((type << 4 | number) ^ 64);
+        } else if (number < 1024) {
+          serializedToken = String.fromCharCode(
+            (type << 4) + (number >>> 6),
+            (number & 63) + 64
+          );
+        } else if (number < 65536) {
+          serializedToken = String.fromCharCode(
+            (type << 4) + (number >>> 12),
+            number >>> 6 & 63,
+            (number & 63) + 64
+          );
+        } else if (number < 4194304) {
+          serializedToken = String.fromCharCode(
+            (type << 4) + (number >>> 18),
+            number >>> 12 & 63,
+            number >>> 6 & 63,
+            (number & 63) + 64
+          );
+        } else if (number < 268435456) {
+          serializedToken = String.fromCharCode(
+            (type << 4) + (number >>> 24),
+            number >>> 18 & 63,
+            number >>> 12 & 63,
+            number >>> 6 & 63,
+            (number & 63) + 64
+          );
+        } else if (number < 4294967296) {
+          serializedToken = String.fromCharCode(
+            (type << 4) + (number >>> 30),
+            number >>> 24 & 63,
+            number >>> 18 & 63,
+            number >>> 12 & 63,
+            number >>> 6 & 63,
+            (number & 63) + 64
+          );
+        } else if (number < 17179869184) {
+          serializedToken = String.fromCharCode(
+            (type << 4) + (number / 1073741824 >>> 0),
+            number >>> 24 & 63,
+            number >>> 18 & 63,
+            number >>> 12 & 63,
+            number >>> 6 & 63,
+            (number & 63) + 64
+          );
+        } else if (number < 1099511627776) {
+          serializedToken = String.fromCharCode(
+            (type << 4) + (number / 68719476736 >>> 0),
+            number / 1073741824 & 63,
+            number >>> 24 & 63,
+            number >>> 18 & 63,
+            number >>> 12 & 63,
+            number >>> 6 & 63,
+            (number & 63) + 64
+          );
+        } else if (number < 70368744177664) {
+          serializedToken = String.fromCharCode(
+            (type << 4) + (number / 4398046511104 >>> 0),
+            number / 68719476736 & 63,
+            number / 1073741824 & 63,
+            number >>> 24 & 63,
+            number >>> 18 & 63,
+            number >>> 12 & 63,
+            number >>> 6 & 63,
+            (number & 63) + 64
+          );
+        } else {
+          throw new Error("Too big of number");
+        }
+        serialized += serializedToken;
+      }
+      function writeString(string) {
+        serialized += string;
+      }
+      function getSerialized() {
+        return serialized;
+      }
+      return {
+        writeToken,
+        writeString,
+        //writeBuffer,
+        getSerialized,
+        //insertBuffer,
+        //flush,
+        startSequence: function() {
+          writeToken(SEQUENCE_CODE, OPEN_SEQUENCE);
+        },
+        endSequence: function() {
+          writeToken(SEQUENCE_CODE, END_SEQUENCE);
+        },
+        getOffset: function() {
+          return -1;
+        }
+      };
+    }
+    var ArrayFrom = Array.from || function(iterable, keyValue) {
+      var array = [];
+      var keyValue = iterable.constructor === Map;
+      iterable.forEach(function(key, value) {
+        if (keyValue) {
+          array.push([value, key]);
+        } else {
+          array.push(key);
+        }
+      });
+      return array;
+    };
+    function writeMap(map) {
+      var keyValues = ArrayFrom(map);
+      for (var i = 0, length = keyValues.length; i < length; i++) {
+        var keyValue = keyValues[i];
+        keyValues[i] = {
+          key: keyValue[0],
+          value: keyValue[1]
+        };
+      }
+      return keyValues;
+    }
+    function writeSet(set) {
+      return ArrayFrom(set);
+    }
+    function writeDate(date) {
+      return date.getTime();
+    }
+  }
+});
+
+// node_modules/dpack/lib/serialize-stream.js
+var require_serialize_stream = __commonJS({
+  "node_modules/dpack/lib/serialize-stream.js"(exports2) {
+    "use strict";
+    var { Transform } = __require("stream");
+    var { createSerializer } = require_serialize();
+    var DPackSerializeStream = class extends Transform {
+      constructor(options2) {
+        options2 = options2 || {};
+        super(options2);
+        this.options = options2;
+        this.continueWriting = true;
+      }
+      write(value) {
+        const serializer = this.serializer || (this.serializer = createSerializer({ asBlock: true }));
+        serializer.serialize(value);
+        const buffer = serializer.getSerialized();
+        if (buffer.then) {
+          buffer.then((buffer2) => this.push(buffer2));
+          this.serializer = null;
+        } else {
+          serializer.flush(this);
+        }
+      }
+      end(value) {
+        if (value) {
+          this.options.outlet = this;
+          const serializer = this.serializer || (this.serializer = createSerializer(this.options));
+          serializer.serialize(value);
+        }
+        if (this.serializer.pendingEncodings.length > 0) {
+          this.endWhenDone = true;
+          this.writeNext();
+        } else {
+          this.serializer.flush();
+          this.push(null);
+        }
+      }
+      writeBytes(buffer) {
+        try {
+          this.continueWriting = this.push(buffer);
+        } catch (error) {
+          throw error;
+        }
+      }
+      _read() {
+        this.continueWriting = true;
+        if (!this.pausedForPromise && this.serializer && this.endWhenDone && this.serializer.pendingEncodings.length > 0) {
+          this.writeNext();
+        }
+      }
+      writeNext() {
+        var isSync;
+        do {
+          var hasMoreToSend = this.serializer.pendingEncodings.length > 0;
+          isSync = null;
+          if (hasMoreToSend) {
+            this.serializer.pendingEncodings.shift().then(() => {
+              if (isSync === false) {
+                this.pausedForPromise = false;
+                if (this.continueWriting || this.serializer.pendingEncodings.length === 0)
+                  this.writeNext();
+                else {
+                  this.serializer.flush();
+                }
+              } else {
+                isSync = true;
+              }
+            }, (error) => {
+              console.error(error);
+              this.push(error.toString());
+              this.push(null);
+            });
+            if (!isSync) {
+              isSync = false;
+              this.pausedForPromise = true;
+              this.serializer.flush();
+            } else if (!this.continueWriting && this.serializer.pendingEncodings.length > 0) {
+              this.serializer.flush();
+              return;
+            }
+          } else if (this.endWhenDone) {
+            this.serializer.flush();
+            this.push("]");
+            this.push(null);
+          }
+        } while (isSync);
+      }
+    };
+    exports2.createSerializeStream = () => {
+      return new DPackSerializeStream();
+    };
+  }
+});
+
+// node_modules/dpack/lib/parse.js
+var require_parse = __commonJS({
+  "node_modules/dpack/lib/parse.js"(exports2) {
+    "use strict";
+    var FALSE = 3;
+    var TRUE = 4;
+    var DEFAULT_TYPE = 6;
+    var ARRAY_TYPE = 7;
+    var REFERENCING_TYPE = 8;
+    var NUMBER_TYPE = 9;
+    var METADATA_TYPE = 11;
+    var REFERENCING_POSITION = 13;
+    var TYPE_DEFINITION = 14;
+    var ERROR_METADATA = 500;
+    var OPEN_SEQUENCE = 12;
+    var END_SEQUENCE = 14;
+    var DEFERRED_REFERENCE = 15;
+    var MAX_LENGTH = 1024 * 1024 * 16;
+    function createParser(options2) {
+      if (!options2)
+        options2 = {};
+      var offset;
+      var source;
+      var isPartial;
+      var classByName = options2.classByName || /* @__PURE__ */ new Map();
+      classByName.set("Map", readMap);
+      classByName.set("Set", readSet);
+      classByName.set("Date", readDate);
+      var pausedState;
+      var deferredReads;
+      function pause(state, lastRead) {
+        state.previous = pausedState;
+        state.resume = true;
+        pausedState = state;
+        if (!isPartial)
+          throw new Error("Unexpected end of dpack stream");
+        if (!parser.onResume)
+          parser.onResume = function(nextString, isPartialString, rebuildString) {
+            var resumeState = pausedState;
+            pausedState = null;
+            parser.onResume = null;
+            if (lastRead < source.length)
+              source = source.slice(lastRead) + nextString;
+            else {
+              if (rebuildString)
+                source = nextString.slice(0, 1) + nextString.slice(1);
+              else
+                source = nextString;
+            }
+            isPartial = isPartialString;
+            disposedChars += lastRead;
+            offset = 0;
+            return resumeState.reader ? resumeState.reader(resumeState) : readSequence(resumeState.length, resumeState);
+          };
+        return state.object;
+      }
+      function readSequence(length, thisProperty) {
+        var propertyState = 0;
+        thisProperty = thisProperty || [];
+        var property, isArray, object, value, i = 0, propertyIndex = 0;
+        if (thisProperty.resume) {
+          property = thisProperty.previous;
+          if (property) {
+            var value = property.reader ? property.reader(property) : readSequence(property.length, property);
+            var values = property.values;
+            if (values) {
+              if (pausedState) {
+                pausedState.values = values;
+              } else {
+                if (value.nextPosition > -1) {
+                  values[values.nextPosition++] = value;
+                } else {
+                  values.push(value);
+                }
+              }
+            }
+          }
+          if (thisProperty.code && thisProperty.code !== thisProperty.thisProperty.code) {
+            thisProperty.resume = false;
+          } else {
+            i = thisProperty.i || 0;
+            object = thisProperty.object;
+            propertyState = thisProperty.propertyState || 0;
+            propertyIndex = thisProperty.propertyIndex || 0;
+            thisProperty = thisProperty.thisProperty;
+          }
+        }
+        isArray = thisProperty.code === ARRAY_TYPE;
+        object = object || (thisProperty.constructs ? new thisProperty.constructs() : isArray ? [] : {});
+        for (; i < length; ) {
+          var type, number;
+          var lastRead = offset;
+          var token = source.charCodeAt(offset++);
+          if (token >= 48) {
+            if (token > 12288) {
+              type = token >>> 12 ^ 4;
+              number = token & 4095;
+            } else {
+              type = token >>> 4 ^ 4;
+              number = token & 15;
+            }
+          } else {
+            type = token >>> 4 & 11;
+            number = token & 15;
+            token = source.charCodeAt(offset++);
+            number = (number << 6) + (token & 63);
+            if (!(token >= 64)) {
+              token = source.charCodeAt(offset++);
+              number = (number << 6) + (token & 63);
+              if (!(token >= 64)) {
+                token = source.charCodeAt(offset++);
+                number = (number << 6) + (token & 63);
+                if (!(token >= 64)) {
+                  token = source.charCodeAt(offset++);
+                  number = (number << 6) + (token & 63);
+                  if (!(token >= 64)) {
+                    token = source.charCodeAt(offset++);
+                    number = number * 64 + (token & 63);
+                    if (!(token >= 64)) {
+                      token = source.charCodeAt(offset++);
+                      number = number * 64 + (token & 63);
+                      if (!(token >= 64)) {
+                        token = source.charCodeAt(offset++);
+                        number = number * 64 + (token & 63);
+                        if (!(token >= 0)) {
+                          if (offset > source.length) {
+                            return pause({
+                              length,
+                              thisProperty,
+                              i,
+                              object,
+                              propertyIndex,
+                              propertyState
+                            }, lastRead);
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          if (type === 0) {
+            propertyIndex = number;
+            propertyState = 0;
+            continue;
+          }
+          property = thisProperty[propertyIndex];
+          if (type === 3) {
+            if (number < 6) {
+              if (number < 3) {
+                if (number === 0) {
+                  value = null;
+                } else {
+                  value = "Unknown token, type: " + type + " number: " + number;
+                }
+              } else {
+                if (number === TRUE) {
+                  value = true;
+                } else if (number === FALSE) {
+                  value = false;
+                } else {
+                  value = void 0;
+                }
+              }
+            } else {
+              if (number <= NUMBER_TYPE) {
+                if (propertyState === 1) {
+                  propertyIndex++;
+                  i++;
+                  property = thisProperty[propertyIndex];
+                }
+                if (propertyIndex < thisProperty.resetTo) {
+                  throw new Error("Overwriting frozen property");
+                }
+                if (property) {
+                  if (!property.resume) {
+                    value = property.key;
+                    property = thisProperty[propertyIndex] = [];
+                    property.key = value;
+                  }
+                } else {
+                  property = thisProperty[propertyIndex] = [];
+                  property.key = null;
+                }
+                property.code = number;
+                property.parent = thisProperty;
+                propertyState = 2;
+                if (number === REFERENCING_TYPE) {
+                  property.values = [];
+                } else if (number === ARRAY_TYPE) {
+                  property[0] = [];
+                  property[0].key = null;
+                  property[0].code = DEFAULT_TYPE;
+                  property[0].parent = property;
+                }
+              } else {
+                propertyState = number;
+              }
+              continue;
+            }
+          } else {
+            if (type === 2) {
+              value = source.slice(offset, offset += number);
+              if (offset > source.length) {
+                return pause({
+                  length,
+                  thisProperty,
+                  i,
+                  object,
+                  propertyIndex,
+                  propertyState
+                }, lastRead);
+              }
+              if (propertyState < 2) {
+                if (property.code === NUMBER_TYPE) {
+                  value = +value;
+                }
+              }
+            } else if (type === 1) {
+              value = number;
+            } else {
+              if (number > 13) {
+                if (number === END_SEQUENCE)
+                  return object;
+                else if (number === DEFERRED_REFERENCE) {
+                  value = readSequence(0, property);
+                  propertyState = 0;
+                  if (options2.forDeferred) {
+                    value = options2.forDeferred(value, property);
+                  } else {
+                    (deferredReads || (deferredReads = [])).push({
+                      property,
+                      value
+                    });
+                  }
+                }
+              } else {
+                if (number >= OPEN_SEQUENCE) {
+                  number = 2e9;
+                }
+                if (propertyState > 1) {
+                  if (propertyState === 2) {
+                    propertyState = 0;
+                    value = readSequence(number, property);
+                  } else if (propertyState === METADATA_TYPE)
+                    value = readSequence(number, [{ key: null, code: 6 }]);
+                  else if (property.resume && (property.code || DEFAULT_TYPE) === property.thisProperty.code)
+                    value = readSequence(number, property.thisProperty);
+                  else
+                    value = readSequence(number, property);
+                } else
+                  value = readSequence(number, property);
+                if (pausedState) {
+                  if (value === void 0) {
+                    pausedState = null;
+                    parser.onResume = null;
+                    return pause({
+                      length,
+                      thisProperty,
+                      i,
+                      object,
+                      property,
+                      propertyIndex,
+                      previousProperty,
+                      propertyState
+                    }, lastRead);
+                  } else {
+                    pausedState.values = property.values instanceof Array ? property.values : void 0;
+                  }
+                }
+              }
+            }
+          }
+          if (!property) {
+            throw new Error("No property defined for slot" + (thisProperty.key ? " in " + thisProperty.key : ""));
+          }
+          if (propertyState < 2 && property && property.code === REFERENCING_TYPE) {
+            var values = property.values;
+            if (typeof value === "number") {
+              value = values[number];
+              if (value === void 0 && !(number in values)) {
+                throw new Error("Referencing value that has not been read yet");
+              }
+            } else if ((type === 2 || type === 7) && values) {
+              if (values.nextPosition > -1) {
+                if (property.recordValueReference) {
+                  property.recordValueReference(values);
+                }
+                values[values.nextPosition++] = value;
+              } else {
+                values.push(value);
+              }
+            }
+          }
+          if (propertyState > 1) {
+            if (propertyState === 2) {
+              property.key = value;
+            } else if (propertyState === METADATA_TYPE) {
+              if (typeof value === "string") {
+                var extendedType = classByName.get(value);
+                if (extendedType) {
+                  if (extendedType.fromValue) {
+                    property.fromValue = extendedType.fromValue;
+                  } else {
+                    property.constructs = extendedType;
+                  }
+                } else if (options2.errorOnUnknownClass) {
+                  throw new Error("Attempt to deserialize to unknown class " + parameter);
+                } else {
+                }
+                property.extendedType = extendedType;
+              } else {
+                property.metadata = value;
+                if (value === ERROR_METADATA)
+                  property.fromValue = onError;
+              }
+            } else if (propertyState === REFERENCING_POSITION) {
+              var values = property.values || (property.values = []);
+              values.nextPosition = value;
+            } else if (propertyState === TYPE_DEFINITION) {
+            } else {
+              throw new Error("Unknown property type " + propertyState);
+            }
+            propertyState = 1;
+            continue;
+          } else {
+            propertyState = 0;
+          }
+          if (property.fromValue) {
+            value = property.fromValue(value);
+          }
+          if (isArray && property.key === null) {
+            object.push(value);
+          } else if (value !== void 0) {
+            object[property.key] = value;
+          }
+          i++;
+          if (!isArray)
+            propertyIndex++;
+        }
+        return object;
+      }
+      function unknownType2(number) {
+        throw new Error("Unknown type " + number);
+      }
+      var nonParsingError;
+      function onError(error) {
+        var g = typeof global != "undefined" ? global : window;
+        if (error && error.name && g[error.name])
+          error = new g[error.name](error.message);
+        else if (typeof error == "string")
+          error = new Error(error);
+        if (options2.onError)
+          options2.onError(error);
+        else {
+          nonParsingError = true;
+          throw error;
+        }
+      }
+      var disposedChars = 0;
+      function read(property) {
+        try {
+          if (property && property.resume) {
+            var previous = property.previous;
+            value = readSequence(previous.length, previous);
+            value = property.object || value;
+            property = property.property;
+          } else {
+            property = property || [options2 && options2.shared || {
+              key: null,
+              code: 6
+            }];
+            var value = readSequence(1, property)[property[0].key];
+          }
+          while (true) {
+            if (pausedState) {
+              return pause({
+                reader: read,
+                object: value,
+                property
+              });
+            }
+            if (!deferredReads) {
+              return value;
+            }
+            var index = deferredReads.index || 0;
+            var deferredRead = deferredReads[index];
+            deferredReads.index = index + 1;
+            if (!deferredRead) {
+              deferredReads = deferredReads.parent;
+              continue;
+            }
+            var target = deferredRead.value;
+            var parentDeferredReads = deferredReads;
+            deferredReads = [];
+            deferredReads.parent = parentDeferredReads;
+            var targetProperty = deferredRead.property;
+            var result = readSequence(1, property = [{
+              resume: true,
+              key: null,
+              thisProperty: targetProperty,
+              object: target
+            }]);
+            result = result.null || result[targetProperty.key];
+            if (result != target) {
+              Object.assign(target, result);
+              if (pausedState && pausedState.object === result) {
+                pausedState.object = target;
+              }
+              if (result && result.constructor === Array) {
+                target.length = result.length;
+                Object.setPrototypeOf(target, Object.getPrototypeOf(result));
+              }
+            }
+          }
+        } catch (error) {
+          if (!nonParsingError)
+            error.message = "DPack parsing error: " + error.message + " at position: " + (offset + disposedChars) + " near: " + source.slice(offset - 10, offset + 10);
+          throw error;
+        }
+      }
+      var parser = {
+        setSource: function(string, startOffset, isPartialString) {
+          source = string;
+          offset = startOffset || 0;
+          disposedChars = 0;
+          isPartial = isPartialString;
+          return this;
+        },
+        hasMoreData: function() {
+          return source.length > offset;
+        },
+        isPaused: function() {
+          return pausedState;
+        },
+        hasUnfulfilledReferences: function() {
+          return deferredReads && deferredReads.length > deferredReads.index;
+        },
+        getOffset: function() {
+          return offset + disposedChars;
+        },
+        read
+      };
+      return parser;
+    }
+    exports2.parse = function(stringOrBuffer, options2) {
+      var source;
+      if (typeof stringOrBuffer === "string") {
+        source = stringOrBuffer;
+      } else if (stringOrBuffer && stringOrBuffer.toString) {
+        source = stringOrBuffer.toString(options2 && options2.encoding || "utf8");
+      } else {
+        return stringOrBuffer;
+      }
+      var parser = createParser(options2).setSource(source);
+      if (options2 && options2.shared)
+        return parser.read([options2.shared]);
+      return parser.read();
+    };
+    exports2.createParser = createParser;
+    var readMap = {
+      fromValue: function(entries) {
+        var map = /* @__PURE__ */ new Map();
+        for (var i = 0, l = entries.length; i < l; i++) {
+          var entry = entries[i];
+          map.set(entry.key, entry.value);
+        }
+        return map;
+      }
+    };
+    var readSet = {
+      fromValue: function(values) {
+        var set = new Set(values);
+        if (set.size === 0 && values.length > 0) {
+          for (var i = 0, l = values.length; i < l; i++) {
+            set.add(values[i]);
+          }
+        }
+        return set;
+      }
+    };
+    var readDate = {
+      fromValue: function(time) {
+        return new Date(time);
+      }
+    };
+  }
+});
+
+// node_modules/dpack/lib/parse-stream.js
+var require_parse_stream = __commonJS({
+  "node_modules/dpack/lib/parse-stream.js"(exports2) {
+    "use strict";
+    var Transform = __require("stream").Transform;
+    var createParser = require_parse().createParser;
+    var DEFAULT_OPTIONS = { objectMode: true };
+    var DPackParseStream = class extends Transform {
+      constructor(options2) {
+        if (options2) {
+          options2.objectMode = true;
+        } else {
+          options2 = DEFAULT_OPTIONS;
+        }
+        super(options2);
+        this.parser = createParser(options2);
+        this.waitingValues = [];
+      }
+      _transform(chunk, encoding, callback) {
+        var value;
+        try {
+          var sourceString = chunk.toString();
+          var parser = this.parser;
+          if (parser.onResume) {
+            value = parser.onResume(sourceString, true);
+            if (!parser.isPaused())
+              this.sendValue(value);
+          } else {
+            parser.setSource(sourceString, 0, true);
+          }
+          while (parser.hasMoreData()) {
+            value = parser.read();
+            if (parser.isPaused())
+              break;
+            else
+              this.sendValue(value);
+          }
+        } catch (error) {
+          console.error(error);
+        }
+        if (callback) callback();
+      }
+      sendValue(value) {
+        if (this.parser.hasUnfulfilledReferences()) {
+          if (value !== void 0) {
+            this.waitingValues.push(value);
+          }
+        } else {
+          while (this.waitingValues.length > 0) {
+            this.push(this.waitingValues.shift());
+          }
+          if (value !== void 0) {
+            this.push(value);
+          }
+        }
+      }
+    };
+    exports2.createParseStream = () => new DPackParseStream();
+  }
+});
+
+// node_modules/dpack/lib/node-encoder.js
+var require_node_encoder = __commonJS({
+  "node_modules/dpack/lib/node-encoder.js"(exports2) {
+    var PREFERRED_MAX_BUFFER_SIZE = 32768;
+    var availableBuffers = [];
+    function nodeCharEncoder(options2) {
+      var offset = options2.startOffset || 0;
+      var bufferSize;
+      var outlet = options2.outlet;
+      var buffer = availableBuffers.pop();
+      if (buffer && buffer.length > offset + 128) {
+        bufferSize = buffer.length;
+      } else {
+        bufferSize = (offset >> 12 << 12) + 8192;
+        buffer = Buffer.allocUnsafeSlow(bufferSize);
+      }
+      var encoding = options2.encoding;
+      var sequences = [];
+      function makeRoom(bytesNeeded) {
+        if (outlet) {
+          outlet.writeBytes(buffer.slice(0, offset));
+          if (bufferSize < PREFERRED_MAX_BUFFER_SIZE || bytesNeeded > PREFERRED_MAX_BUFFER_SIZE) {
+            bufferSize = Math.max(bufferSize * 4, bytesNeeded);
+          }
+          buffer = Buffer.allocUnsafeSlow(bufferSize);
+          offset = 0;
+          sequences = [];
+          encoder.hasWritten = true;
+        } else {
+          bufferSize = Math.max(bufferSize * 4, bufferSize + bytesNeeded, 8192);
+          var oldBuffer = buffer;
+          buffer = Buffer.allocUnsafeSlow(bufferSize);
+          oldBuffer.copy(buffer, 0, 0, offset);
+        }
+      }
+      function flush(specifiedOutlet) {
+        (specifiedOutlet || outlet).writeBytes(buffer.slice(0, offset));
+        if (offset + 128 > buffer.length)
+          buffer = Buffer.allocUnsafeSlow(bufferSize = Math.min(Math.max((offset >> 10 << 10) + 8192, bufferSize), 32768));
+        else {
+          buffer = buffer.slice(offset);
+          bufferSize = buffer.length;
+        }
+        offset = 0;
+        sequences = [];
+      }
+      function writeToken(type, number) {
+        if (number < 16) {
+          buffer[offset++] = (type << 4) + number ^ 64;
+        } else if (number < 1024) {
+          buffer[offset++] = (type << 4) + (number >>> 6);
+          buffer[offset++] = (number & 63) + 64;
+        } else if (number < 65536) {
+          buffer[offset++] = (type << 4) + (number >>> 12);
+          buffer[offset++] = number >>> 6 & 63;
+          buffer[offset++] = (number & 63) + 64;
+        } else if (number < 4194304) {
+          buffer[offset++] = (type << 4) + (number >>> 18);
+          buffer[offset++] = number >>> 12 & 63;
+          buffer[offset++] = number >>> 6 & 63;
+          buffer[offset++] = (number & 63) + 64;
+        } else if (number < 268435456) {
+          buffer[offset++] = (type << 4) + (number >>> 24);
+          buffer[offset++] = number >>> 18 & 63;
+          buffer[offset++] = number >>> 12 & 63;
+          buffer[offset++] = number >>> 6 & 63;
+          buffer[offset++] = (number & 63) + 64;
+        } else if (number < 4294967296) {
+          buffer[offset++] = (type << 4) + (number >>> 30);
+          buffer[offset++] = number >>> 24 & 63;
+          buffer[offset++] = number >>> 18 & 63;
+          buffer[offset++] = number >>> 12 & 63;
+          buffer[offset++] = number >>> 6 & 63;
+          buffer[offset++] = (number & 63) + 64;
+        } else if (number < 17179869184) {
+          buffer[offset++] = (type << 4) + (number / 1073741824 >>> 0);
+          buffer[offset++] = number >>> 24 & 63;
+          buffer[offset++] = number >>> 18 & 63;
+          buffer[offset++] = number >>> 12 & 63;
+          buffer[offset++] = number >>> 6 & 63;
+          buffer[offset++] = (number & 63) + 64;
+        } else if (number < 1099511627776) {
+          buffer[offset++] = (type << 4) + (number / 68719476736 >>> 0);
+          buffer[offset++] = number / 1073741824 & 63;
+          buffer[offset++] = number >>> 24 & 63;
+          buffer[offset++] = number >>> 18 & 63;
+          buffer[offset++] = number >>> 12 & 63;
+          buffer[offset++] = number >>> 6 & 63;
+          buffer[offset++] = (number & 63) + 64;
+        } else if (number < 70368744177664) {
+          buffer[offset++] = (type << 4) + (number / 4398046511104 >>> 0);
+          buffer[offset++] = number / 68719476736 & 63;
+          buffer[offset++] = number / 1073741824 & 63;
+          buffer[offset++] = number >>> 24 & 63;
+          buffer[offset++] = number >>> 18 & 63;
+          buffer[offset++] = number >>> 12 & 63;
+          buffer[offset++] = number >>> 6 & 63;
+          buffer[offset++] = (number & 63) + 64;
+        } else {
+          throw new Error("Invalid number " + number);
+        }
+        if (offset > bufferSize - 10) {
+          makeRoom(0);
+        }
+      }
+      function writeBuffer(source) {
+        var sourceLength = source.length;
+        if (sourceLength + offset + 10 > bufferSize) {
+          makeRoom(sourceLength + 10);
+        }
+        source.copy(buffer, offset);
+        offset += sourceLength;
+      }
+      function writeString(string) {
+        var length = string.length;
+        var maxStringLength = length * 3 + 10;
+        if (offset + maxStringLength > bufferSize) {
+          makeRoom(maxStringLength + 10);
+        }
+        var bytesWritten = encoding ? buffer.write(string, offset, buffer.length, encoding) : buffer.utf8Write(string, offset, buffer.length);
+        offset += bytesWritten;
+      }
+      function getSerialized() {
+        return buffer.slice(0, offset);
+      }
+      function insertBuffer(headerBuffer, position) {
+        var headerLength = headerBuffer.length;
+        if (offset + headerLength + 10 > bufferSize) {
+          makeRoom(headerLength + 10);
+        }
+        buffer.copy(buffer, headerLength + position, position, offset);
+        headerBuffer.copy(buffer, position);
+        offset += headerLength;
+      }
+      var encoder = {
+        writeToken,
+        writeString,
+        writeBuffer,
+        getSerialized,
+        insertBuffer,
+        flush,
+        startSequence() {
+          var currentOffset = offset;
+          buffer[offset++] = 60;
+          sequences.push(currentOffset);
+          if (offset > bufferSize - 10) {
+            makeRoom(0);
+          }
+        },
+        endSequence(length) {
+          var startOffset = sequences.pop();
+          if (length < 12 && startOffset > -1) {
+            buffer[startOffset] = 48 + length;
+            return;
+          }
+          buffer[offset++] = 62;
+        },
+        finish() {
+          if (buffer.length - offset > 144)
+            availableBuffers.push(buffer.slice(offset));
+        },
+        getOffset() {
+          return offset;
+        },
+        setOffset(newOffset) {
+          offset = newOffset;
+        }
+      };
+      if (false) {
+        global.typeCount = [];
+        encoder.writeToken = function(type, number) {
+          typeCount[type] = (typeCount[type] || 0) + 1;
+          writeToken(type, number);
+        };
+        global.stringCount = /* @__PURE__ */ new Map();
+        encoder.writeString = function(string) {
+          stringCount.set(string, (stringCount.get(string) || 0) + 1);
+          writeString(string);
+        };
+        setTimeout(function() {
+          var stringDuplicationCount = 0;
+          console.log("stringCount", Array.from(stringCount).filter(([string, count3]) => {
+            if (count3 > 1 & string.length > 3) {
+              stringDuplicationCount += (count3 - 1) * string.length;
+              return true;
+            }
+          }));
+          console.log("stringDuplicationCount", stringDuplicationCount);
+          console.log("typeCount", typeCount);
+        });
+      }
+      return encoder;
+    }
+    exports2.nodeCharEncoder = nodeCharEncoder;
+  }
+});
+
+// node_modules/dpack/lib/Options.js
+var require_Options = __commonJS({
+  "node_modules/dpack/lib/Options.js"(exports2) {
+    "use strict";
+    function Options() {
+      var classByName = this.classByName = /* @__PURE__ */ new Map();
+      this.converterByConstructor = /* @__PURE__ */ new Map();
+    }
+    Options.prototype.addExtension = function(Class, name, options2) {
+      if (name && Class.name !== name) {
+        Class.name = name;
+      }
+      this.classByName.set(Class.name, options2 && options2.fromArray ? options2 : Class);
+      this.converterByConstructor.set(Class, options2 && options2.toArray ? options2 : Class);
+    };
+    exports2.Options = Options;
+  }
+});
+
+// node_modules/dpack/lib/shared.js
+var require_shared = __commonJS({
+  "node_modules/dpack/lib/shared.js"(exports2) {
+    var createSerializer = require_serialize().createSerializer;
+    var serialize2 = require_serialize().serialize;
+    var createParser = require_parse().createParser;
+    var Options = require_Options().Options;
+    var PROPERTY_CODE = 0;
+    var TYPE_CODE = 3;
+    var SEQUENCE_CODE = 7;
+    var DEFAULT_TYPE = 6;
+    var ARRAY_TYPE = 7;
+    var REFERENCING_TYPE = 8;
+    var NUMBER_TYPE = 9;
+    var TYPE_DEFINITION = 14;
+    var UNSTRUCTURED_MARKER = 11;
+    var OPEN_SEQUENCE = 12;
+    var END_SEQUENCE = 14;
+    exports2.createSharedStructure = createSharedStructure;
+    exports2.readSharedStructure = readSharedStructure;
+    function readSharedStructure(from) {
+      var parser = createParser();
+      var sharedProperty = [];
+      sharedProperty.code = 6;
+      sharedProperty.key = null;
+      parser.setSource(from + "p").read([sharedProperty]);
+      setupShared(sharedProperty);
+      sharedProperty.serialized = from;
+      return sharedProperty;
+    }
+    function setupShared(property) {
+      property.resetTo = property.length;
+      property.upgrade = upgrade;
+      property.type = types[property.code];
+      property.isFrozen = true;
+      Object.defineProperty(property, "serialized", {
+        get() {
+          return this._serialized || (this._serialized = serializeSharedStructure(this));
+        }
+      });
+      if (typeof property.values === "object" && property.values) {
+        property.values.resetTo = property.values.length;
+        property.lastIndex = property.values.length;
+      }
+      for (var i = 0, l = property.length; i < l; i++) {
+        property[i].index = i;
+        property[i].resumeIndex = i;
+        setupShared(property[i]);
+      }
+    }
+    function upgrade(property) {
+      if (!property) {
+        return 1;
+      }
+      var compatibility;
+      if (property) {
+        if (property.insertedFrom === this && property.insertedVersion === this.version && (property.recordUpdate || property.isFrozen || property.length == 0 && property.code == this.code && property.values == null)) {
+          return 0;
+        }
+        var changedCode;
+        if (this.code !== property.code)
+          changedCode = true;
+        if (property.upgrade) {
+          var compatibility = copyProperty(this, property);
+          if (changedCode)
+            compatibility = 2;
+          if (property.isFrozen && compatibility > 0) {
+            return 2;
+          }
+          property.insertedFrom = this;
+          property.insertedVersion = this.version;
+          if (compatibility === 2) {
+            debugger;
+            console.error("Inserting incompatible block into property");
+            return 2;
+          } else
+            return 0;
+        } else {
+          property.insertedFrom = this;
+          property.insertedVersion = this.version;
+          property.length = 0;
+          property.values = null;
+          if (property.fromValue)
+            property.fromValue = null;
+          return 1;
+        }
+      } else {
+        if (this.length > 0) {
+          blockBuffer = Buffer.concat([this.serialized, blockBuffer]);
+        }
+      }
+      return 1;
+    }
+    var typeToCode = {
+      string: REFERENCING_TYPE,
+      number: NUMBER_TYPE,
+      object: DEFAULT_TYPE,
+      boolean: DEFAULT_TYPE,
+      undefined: DEFAULT_TYPE,
+      array: ARRAY_TYPE
+    };
+    var lastPropertyOnObject = /* @__PURE__ */ new WeakMap();
+    function createSharedStructure(from, options2) {
+      var instanceProperty = [];
+      instanceProperty.key = null;
+      instanceProperty.code = 6;
+      instanceProperty.type = "object";
+      let activeList = [];
+      let needsCleanup = [];
+      activeList.iteration = 0;
+      var previousAvoidShareUpdate;
+      class Shared extends Array {
+        constructor(instanceProperty2) {
+          super();
+          let hasUpdates;
+          this.key = typeof instanceProperty2.key == "string" ? isolateString(instanceProperty2.key) : instanceProperty2.key;
+          this.type = instanceProperty2.type;
+          this.code = instanceProperty2.code;
+          this.count = 0;
+          this.comesAfter = [];
+          if (this.code == REFERENCING_TYPE) {
+            this.values = [];
+            this.values.resetTo = 512;
+            this.values.nextPosition = 512;
+            this.previousValues = /* @__PURE__ */ new Map();
+            this.lastIndex = 0;
+            this.repetitions = 0;
+          }
+        }
+        newProperty(instance) {
+          return new Shared(instance);
+        }
+        getProperty(value, key, type, extendedType, writeProperty, writeToken, lastPropertyIndex) {
+          let property;
+          if (this.insertedFrom) {
+            propertySearch(this.insertedFrom);
+            if (property) {
+              if (lastPropertyIndex !== property.index) {
+                writeToken(PROPERTY_CODE, propertyIndex);
+              }
+              return property;
+            }
+            if (this.insertedFrom.getProperty) {
+              return this.insertedFrom.getProperty(value, key, type, extendedType, writeProperty, writeToken, lastPropertyIndex);
+            } else {
+              debugger;
+            }
+          }
+          this.recordUpdate();
+          let propertyIndex = this.length;
+          if (lastPropertyIndex !== propertyIndex) {
+            writeToken(PROPERTY_CODE, propertyIndex);
+          }
+          if (type === "boolean" || type === "undefined") {
+            type = "object";
+          }
+          property = this[propertyIndex] = new Shared({
+            key,
+            type,
+            code: typeToCode[type]
+          });
+          property.parent = this;
+          property.index = propertyIndex;
+          return property;
+          function propertySearch(parentProperty) {
+            let propertyIndex2 = -1;
+            do {
+              property = parentProperty[++propertyIndex2];
+            } while (property && (property.key !== key || property.type !== type && type !== "boolean" && type !== "undefined" || extendedType && property.extendedType !== constructor));
+          }
+        }
+        writeSharedValue(value, writeToken, serializerId) {
+          let valueEntry = this.previousValues.get(value);
+          if (valueEntry) {
+            if (valueEntry.serializer == serializerId) {
+              this.repetitions++;
+            } else {
+              valueEntry.serializations++;
+              valueEntry.serializer = serializerId;
+            }
+          } else {
+            this.previousValues.set(value, valueEntry = {
+              serializations: 1,
+              serializer: serializerId
+            });
+          }
+          if (!this.active) {
+            this.active = 2;
+            activeList.push(this);
+          }
+          return false;
+        }
+        propertyUsed(property, object, serializerId, i) {
+          if (property.lastSerializer !== serializerId) {
+            property.lastSerializer = serializerId;
+            property.count++;
+          }
+          if (i !== 0) {
+            let lastProperty = lastPropertyOnObject.get(object);
+            if (lastProperty && property.comesAfter.indexOf(lastProperty) === -1)
+              property.comesAfter.push(lastProperty);
+          }
+          lastPropertyOnObject.set(object, property);
+        }
+        recordUpdate() {
+          var property = this;
+          do {
+            property.version = (property.version || 0) + 1;
+            if (property.insertedFrom) {
+              property.insertedFrom = null;
+            }
+            if (property._serialized)
+              property._serialized = null;
+          } while (property = property.parent);
+        }
+        readingBlock(parse3) {
+          try {
+            return parse3();
+          } finally {
+            this.readReset();
+            if (this.length > 500) {
+              debugger;
+            }
+          }
+        }
+        //active:
+        // 0 - not-actively being monitored
+        // 1 - being monitored, but an iteration hasn't started for this
+        // 2 - being monitored, and an iteration has started
+        startWrite(avoidShareUpdate, value) {
+          activeList.iteration++;
+          if (value && value.constructor === Array) {
+            if (this.code !== ARRAY_TYPE && this.version > 0) {
+              throw new Error("Can not change the root type of a shared object to an array");
+            }
+            if (this.code != ARRAY_TYPE)
+              this.recordUpdate();
+            this.code = ARRAY_TYPE;
+            this.type = "array";
+          }
+          if (this.writing)
+            return;
+          else
+            this.writing = true;
+          return;
+          previousAvoidShareUpdate = currentAvoidShareUpdate;
+          if (avoidShareUpdate)
+            currentAvoidShareUpdate = true;
+        }
+        endWrite() {
+          if (this.writing)
+            this.writing = false;
+          else
+            return;
+          let iterations = this.iterations = (this.iterations || 0) + 1;
+          for (let i = 0; i < activeList.length; i++) {
+            let activeSharedProperty = activeList[i];
+            let previousValues = activeSharedProperty.previousValues;
+            if (previousValues && previousValues.size && !activeSharedProperty.isFrozen) {
+              if (!currentAvoidShareUpdate) {
+                if (activeSharedProperty.values.length == 0 && iterations > ((activeSharedProperty.repetitions || 0) + 10) * 5) {
+                  console.log("changing referenceable to default", activeSharedProperty.key);
+                  activeSharedProperty.previousValues = null;
+                  activeSharedProperty.code = DEFAULT_TYPE;
+                  activeSharedProperty.type = "object";
+                  activeSharedProperty.recordUpdate();
+                  activeList.splice(i--, 1);
+                  previousValues = [];
+                }
+                for (let [value, entry] of previousValues) {
+                  let values = activeSharedProperty.values;
+                  if ((entry.serializations + 3) * 8 < iterations - (entry.startingIteration || (entry.startingIteration = iterations)) || values.length > 500) {
+                    previousValues.delete(value);
+                  }
+                  if (entry.serializations > 50 && entry.serializations * 3 > iterations) {
+                    values[activeSharedProperty.lastIndex++] = value;
+                    activeSharedProperty.recordUpdate();
+                    console.log("adding value", value, "to", activeSharedProperty.key);
+                    previousValues.delete(value);
+                  }
+                }
+              }
+            } else {
+              activeSharedProperty.active = 0;
+              activeList.splice(i--, 1);
+            }
+          }
+          if (activeList.hasUpdates) {
+            activeList.hasUpdates = false;
+            this.version++;
+            if (!this._serialized)
+              this._serialized = null;
+            if (options2 && options2.onUpdate)
+              options2.onUpdate();
+          }
+          currentAvoidShareUpdate = previousAvoidShareUpdate;
+        }
+        upgrade(property) {
+          return upgrade.call(this, property);
+        }
+        get serialized() {
+          return this._serialized || (this._serialized = serializeSharedStructure(this));
+        }
+        serializeCommonStructure(embedded) {
+          var usageThreshold = Math.sqrt(activeList.iteration);
+          return serializeSharedStructure(this, (childProperty) => childProperty.count >= usageThreshold, embedded);
+        }
+      }
+      var sharedStructure = new Shared(instanceProperty);
+      sharedStructure.version = 0;
+      sharedStructure.freeze = function() {
+        this.isFrozen = true;
+        this.reset();
+      };
+      if (from) {
+        var parser = createParser({
+          forDeferred(block, property) {
+            property.isBlock = true;
+            return block;
+          },
+          parseDeferreds: true
+        });
+        var readProperty = [];
+        readProperty.code = 6;
+        readProperty.key = null;
+        parser.setSource(from + "p").read([readProperty]);
+        copyProperty(readProperty, sharedStructure);
+        activeList.hasUpdates = false;
+        sharedStructure.version = 1;
+      }
+      sharedStructure.key = null;
+      return sharedStructure;
+    }
+    var types = {
+      6: "object",
+      7: "array",
+      8: "string",
+      9: "number"
+    };
+    var currentAvoidShareUpdate;
+    function serializeSharedStructure(property, condition, embedded) {
+      var serializer = createSerializer();
+      var writers = serializer.getWriters();
+      serializeSharedProperty(property, !embedded, !embedded);
+      function serializeSharedProperty(property2, expectsObjectWithNullKey, isRoot) {
+        if (property2.insertedFrom && property2.insertedFrom.serializeCommonStructure) {
+          property2 = property2.insertedFrom;
+          return writers.writeBuffer(property2.serializeCommonStructure(!isRoot));
+        }
+        var isArray = property2.code === ARRAY_TYPE;
+        var commonProperties = condition ? orderProperties(property2.filter(condition)) : property2;
+        var length = commonProperties.length;
+        if (!(expectsObjectWithNullKey && property2.code === DEFAULT_TYPE)) {
+          let key = isRoot ? null : property2.key;
+          writers.writeProperty(key, types[property2.code]);
+          if (length === 0 && key === null && (property2.code === DEFAULT_TYPE || property2.code === ARRAY_TYPE)) {
+            writers.writeToken(SEQUENCE_CODE, 0);
+          }
+        }
+        if (isRoot && length > 0) {
+          writers.writeToken(TYPE_CODE, TYPE_DEFINITION);
+        }
+        if (length > 0) {
+          writers.writeToken(SEQUENCE_CODE, OPEN_SEQUENCE);
+          for (var i = 0; i < length; i++) {
+            var childProperty = commonProperties[i];
+            childProperty.index = i;
+            if (isArray && i > 0) {
+              writers.writeToken(PROPERTY_CODE, i);
+            }
+            serializeSharedProperty(childProperty, commonProperties.code === ARRAY_TYPE && i === 0, false, condition);
+          }
+          writers.writeToken(SEQUENCE_CODE, END_SEQUENCE);
+        }
+        var first = true;
+        if (property2.lastIndex > 0) {
+          for (var i = 0, l = property2.lastIndex; i < l; i++) {
+            var value = property2.values[i];
+            if (first)
+              first = false;
+            else
+              writers.writeToken(PROPERTY_CODE, property2.index);
+            writers.writeAsDefault(value);
+          }
+        }
+      }
+      let serialized = serializer.getSerialized();
+      return serialized;
+    }
+    function copyProperty(source, target, freezeTarget, startingIndex) {
+      var compatibility = 0;
+      target.code = source.code;
+      target.type = source.type || types[source.code];
+      if (freezeTarget) {
+        target.isFrozen = true;
+        if (target.previousValues)
+          target.previousValues = null;
+      }
+      let sourceLength = source.resetTo > -1 ? source.resetTo : source.length;
+      if (target.resetTo > -1 && target.resetTo < target.length)
+        target.length = target.resetTo;
+      for (var i = startingIndex || 0; i < sourceLength; i++) {
+        var targetChild = target[i];
+        var childProperty = source[i];
+        if (targetChild && (targetChild.key != childProperty.key || targetChild.extendedType != childProperty.extendedType || targetChild.code != childProperty.code && !(targetChild.code == 8 && childProperty.code === 6 && (!targetChild.values || !targetChild.values.length)))) {
+          if (target.isFrozen)
+            return 2;
+          compatibility = 2;
+        }
+        if (!targetChild) {
+          if (target.isFrozen)
+            return 2;
+          var targetChild = [];
+          targetChild.code = childProperty.code;
+          if (target.newProperty) {
+            targetChild = target.newProperty(targetChild);
+          }
+          target[i] = targetChild;
+          if (childProperty.metadata)
+            targetChild.metadata = childProperty.metadata;
+          if (childProperty.insertedFrom) {
+            targetChild.insertedFrom = childProperty.insertedFrom;
+            targetChild.insertedVersion = childProperty.insertedVersion;
+          }
+          targetChild.parent = target;
+        }
+        targetChild.key = childProperty.key;
+        if (childProperty.values && childProperty.values.length > 0) {
+          if (childProperty.values.resetTo > -1) {
+            childProperty.values.length = childProperty.values.resetTo;
+          }
+          if (!targetChild.values || childProperty.values.length > (targetChild.values.resetTo > -1 ? targetChild.values.resetTo : targetChild.values.length)) {
+            targetChild.values = childProperty.values.slice(0);
+            targetChild.values.nextPosition = childProperty.values.length;
+            if (targetChild.values.length >= 12) {
+              targetChild.previousValues = null;
+            }
+            if (compatibility == 0) {
+              compatibility = 1;
+            }
+          }
+        }
+        var childCompatibility = copyProperty(childProperty, targetChild, freezeTarget);
+        if (childCompatibility > compatibility)
+          compatibility = childCompatibility;
+      }
+      let targetLength = target.resetTo > -1 ? target.resetTo : target.length;
+      if (targetLength > sourceLength) {
+        if (target.recordUpdate) {
+          source.metadata = UNSTRUCTURED_MARKER;
+          source.recordUpdate();
+        } else if (target.isFrozen) {
+          return 2;
+        }
+      }
+      return compatibility;
+    }
+    function isolateString(string) {
+      return string.slice(0, 1) + string.slice(1);
+    }
+    function orderProperties(properties) {
+      var ordered = [];
+      var traversed = /* @__PURE__ */ new Set();
+      function addProperty(property) {
+        if (traversed.has(property))
+          return;
+        traversed.add(property);
+        for (var propertyBefore of property.comesAfter) {
+          addProperty(propertyBefore);
+        }
+        ordered.push(property);
+      }
+      for (let property of properties) {
+        addProperty(property);
+      }
+      return ordered;
+    }
+  }
+});
+
+// node_modules/dpack/lib/Block.js
+var require_Block = __commonJS({
+  "node_modules/dpack/lib/Block.js"(exports2) {
+    "use strict";
+    var makeSymbol = typeof Symbol !== "undefined" ? Symbol : function(name) {
+      return "symbol-" + name;
+    };
+    var nextVersion = 1;
+    var bufferSymbol = makeSymbol("buffer");
+    var sizeTableSymbol = makeSymbol("sizeTable");
+    var headerSymbol = makeSymbol("header");
+    var parsedSymbol = makeSymbol("parsed");
+    var sharedSymbol = makeSymbol("shared");
+    var targetSymbol = makeSymbol("target");
+    var freezeObjects = process.env.NODE_ENV != "production";
+    var DEFAULT_TYPE = 6;
+    var ARRAY_TYPE = 7;
+    function Block() {
+    }
+    var serializeModule = require_serialize();
+    exports2.Block = Block;
+    exports2.bufferSymbol = serializeModule.bufferSymbol = bufferSymbol;
+    exports2.parsedSymbol = parsedSymbol;
+    exports2.sharedSymbol = sharedSymbol;
+    exports2.targetSymbol = serializeModule.targetSymbol = targetSymbol;
+    exports2.sizeTableSymbol = serializeModule.sizeTableSymbol = sizeTableSymbol;
+    var serialize2 = serializeModule.serialize;
+    var createSerializer = serializeModule.createSerializer;
+    exports2.asBlock = asBlock;
+    function asBlock(object, shared) {
+      if (object && object[targetSymbol]) {
+        return object;
+      }
+      if (Array.isArray(object)) {
+        let target = [];
+        target.parsed = object;
+        target.shared = shared;
+        return new Proxy(target, onDemandHandler);
+      }
+      return new Proxy({
+        parsed: object,
+        shared
+      }, onDemandHandler);
+    }
+    exports2.isBlock = isBlock;
+    function isBlock(object) {
+      return object && object[targetSymbol];
+    }
+    exports2.makeBlockFromBuffer = makeBlockFromBuffer;
+    function makeBlockFromBuffer(buffer, shared) {
+      var dpackBuffer, sizeTableBuffer;
+      if (buffer[0] < 128) {
+        dpackBuffer = buffer;
+      } else {
+        var type = buffer[0] >> 6;
+        var dpackOffset;
+        if (type === 2) {
+          dpackOffset = buffer.readUInt16BE(0) & 16383;
+        } else {
+          dpackOffset = buffer.readUInt32BE(0) & 1073741823;
+        }
+        dpackBuffer = buffer.slice(dpackOffset);
+        sizeTableBuffer = buffer.slice(0, dpackOffset);
+      }
+      var target = {
+        dpackBuffer,
+        sizeTableBuffer,
+        shared,
+        reassign: function(buffer2) {
+          this.buffer = buffer2;
+        }
+      };
+      buffer.owner = target;
+      return new Proxy(target, onDemandHandler);
+    }
+    exports2.getLazyHeader = function(block) {
+      return block[sizeTableSymbol];
+    };
+    var onDemandHandler = {
+      get: function(target, key) {
+        if (specialGetters.hasOwnProperty(key)) {
+          return specialGetters[key].call(target);
+        }
+        var parsed = target.parsed;
+        if (!parsed) {
+          parsed = getParsed(target);
+        }
+        return parsed[key];
+      },
+      set: function(target, key, value) {
+        if (typeof key === "symbol") {
+          target[key] = value;
+          makeSymbolGetter(key);
+          return true;
+        }
+        throw new Error("No changes are allowed on frozen parsed object, Use dpack copy() function to modify");
+      },
+      deleteProperty: function() {
+        throw new Error("No changes are allowed on frozen parsed object, Use dpack copy() function to modify");
+      },
+      getOwnPropertyDescriptor: function(target, key) {
+        var parsed = getParsed(target);
+        return Object.getOwnPropertyDescriptor(parsed, key);
+      },
+      has: function(target, key) {
+        var parsed = getParsed(target);
+        return key in parsed;
+      },
+      ownKeys: function(target) {
+        var parsed = getParsed(target);
+        var keys = Object.keys(parsed);
+        if (Array.isArray(parsed)) {
+          keys.push("length");
+        }
+        return keys;
+      },
+      getPrototypeOf: function(target) {
+        var parsed = getParsed(target);
+        return Object.getPrototypeOf(parsed);
+      }
+    };
+    exports2.reassignBuffers = reassignBuffers;
+    function reassignBuffers(block, newParentNodeBuffer, parentArrayBuffer) {
+      var target = block[targetSymbol];
+      var buffer = target.dpackBuffer;
+      if (!parentArrayBuffer)
+        parentArrayBuffer = buffer.buffer;
+      if (buffer && buffer.buffer === parentArrayBuffer) {
+        var byteOffset = buffer.byteOffset;
+        target.dpackBuffer = newParentNodeBuffer.slice(byteOffset, byteOffset + buffer.length);
+      }
+      var buffer = target.sizeTableBuffer;
+      if (buffer && buffer.buffer === parentArrayBuffer) {
+        var byteOffset = buffer.byteOffset;
+        target.sizeTableBuffer = newParentNodeBuffer.slice(byteOffset, byteOffset + buffer.length);
+      }
+      if (target.parsed) {
+        var parsed = target.parsed;
+        for (var key in parsed) {
+          var value = parsed[key];
+          if (isBlock(value)) {
+            reassignBuffers(value, newParentNodeBuffer, parentArrayBuffer);
+          }
+        }
+      }
+    }
+    var copyOnWriteHandler = {
+      get: function(target, key) {
+        if (specialGetters.hasOwnProperty(key)) {
+          return specialGetters[key].call(target);
+        }
+        var cachedParsed = target.cachedParsed;
+        if (cachedParsed && cachedParsed.hasOwnProperty(key) && !(key == "length" && Array.isArray(cachedParsed))) {
+          return cachedParsed[key];
+        }
+        var parsed = target.parsed;
+        if (!parsed) {
+          parsed = getParsed(target);
+        }
+        var value = parsed[key];
+        if (value && value[targetSymbol]) {
+          if (!cachedParsed) {
+            target.cachedParsed = cachedParsed = parsed instanceof Array ? [] : {};
+          }
+          cachedParsed[key] = value = copyWithParent(value, target);
+        }
+        return value;
+      },
+      changed: function(target) {
+        target.dpackBuffer = null;
+        target.sizeTableBuffer = null;
+        target.shared = null;
+        var parsed = target.parsed;
+        if (!parsed) {
+          parsed = getParsed(target);
+        }
+        if (!target.copied) {
+          var cachedParsed = target.cachedParsed;
+          var copied = target.parsed = target.cachedParsed = parsed instanceof Array ? [] : {};
+          for (var key in parsed) {
+            var value = cachedParsed && cachedParsed[key];
+            if (!value) {
+              value = parsed[key];
+              if (value && value[targetSymbol]) {
+                value = copyWithParent(value, target);
+              }
+            }
+            copied[key] = value;
+          }
+          parsed = copied;
+          target.copied = true;
+        }
+        target.version = nextVersion++;
+        return parsed;
+      },
+      checkVersion: function(target) {
+        var cachedParsed = target.cachedParsed;
+        let version = target.version || 0;
+        if (cachedParsed) {
+          for (let key in cachedParsed) {
+            var value = cachedParsed[key];
+            if (value && value[targetSymbol]) {
+              version = Math.max(version, this.checkVersion(value[targetSymbol]));
+            }
+          }
+        }
+        if (version != (target.version || 0)) {
+          this.changed(target);
+          target.version = version;
+        }
+        return version;
+      },
+      set: function(target, key, value, proxy) {
+        if (specialSetters.hasOwnProperty(key)) {
+          specialSetters[key].call(target, value);
+          return true;
+        }
+        var parsed = copyOnWriteHandler.changed(target);
+        parsed[key] = value;
+        return true;
+      },
+      deleteProperty: function(target, key) {
+        var parsed = copyOnWriteHandler.changed(target);
+        return delete parsed[key];
+      },
+      getOwnPropertyDescriptor: function(target, key) {
+        var parsed = getParsed(target);
+        return Object.getOwnPropertyDescriptor(parsed, key);
+      },
+      has: function(target, key) {
+        var parsed = getParsed(target);
+        return key in parsed;
+      },
+      ownKeys: function(target) {
+        var parsed = getParsed(target);
+        var keys = Object.keys(parsed);
+        if (Array.isArray(parsed)) {
+          keys.push("length");
+        }
+        if (target.copied) {
+          for (var key in target.copied) {
+            if (keys.indexOf(key) === -1) {
+              keys.push(key);
+            }
+          }
+        }
+        return keys;
+      },
+      getPrototypeOf: function(target) {
+        var parsed = getParsed(target);
+        return Object.getPrototypeOf(parsed);
+      }
+    };
+    var specialGetters = {};
+    specialGetters[bufferSymbol] = function() {
+      return function(property, randomAccess) {
+        var propertyIsShared = property && property.upgrade;
+        var buffer;
+        if (this.cachedParsed && this.dpackBuffer) {
+          copyOnWriteHandler.checkVersion(this);
+        }
+        if (!(this.shared && this.shared.upgrade) && propertyIsShared) {
+          if (this.dpackBuffer) {
+            this.sizeTableBuffer = null;
+            return inSeparateProperty(this.dpackBuffer, true);
+          } else {
+            return getSerialized(this, this.shared = property);
+          }
+        }
+        if (!this.dpackBuffer) {
+          getSerialized(this, this.shared);
+        }
+        if (this.shared && this.shared.upgrade && this.shared !== property) {
+          var compatibility = this.shared.upgrade(property, randomAccess);
+          if (compatibility > 0) {
+            this.sizeTableBuffer = null;
+            var sharedBuffer = this.shared.serialized;
+            if (sharedBuffer.length > 0) {
+              if (compatibility == 2 && !(property.isFrozen && property.resetTo === 0))
+                sharedBuffer = inSeparateProperty(sharedBuffer);
+              buffer = Buffer.concat([sharedBuffer, this.dpackBuffer]);
+              buffer.mustSequence = true;
+              return buffer;
+            }
+          }
+        } else if (property) {
+          if (!propertyIsShared) {
+            property.length = 0;
+          }
+          if (property.insertedFrom)
+            property.insertedFrom = null;
+        }
+        return this.dpackBuffer;
+        function inSeparateProperty(dpackBuffer) {
+          var serializer = createSerializer();
+          var isArray = dpackBuffer[0] === 119;
+          var writeToken = serializer.getWriters().writeToken;
+          if (isArray) {
+            dpackBuffer = dpackBuffer.slice(1);
+          }
+          writeToken(0, 1e3);
+          writeToken(3, isArray ? ARRAY_TYPE : DEFAULT_TYPE);
+          if (property && property.key !== null)
+            serializer.serialize(property.key);
+          dpackBuffer = Buffer.concat([serializer.getSerialized(), dpackBuffer]);
+          dpackBuffer.mustSequence = true;
+          return dpackBuffer;
+        }
+      }.bind(this);
+    };
+    specialGetters[targetSymbol] = function() {
+      return this;
+    };
+    specialGetters[sharedSymbol] = function() {
+      return this.shared;
+    };
+    specialGetters[parsedSymbol] = function() {
+      return this.parsed || getParsed(this);
+    };
+    specialGetters[sizeTableSymbol] = function() {
+      if (!this.dpackBuffer) {
+        getSerialized(this);
+      }
+      return this.sizeTableBuffer;
+    };
+    specialGetters.then = function() {
+    };
+    specialGetters.toJSON = function() {
+      return valueOf;
+    };
+    specialGetters.valueOf = function() {
+      return valueOf;
+    };
+    specialGetters.entries = function() {
+      return entries;
+    };
+    function entries() {
+      return this[parsedSymbol].entries();
+    }
+    specialGetters[Symbol.iterator] = function() {
+      var parsed = this.parsed || getParsed(this);
+      return parsed && parsed[Symbol.iterator] && iterator;
+    };
+    function iterator() {
+      var parsed = this[parsedSymbol];
+      return parsed && parsed[Symbol.iterator] ? parsed[Symbol.iterator]() : [][Symbol.iterator]();
+    }
+    specialGetters.constructor = function() {
+      if (this.parsed) {
+        return this.parsed.constructor;
+      }
+      if (this.dpackBuffer) {
+        let firstByte = this.dpackBuffer[0];
+        if (firstByte >= 48 && firstByte <= 60) {
+          if (this.shared) {
+            if (this.shared.code == DEFAULT_TYPE) {
+              return Object;
+            } else if (this.shared.code == ARRAY_TYPE) {
+              return Array;
+            }
+          } else {
+            return Object;
+          }
+        } else if (firstByte === 119) {
+          return Array;
+        }
+      }
+      return getParsed(this).constructor;
+    };
+    function makeSymbolGetter(symbol) {
+      if (!specialGetters[symbol])
+        specialGetters[symbol] = function() {
+          return this[symbol];
+        };
+    }
+    function valueOf() {
+      return this[parsedSymbol];
+    }
+    function copy(source) {
+      return copyWithParent(source);
+    }
+    function copyWithParent(source, parent) {
+      if (!isBlock(source)) {
+        return source;
+      }
+      let isArray = Array.isArray(source);
+      let target = isArray ? [] : {};
+      Object.defineProperties(target, {
+        parsed: {
+          get() {
+            return source[parsedSymbol];
+          },
+          set(value) {
+            Object.defineProperty(this, "parsed", {
+              value,
+              writable: true,
+              enumerable: true
+            });
+          },
+          configurable: true
+        },
+        shared: {
+          get() {
+            return source[sharedSymbol];
+          },
+          set(value) {
+            Object.defineProperty(this, "shared", {
+              value,
+              writable: true,
+              enumerable: true
+            });
+            this.dpackBuffer = null;
+            this.sizeTableBuffer = null;
+          },
+          configurable: true
+        },
+        dpackBuffer: {
+          get() {
+            return source[targetSymbol].dpackBuffer;
+          },
+          set(value) {
+            Object.defineProperty(this, "dpackBuffer", {
+              value,
+              writable: true,
+              enumerable: true
+            });
+          },
+          configurable: true
+        },
+        sizeTableBuffer: {
+          get() {
+            return source[sizeTableSymbol];
+          },
+          set(value) {
+            Object.defineProperty(this, "sizeTableBuffer", {
+              value,
+              writable: true,
+              enumerable: true
+            });
+          },
+          configurable: true
+        }
+      });
+      if (isArray) {
+        Object.define;
+      }
+      return new Proxy(target, copyOnWriteHandler);
+    }
+    exports2.copy = copy;
+    var specialSetters = {};
+    function getParsed(target) {
+      var parsed = target.parsed;
+      if (parsed)
+        return parsed;
+      var sizeTableBuffer = target.sizeTableBuffer;
+      var dpackBuffer = target.dpackBuffer;
+      if (!sizeTableBuffer) {
+        return target.parsed = parse3(dpackBuffer, {
+          freezeObjects,
+          shared: target.shared
+        });
+      }
+      var totalSizeTableLength = sizeTableBuffer.length;
+      var totalDPackLength;
+      var rootBlockLength;
+      var type = sizeTableBuffer[0] >> 6;
+      var offset;
+      if (type === 2) {
+        rootBlockLength = sizeTableBuffer.readUInt16BE(4);
+        offset = 6;
+      } else {
+        rootBlockLength = sizeTableBuffer.readUIntBE(10, 6);
+        offset = 16;
+      }
+      var childSizeTables = [];
+      var childDpackBlocks = [];
+      var dpackChildOffset = rootBlockLength;
+      while (offset < totalSizeTableLength) {
+        var type = sizeTableBuffer[offset] >> 6;
+        var sizeTableLength;
+        var dpackLength;
+        if (type < 2) {
+          if (type == 0) {
+            sizeTableLength = 1;
+            dpackLength = sizeTableBuffer[offset];
+          } else {
+            sizeTableLength = 2;
+            dpackLength = sizeTableBuffer.readUInt16BE(offset) & 16383;
+          }
+        } else if (type === 2) {
+          sizeTableLength = sizeTableBuffer.readUInt16BE(offset) & 16383;
+          dpackLength = sizeTableBuffer.readUInt16BE(offset + 2);
+        } else {
+          sizeTableLength = sizeTableBuffer.readUInt32BE(offset) & 1073741823;
+          dpackLength = sizeTableBuffer.readUIntBE(offset + 4, 6);
+        }
+        childSizeTables.push(type < 2 || type == 3 && sizeTableLength == 16 ? (
+          // type 3 with a length of 16 is a long leaf node
+          void 0
+        ) : sizeTableBuffer.slice(offset, offset + sizeTableLength));
+        offset += sizeTableLength;
+        childDpackBlocks.push(dpackBuffer.slice(dpackChildOffset, dpackChildOffset += dpackLength));
+      }
+      var blockIndex = 0;
+      var rootBlock = target.dpackBuffer.slice(0, rootBlockLength);
+      return target.parsed = parse3(rootBlock, childDpackBlocks.length > 0 ? {
+        // if no child blocks, use normal deferred parsing
+        shared: target.shared,
+        forDeferred: function(value, property) {
+          let target2 = new value.constructor();
+          target2.dpackBuffer = childDpackBlocks[blockIndex];
+          target2.sizeTableBuffer = childSizeTables[blockIndex++];
+          target2.shared = property ? property.upgrade ? property : { code: property.code, key: null, type: property.type } : null;
+          return new Proxy(target2, onDemandHandler);
+        },
+        freezeObjects
+      } : {
+        shared: target.shared
+      });
+    }
+    function getSerialized(target, shareProperty) {
+      var childBlocks = [];
+      var childSizeTables = [];
+      var childDpackSizes = 0;
+      var mustSequence;
+      var serializerOptions = {
+        forBlock: function(block, property) {
+          var dpackBuffer2 = block[bufferSymbol](property, true);
+          if (dpackBuffer2.mustSequence) {
+            mustSequence = true;
+            childBlocks.push(dpackBuffer2);
+            return dpackBuffer2;
+          }
+          var sizeTableBuffer = block[sizeTableSymbol];
+          if (!sizeTableBuffer) {
+            var bufferLength = dpackBuffer2.length;
+            if (bufferLength < 64) {
+              sizeTableBuffer = Buffer.from([bufferLength]);
+            } else if (bufferLength < 16384) {
+              sizeTableBuffer = Buffer.from([bufferLength >> 8 | 64, bufferLength & 255]);
+            } else {
+              sizeTableBuffer = Buffer.allocUnsafe(16);
+              sizeTableBuffer.writeUInt32BE(3221225488);
+              sizeTableBuffer.writeUIntBE(bufferLength, 4, 6);
+              sizeTableBuffer.writeUIntBE(bufferLength, 10, 6);
+            }
+          }
+          childSizeTables.push(sizeTableBuffer);
+          childDpackSizes += dpackBuffer2.length;
+          childBlocks.push(dpackBuffer2);
+          return dpackBuffer2;
+        },
+        shared: shareProperty,
+        freezeObjects
+      };
+      var rootBlock = serialize2(target.parsed, serializerOptions);
+      if (childBlocks.length == 0) {
+        return target.dpackBuffer = rootBlock;
+      }
+      childBlocks.unshift(rootBlock);
+      var dpackBuffer = target.dpackBuffer = Buffer.concat(childBlocks);
+      if (mustSequence) {
+        return dpackBuffer;
+      }
+      var ourSizeBlock = Buffer.allocUnsafe(dpackBuffer.length >= 65536 ? 16 : 6);
+      childSizeTables.unshift(ourSizeBlock);
+      ourSizeBlock = target.sizeTableBuffer = Buffer.concat(childSizeTables);
+      if (dpackBuffer.length >= 65536) {
+        ourSizeBlock.writeUInt32BE(ourSizeBlock.length + 3221225472, 0);
+        ourSizeBlock.writeUIntBE(dpackBuffer.length, 4, 6);
+        ourSizeBlock.writeUIntBE(rootBlock.length, 10, 6);
+      } else {
+        ourSizeBlock.writeUInt16BE(ourSizeBlock.length | 32768, 0);
+        ourSizeBlock.writeUInt16BE(dpackBuffer.length, 2);
+        ourSizeBlock.writeUInt16BE(rootBlock.length, 4);
+      }
+      return dpackBuffer;
+    }
+    var parse3 = require_parse().parse;
+    var serializeSharedBlock = require_shared().serializeSharedBlock;
+    exports2.parseLazy = function(buffer, options2) {
+      if (buffer[0] & 128 || // starts with size table
+      buffer[0] >> 4 === 3 || // sequence (object)
+      buffer[0] === 119) {
+        return makeBlockFromBuffer(buffer, options2 && options2.shared);
+      } else {
+        return parse3(buffer, options2);
+      }
+    };
+  }
+});
+
+// node_modules/dpack/index.js
+var require_dpack = __commonJS({
+  "node_modules/dpack/index.js"(exports2) {
+    exports2.createSerializeStream = require_serialize_stream().createSerializeStream;
+    exports2.createParseStream = require_parse_stream().createParseStream;
+    var serialize2 = require_serialize();
+    serialize2.nodeCharEncoder = require_node_encoder().nodeCharEncoder;
+    var parse3 = require_parse();
+    var Options = require_Options().Options;
+    exports2.serialize = serialize2.serialize;
+    exports2.parse = parse3.parse;
+    exports2.createSerializer = serialize2.createSerializer;
+    exports2.createParser = parse3.createParser;
+    var Block = require_Block();
+    exports2.parseLazy = Block.parseLazy;
+    exports2.asBlock = Block.asBlock;
+    exports2.isBlock = Block.isBlock;
+    exports2.copy = Block.copy;
+    exports2.reassignBuffers = Block.reassignBuffers;
+    exports2.Options = Options;
+    exports2.createSharedStructure = require_shared().createSharedStructure;
+    exports2.readSharedStructure = require_shared().readSharedStructure;
+  }
+});
+
 // node_modules/kind-of/index.js
 var require_kind_of = __commonJS({
   "node_modules/kind-of/index.js"(exports2, module2) {
@@ -720,7 +5126,7 @@ var require_bool = __commonJS({
 });
 
 // node_modules/gray-matter/node_modules/js-yaml/lib/js-yaml/type/int.js
-var require_int = __commonJS({
+var require_int2 = __commonJS({
   "node_modules/gray-matter/node_modules/js-yaml/lib/js-yaml/type/int.js"(exports2, module2) {
     "use strict";
     var common = require_common();
@@ -959,7 +5365,7 @@ var require_json = __commonJS({
       implicit: [
         require_null(),
         require_bool(),
-        require_int(),
+        require_int2(),
         require_float()
       ]
     });
@@ -980,7 +5386,7 @@ var require_core = __commonJS({
 });
 
 // node_modules/gray-matter/node_modules/js-yaml/lib/js-yaml/type/timestamp.js
-var require_timestamp = __commonJS({
+var require_timestamp2 = __commonJS({
   "node_modules/gray-matter/node_modules/js-yaml/lib/js-yaml/type/timestamp.js"(exports2, module2) {
     "use strict";
     var Type = require_type();
@@ -1260,7 +5666,7 @@ var require_default_safe = __commonJS({
         require_core()
       ],
       implicit: [
-        require_timestamp(),
+        require_timestamp2(),
         require_merge()
       ],
       explicit: [
@@ -3387,7 +7793,7 @@ var require_to_file = __commonJS({
 });
 
 // node_modules/gray-matter/lib/parse.js
-var require_parse = __commonJS({
+var require_parse2 = __commonJS({
   "node_modules/gray-matter/lib/parse.js"(exports2, module2) {
     "use strict";
     var getEngine = require_engine();
@@ -3414,7 +7820,7 @@ var require_gray_matter = __commonJS({
     var excerpt = require_excerpt();
     var engines2 = require_engines();
     var toFile = require_to_file();
-    var parse3 = require_parse();
+    var parse3 = require_parse2();
     var utils = require_utils();
     function matter2(input, options2) {
       if (input === "") {
@@ -3516,4412 +7922,6 @@ var require_gray_matter = __commonJS({
       matter2.cache = {};
     };
     module2.exports = matter2;
-  }
-});
-
-// node_modules/@msgpack/msgpack/dist.cjs/utils/utf8.cjs
-var require_utf8 = __commonJS({
-  "node_modules/@msgpack/msgpack/dist.cjs/utils/utf8.cjs"(exports2) {
-    "use strict";
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.utf8Count = utf8Count;
-    exports2.utf8EncodeJs = utf8EncodeJs;
-    exports2.utf8EncodeTE = utf8EncodeTE;
-    exports2.utf8Encode = utf8Encode;
-    exports2.utf8DecodeJs = utf8DecodeJs;
-    exports2.utf8DecodeTD = utf8DecodeTD;
-    exports2.utf8Decode = utf8Decode;
-    function utf8Count(str2) {
-      const strLength = str2.length;
-      let byteLength = 0;
-      let pos = 0;
-      while (pos < strLength) {
-        let value = str2.charCodeAt(pos++);
-        if ((value & 4294967168) === 0) {
-          byteLength++;
-          continue;
-        } else if ((value & 4294965248) === 0) {
-          byteLength += 2;
-        } else {
-          if (value >= 55296 && value <= 56319) {
-            if (pos < strLength) {
-              const extra = str2.charCodeAt(pos);
-              if ((extra & 64512) === 56320) {
-                ++pos;
-                value = ((value & 1023) << 10) + (extra & 1023) + 65536;
-              }
-            }
-          }
-          if ((value & 4294901760) === 0) {
-            byteLength += 3;
-          } else {
-            byteLength += 4;
-          }
-        }
-      }
-      return byteLength;
-    }
-    function utf8EncodeJs(str2, output, outputOffset) {
-      const strLength = str2.length;
-      let offset = outputOffset;
-      let pos = 0;
-      while (pos < strLength) {
-        let value = str2.charCodeAt(pos++);
-        if ((value & 4294967168) === 0) {
-          output[offset++] = value;
-          continue;
-        } else if ((value & 4294965248) === 0) {
-          output[offset++] = value >> 6 & 31 | 192;
-        } else {
-          if (value >= 55296 && value <= 56319) {
-            if (pos < strLength) {
-              const extra = str2.charCodeAt(pos);
-              if ((extra & 64512) === 56320) {
-                ++pos;
-                value = ((value & 1023) << 10) + (extra & 1023) + 65536;
-              }
-            }
-          }
-          if ((value & 4294901760) === 0) {
-            output[offset++] = value >> 12 & 15 | 224;
-            output[offset++] = value >> 6 & 63 | 128;
-          } else {
-            output[offset++] = value >> 18 & 7 | 240;
-            output[offset++] = value >> 12 & 63 | 128;
-            output[offset++] = value >> 6 & 63 | 128;
-          }
-        }
-        output[offset++] = value & 63 | 128;
-      }
-    }
-    var sharedTextEncoder = new TextEncoder();
-    var TEXT_ENCODER_THRESHOLD = 50;
-    function utf8EncodeTE(str2, output, outputOffset) {
-      sharedTextEncoder.encodeInto(str2, output.subarray(outputOffset));
-    }
-    function utf8Encode(str2, output, outputOffset) {
-      if (str2.length > TEXT_ENCODER_THRESHOLD) {
-        utf8EncodeTE(str2, output, outputOffset);
-      } else {
-        utf8EncodeJs(str2, output, outputOffset);
-      }
-    }
-    var CHUNK_SIZE = 4096;
-    function utf8DecodeJs(bytes, inputOffset, byteLength) {
-      let offset = inputOffset;
-      const end = offset + byteLength;
-      const units = [];
-      let result = "";
-      while (offset < end) {
-        const byte1 = bytes[offset++];
-        if ((byte1 & 128) === 0) {
-          units.push(byte1);
-        } else if ((byte1 & 224) === 192) {
-          const byte2 = bytes[offset++] & 63;
-          units.push((byte1 & 31) << 6 | byte2);
-        } else if ((byte1 & 240) === 224) {
-          const byte2 = bytes[offset++] & 63;
-          const byte3 = bytes[offset++] & 63;
-          units.push((byte1 & 31) << 12 | byte2 << 6 | byte3);
-        } else if ((byte1 & 248) === 240) {
-          const byte2 = bytes[offset++] & 63;
-          const byte3 = bytes[offset++] & 63;
-          const byte4 = bytes[offset++] & 63;
-          let unit = (byte1 & 7) << 18 | byte2 << 12 | byte3 << 6 | byte4;
-          if (unit > 65535) {
-            unit -= 65536;
-            units.push(unit >>> 10 & 1023 | 55296);
-            unit = 56320 | unit & 1023;
-          }
-          units.push(unit);
-        } else {
-          units.push(byte1);
-        }
-        if (units.length >= CHUNK_SIZE) {
-          result += String.fromCharCode(...units);
-          units.length = 0;
-        }
-      }
-      if (units.length > 0) {
-        result += String.fromCharCode(...units);
-      }
-      return result;
-    }
-    var sharedTextDecoder = new TextDecoder();
-    var TEXT_DECODER_THRESHOLD = 200;
-    function utf8DecodeTD(bytes, inputOffset, byteLength) {
-      const stringBytes = bytes.subarray(inputOffset, inputOffset + byteLength);
-      return sharedTextDecoder.decode(stringBytes);
-    }
-    function utf8Decode(bytes, inputOffset, byteLength) {
-      if (byteLength > TEXT_DECODER_THRESHOLD) {
-        return utf8DecodeTD(bytes, inputOffset, byteLength);
-      } else {
-        return utf8DecodeJs(bytes, inputOffset, byteLength);
-      }
-    }
-  }
-});
-
-// node_modules/@msgpack/msgpack/dist.cjs/ExtData.cjs
-var require_ExtData = __commonJS({
-  "node_modules/@msgpack/msgpack/dist.cjs/ExtData.cjs"(exports2) {
-    "use strict";
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.ExtData = void 0;
-    var ExtData = class {
-      constructor(type, data) {
-        this.type = type;
-        this.data = data;
-      }
-    };
-    exports2.ExtData = ExtData;
-  }
-});
-
-// node_modules/@msgpack/msgpack/dist.cjs/DecodeError.cjs
-var require_DecodeError = __commonJS({
-  "node_modules/@msgpack/msgpack/dist.cjs/DecodeError.cjs"(exports2) {
-    "use strict";
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.DecodeError = void 0;
-    var DecodeError = class _DecodeError extends Error {
-      constructor(message) {
-        super(message);
-        const proto = Object.create(_DecodeError.prototype);
-        Object.setPrototypeOf(this, proto);
-        Object.defineProperty(this, "name", {
-          configurable: true,
-          enumerable: false,
-          value: _DecodeError.name
-        });
-      }
-    };
-    exports2.DecodeError = DecodeError;
-  }
-});
-
-// node_modules/@msgpack/msgpack/dist.cjs/utils/int.cjs
-var require_int2 = __commonJS({
-  "node_modules/@msgpack/msgpack/dist.cjs/utils/int.cjs"(exports2) {
-    "use strict";
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.UINT32_MAX = void 0;
-    exports2.setUint64 = setUint64;
-    exports2.setInt64 = setInt64;
-    exports2.getInt64 = getInt64;
-    exports2.getUint64 = getUint64;
-    exports2.UINT32_MAX = 4294967295;
-    function setUint64(view, offset, value) {
-      const high = value / 4294967296;
-      const low = value;
-      view.setUint32(offset, high);
-      view.setUint32(offset + 4, low);
-    }
-    function setInt64(view, offset, value) {
-      const high = Math.floor(value / 4294967296);
-      const low = value;
-      view.setUint32(offset, high);
-      view.setUint32(offset + 4, low);
-    }
-    function getInt64(view, offset) {
-      const high = view.getInt32(offset);
-      const low = view.getUint32(offset + 4);
-      return high * 4294967296 + low;
-    }
-    function getUint64(view, offset) {
-      const high = view.getUint32(offset);
-      const low = view.getUint32(offset + 4);
-      return high * 4294967296 + low;
-    }
-  }
-});
-
-// node_modules/@msgpack/msgpack/dist.cjs/timestamp.cjs
-var require_timestamp2 = __commonJS({
-  "node_modules/@msgpack/msgpack/dist.cjs/timestamp.cjs"(exports2) {
-    "use strict";
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.timestampExtension = exports2.EXT_TIMESTAMP = void 0;
-    exports2.encodeTimeSpecToTimestamp = encodeTimeSpecToTimestamp;
-    exports2.encodeDateToTimeSpec = encodeDateToTimeSpec;
-    exports2.encodeTimestampExtension = encodeTimestampExtension;
-    exports2.decodeTimestampToTimeSpec = decodeTimestampToTimeSpec;
-    exports2.decodeTimestampExtension = decodeTimestampExtension;
-    var DecodeError_ts_1 = require_DecodeError();
-    var int_ts_1 = require_int2();
-    exports2.EXT_TIMESTAMP = -1;
-    var TIMESTAMP32_MAX_SEC = 4294967296 - 1;
-    var TIMESTAMP64_MAX_SEC = 17179869184 - 1;
-    function encodeTimeSpecToTimestamp({ sec, nsec }) {
-      if (sec >= 0 && nsec >= 0 && sec <= TIMESTAMP64_MAX_SEC) {
-        if (nsec === 0 && sec <= TIMESTAMP32_MAX_SEC) {
-          const rv = new Uint8Array(4);
-          const view = new DataView(rv.buffer);
-          view.setUint32(0, sec);
-          return rv;
-        } else {
-          const secHigh = sec / 4294967296;
-          const secLow = sec & 4294967295;
-          const rv = new Uint8Array(8);
-          const view = new DataView(rv.buffer);
-          view.setUint32(0, nsec << 2 | secHigh & 3);
-          view.setUint32(4, secLow);
-          return rv;
-        }
-      } else {
-        const rv = new Uint8Array(12);
-        const view = new DataView(rv.buffer);
-        view.setUint32(0, nsec);
-        (0, int_ts_1.setInt64)(view, 4, sec);
-        return rv;
-      }
-    }
-    function encodeDateToTimeSpec(date) {
-      const msec = date.getTime();
-      const sec = Math.floor(msec / 1e3);
-      const nsec = (msec - sec * 1e3) * 1e6;
-      const nsecInSec = Math.floor(nsec / 1e9);
-      return {
-        sec: sec + nsecInSec,
-        nsec: nsec - nsecInSec * 1e9
-      };
-    }
-    function encodeTimestampExtension(object) {
-      if (object instanceof Date) {
-        const timeSpec = encodeDateToTimeSpec(object);
-        return encodeTimeSpecToTimestamp(timeSpec);
-      } else {
-        return null;
-      }
-    }
-    function decodeTimestampToTimeSpec(data) {
-      const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
-      switch (data.byteLength) {
-        case 4: {
-          const sec = view.getUint32(0);
-          const nsec = 0;
-          return { sec, nsec };
-        }
-        case 8: {
-          const nsec30AndSecHigh2 = view.getUint32(0);
-          const secLow32 = view.getUint32(4);
-          const sec = (nsec30AndSecHigh2 & 3) * 4294967296 + secLow32;
-          const nsec = nsec30AndSecHigh2 >>> 2;
-          return { sec, nsec };
-        }
-        case 12: {
-          const sec = (0, int_ts_1.getInt64)(view, 4);
-          const nsec = view.getUint32(0);
-          return { sec, nsec };
-        }
-        default:
-          throw new DecodeError_ts_1.DecodeError(`Unrecognized data size for timestamp (expected 4, 8, or 12): ${data.length}`);
-      }
-    }
-    function decodeTimestampExtension(data) {
-      const timeSpec = decodeTimestampToTimeSpec(data);
-      return new Date(timeSpec.sec * 1e3 + timeSpec.nsec / 1e6);
-    }
-    exports2.timestampExtension = {
-      type: exports2.EXT_TIMESTAMP,
-      encode: encodeTimestampExtension,
-      decode: decodeTimestampExtension
-    };
-  }
-});
-
-// node_modules/@msgpack/msgpack/dist.cjs/ExtensionCodec.cjs
-var require_ExtensionCodec = __commonJS({
-  "node_modules/@msgpack/msgpack/dist.cjs/ExtensionCodec.cjs"(exports2) {
-    "use strict";
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.ExtensionCodec = void 0;
-    var ExtData_ts_1 = require_ExtData();
-    var timestamp_ts_1 = require_timestamp2();
-    var ExtensionCodec = class {
-      constructor() {
-        this.builtInEncoders = [];
-        this.builtInDecoders = [];
-        this.encoders = [];
-        this.decoders = [];
-        this.register(timestamp_ts_1.timestampExtension);
-      }
-      register({ type, encode: encode2, decode: decode2 }) {
-        if (type >= 0) {
-          this.encoders[type] = encode2;
-          this.decoders[type] = decode2;
-        } else {
-          const index = -1 - type;
-          this.builtInEncoders[index] = encode2;
-          this.builtInDecoders[index] = decode2;
-        }
-      }
-      tryToEncode(object, context) {
-        for (let i = 0; i < this.builtInEncoders.length; i++) {
-          const encodeExt = this.builtInEncoders[i];
-          if (encodeExt != null) {
-            const data = encodeExt(object, context);
-            if (data != null) {
-              const type = -1 - i;
-              return new ExtData_ts_1.ExtData(type, data);
-            }
-          }
-        }
-        for (let i = 0; i < this.encoders.length; i++) {
-          const encodeExt = this.encoders[i];
-          if (encodeExt != null) {
-            const data = encodeExt(object, context);
-            if (data != null) {
-              const type = i;
-              return new ExtData_ts_1.ExtData(type, data);
-            }
-          }
-        }
-        if (object instanceof ExtData_ts_1.ExtData) {
-          return object;
-        }
-        return null;
-      }
-      decode(data, type, context) {
-        const decodeExt = type < 0 ? this.builtInDecoders[-1 - type] : this.decoders[type];
-        if (decodeExt) {
-          return decodeExt(data, type, context);
-        } else {
-          return new ExtData_ts_1.ExtData(type, data);
-        }
-      }
-    };
-    exports2.ExtensionCodec = ExtensionCodec;
-    ExtensionCodec.defaultCodec = new ExtensionCodec();
-  }
-});
-
-// node_modules/@msgpack/msgpack/dist.cjs/utils/typedArrays.cjs
-var require_typedArrays = __commonJS({
-  "node_modules/@msgpack/msgpack/dist.cjs/utils/typedArrays.cjs"(exports2) {
-    "use strict";
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.ensureUint8Array = ensureUint8Array;
-    function isArrayBufferLike(buffer) {
-      return buffer instanceof ArrayBuffer || typeof SharedArrayBuffer !== "undefined" && buffer instanceof SharedArrayBuffer;
-    }
-    function ensureUint8Array(buffer) {
-      if (buffer instanceof Uint8Array) {
-        return buffer;
-      } else if (ArrayBuffer.isView(buffer)) {
-        return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
-      } else if (isArrayBufferLike(buffer)) {
-        return new Uint8Array(buffer);
-      } else {
-        return Uint8Array.from(buffer);
-      }
-    }
-  }
-});
-
-// node_modules/@msgpack/msgpack/dist.cjs/Encoder.cjs
-var require_Encoder = __commonJS({
-  "node_modules/@msgpack/msgpack/dist.cjs/Encoder.cjs"(exports2) {
-    "use strict";
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.Encoder = exports2.DEFAULT_INITIAL_BUFFER_SIZE = exports2.DEFAULT_MAX_DEPTH = void 0;
-    var utf8_ts_1 = require_utf8();
-    var ExtensionCodec_ts_1 = require_ExtensionCodec();
-    var int_ts_1 = require_int2();
-    var typedArrays_ts_1 = require_typedArrays();
-    exports2.DEFAULT_MAX_DEPTH = 100;
-    exports2.DEFAULT_INITIAL_BUFFER_SIZE = 2048;
-    var Encoder = class _Encoder {
-      constructor(options2) {
-        this.entered = false;
-        this.extensionCodec = options2?.extensionCodec ?? ExtensionCodec_ts_1.ExtensionCodec.defaultCodec;
-        this.context = options2?.context;
-        this.useBigInt64 = options2?.useBigInt64 ?? false;
-        this.maxDepth = options2?.maxDepth ?? exports2.DEFAULT_MAX_DEPTH;
-        this.initialBufferSize = options2?.initialBufferSize ?? exports2.DEFAULT_INITIAL_BUFFER_SIZE;
-        this.sortKeys = options2?.sortKeys ?? false;
-        this.forceFloat32 = options2?.forceFloat32 ?? false;
-        this.ignoreUndefined = options2?.ignoreUndefined ?? false;
-        this.forceIntegerToFloat = options2?.forceIntegerToFloat ?? false;
-        this.pos = 0;
-        this.view = new DataView(new ArrayBuffer(this.initialBufferSize));
-        this.bytes = new Uint8Array(this.view.buffer);
-      }
-      clone() {
-        return new _Encoder({
-          extensionCodec: this.extensionCodec,
-          context: this.context,
-          useBigInt64: this.useBigInt64,
-          maxDepth: this.maxDepth,
-          initialBufferSize: this.initialBufferSize,
-          sortKeys: this.sortKeys,
-          forceFloat32: this.forceFloat32,
-          ignoreUndefined: this.ignoreUndefined,
-          forceIntegerToFloat: this.forceIntegerToFloat
-        });
-      }
-      reinitializeState() {
-        this.pos = 0;
-      }
-      /**
-       * This is almost equivalent to {@link Encoder#encode}, but it returns an reference of the encoder's internal buffer and thus much faster than {@link Encoder#encode}.
-       *
-       * @returns Encodes the object and returns a shared reference the encoder's internal buffer.
-       */
-      encodeSharedRef(object) {
-        if (this.entered) {
-          const instance = this.clone();
-          return instance.encodeSharedRef(object);
-        }
-        try {
-          this.entered = true;
-          this.reinitializeState();
-          this.doEncode(object, 1);
-          return this.bytes.subarray(0, this.pos);
-        } finally {
-          this.entered = false;
-        }
-      }
-      /**
-       * @returns Encodes the object and returns a copy of the encoder's internal buffer.
-       */
-      encode(object) {
-        if (this.entered) {
-          const instance = this.clone();
-          return instance.encode(object);
-        }
-        try {
-          this.entered = true;
-          this.reinitializeState();
-          this.doEncode(object, 1);
-          return this.bytes.slice(0, this.pos);
-        } finally {
-          this.entered = false;
-        }
-      }
-      doEncode(object, depth) {
-        if (depth > this.maxDepth) {
-          throw new Error(`Too deep objects in depth ${depth}`);
-        }
-        if (object == null) {
-          this.encodeNil();
-        } else if (typeof object === "boolean") {
-          this.encodeBoolean(object);
-        } else if (typeof object === "number") {
-          if (!this.forceIntegerToFloat) {
-            this.encodeNumber(object);
-          } else {
-            this.encodeNumberAsFloat(object);
-          }
-        } else if (typeof object === "string") {
-          this.encodeString(object);
-        } else if (this.useBigInt64 && typeof object === "bigint") {
-          this.encodeBigInt64(object);
-        } else {
-          this.encodeObject(object, depth);
-        }
-      }
-      ensureBufferSizeToWrite(sizeToWrite) {
-        const requiredSize = this.pos + sizeToWrite;
-        if (this.view.byteLength < requiredSize) {
-          this.resizeBuffer(requiredSize * 2);
-        }
-      }
-      resizeBuffer(newSize) {
-        const newBuffer = new ArrayBuffer(newSize);
-        const newBytes = new Uint8Array(newBuffer);
-        const newView = new DataView(newBuffer);
-        newBytes.set(this.bytes);
-        this.view = newView;
-        this.bytes = newBytes;
-      }
-      encodeNil() {
-        this.writeU8(192);
-      }
-      encodeBoolean(object) {
-        if (object === false) {
-          this.writeU8(194);
-        } else {
-          this.writeU8(195);
-        }
-      }
-      encodeNumber(object) {
-        if (!this.forceIntegerToFloat && Number.isSafeInteger(object)) {
-          if (object >= 0) {
-            if (object < 128) {
-              this.writeU8(object);
-            } else if (object < 256) {
-              this.writeU8(204);
-              this.writeU8(object);
-            } else if (object < 65536) {
-              this.writeU8(205);
-              this.writeU16(object);
-            } else if (object < 4294967296) {
-              this.writeU8(206);
-              this.writeU32(object);
-            } else if (!this.useBigInt64) {
-              this.writeU8(207);
-              this.writeU64(object);
-            } else {
-              this.encodeNumberAsFloat(object);
-            }
-          } else {
-            if (object >= -32) {
-              this.writeU8(224 | object + 32);
-            } else if (object >= -128) {
-              this.writeU8(208);
-              this.writeI8(object);
-            } else if (object >= -32768) {
-              this.writeU8(209);
-              this.writeI16(object);
-            } else if (object >= -2147483648) {
-              this.writeU8(210);
-              this.writeI32(object);
-            } else if (!this.useBigInt64) {
-              this.writeU8(211);
-              this.writeI64(object);
-            } else {
-              this.encodeNumberAsFloat(object);
-            }
-          }
-        } else {
-          this.encodeNumberAsFloat(object);
-        }
-      }
-      encodeNumberAsFloat(object) {
-        if (this.forceFloat32) {
-          this.writeU8(202);
-          this.writeF32(object);
-        } else {
-          this.writeU8(203);
-          this.writeF64(object);
-        }
-      }
-      encodeBigInt64(object) {
-        if (object >= BigInt(0)) {
-          this.writeU8(207);
-          this.writeBigUint64(object);
-        } else {
-          this.writeU8(211);
-          this.writeBigInt64(object);
-        }
-      }
-      writeStringHeader(byteLength) {
-        if (byteLength < 32) {
-          this.writeU8(160 + byteLength);
-        } else if (byteLength < 256) {
-          this.writeU8(217);
-          this.writeU8(byteLength);
-        } else if (byteLength < 65536) {
-          this.writeU8(218);
-          this.writeU16(byteLength);
-        } else if (byteLength < 4294967296) {
-          this.writeU8(219);
-          this.writeU32(byteLength);
-        } else {
-          throw new Error(`Too long string: ${byteLength} bytes in UTF-8`);
-        }
-      }
-      encodeString(object) {
-        const maxHeaderSize = 1 + 4;
-        const byteLength = (0, utf8_ts_1.utf8Count)(object);
-        this.ensureBufferSizeToWrite(maxHeaderSize + byteLength);
-        this.writeStringHeader(byteLength);
-        (0, utf8_ts_1.utf8Encode)(object, this.bytes, this.pos);
-        this.pos += byteLength;
-      }
-      encodeObject(object, depth) {
-        const ext = this.extensionCodec.tryToEncode(object, this.context);
-        if (ext != null) {
-          this.encodeExtension(ext);
-        } else if (Array.isArray(object)) {
-          this.encodeArray(object, depth);
-        } else if (ArrayBuffer.isView(object)) {
-          this.encodeBinary(object);
-        } else if (typeof object === "object") {
-          this.encodeMap(object, depth);
-        } else {
-          throw new Error(`Unrecognized object: ${Object.prototype.toString.apply(object)}`);
-        }
-      }
-      encodeBinary(object) {
-        const size = object.byteLength;
-        if (size < 256) {
-          this.writeU8(196);
-          this.writeU8(size);
-        } else if (size < 65536) {
-          this.writeU8(197);
-          this.writeU16(size);
-        } else if (size < 4294967296) {
-          this.writeU8(198);
-          this.writeU32(size);
-        } else {
-          throw new Error(`Too large binary: ${size}`);
-        }
-        const bytes = (0, typedArrays_ts_1.ensureUint8Array)(object);
-        this.writeU8a(bytes);
-      }
-      encodeArray(object, depth) {
-        const size = object.length;
-        if (size < 16) {
-          this.writeU8(144 + size);
-        } else if (size < 65536) {
-          this.writeU8(220);
-          this.writeU16(size);
-        } else if (size < 4294967296) {
-          this.writeU8(221);
-          this.writeU32(size);
-        } else {
-          throw new Error(`Too large array: ${size}`);
-        }
-        for (const item of object) {
-          this.doEncode(item, depth + 1);
-        }
-      }
-      countWithoutUndefined(object, keys) {
-        let count3 = 0;
-        for (const key of keys) {
-          if (object[key] !== void 0) {
-            count3++;
-          }
-        }
-        return count3;
-      }
-      encodeMap(object, depth) {
-        const keys = Object.keys(object);
-        if (this.sortKeys) {
-          keys.sort();
-        }
-        const size = this.ignoreUndefined ? this.countWithoutUndefined(object, keys) : keys.length;
-        if (size < 16) {
-          this.writeU8(128 + size);
-        } else if (size < 65536) {
-          this.writeU8(222);
-          this.writeU16(size);
-        } else if (size < 4294967296) {
-          this.writeU8(223);
-          this.writeU32(size);
-        } else {
-          throw new Error(`Too large map object: ${size}`);
-        }
-        for (const key of keys) {
-          const value = object[key];
-          if (!(this.ignoreUndefined && value === void 0)) {
-            this.encodeString(key);
-            this.doEncode(value, depth + 1);
-          }
-        }
-      }
-      encodeExtension(ext) {
-        if (typeof ext.data === "function") {
-          const data = ext.data(this.pos + 6);
-          const size2 = data.length;
-          if (size2 >= 4294967296) {
-            throw new Error(`Too large extension object: ${size2}`);
-          }
-          this.writeU8(201);
-          this.writeU32(size2);
-          this.writeI8(ext.type);
-          this.writeU8a(data);
-          return;
-        }
-        const size = ext.data.length;
-        if (size === 1) {
-          this.writeU8(212);
-        } else if (size === 2) {
-          this.writeU8(213);
-        } else if (size === 4) {
-          this.writeU8(214);
-        } else if (size === 8) {
-          this.writeU8(215);
-        } else if (size === 16) {
-          this.writeU8(216);
-        } else if (size < 256) {
-          this.writeU8(199);
-          this.writeU8(size);
-        } else if (size < 65536) {
-          this.writeU8(200);
-          this.writeU16(size);
-        } else if (size < 4294967296) {
-          this.writeU8(201);
-          this.writeU32(size);
-        } else {
-          throw new Error(`Too large extension object: ${size}`);
-        }
-        this.writeI8(ext.type);
-        this.writeU8a(ext.data);
-      }
-      writeU8(value) {
-        this.ensureBufferSizeToWrite(1);
-        this.view.setUint8(this.pos, value);
-        this.pos++;
-      }
-      writeU8a(values) {
-        const size = values.length;
-        this.ensureBufferSizeToWrite(size);
-        this.bytes.set(values, this.pos);
-        this.pos += size;
-      }
-      writeI8(value) {
-        this.ensureBufferSizeToWrite(1);
-        this.view.setInt8(this.pos, value);
-        this.pos++;
-      }
-      writeU16(value) {
-        this.ensureBufferSizeToWrite(2);
-        this.view.setUint16(this.pos, value);
-        this.pos += 2;
-      }
-      writeI16(value) {
-        this.ensureBufferSizeToWrite(2);
-        this.view.setInt16(this.pos, value);
-        this.pos += 2;
-      }
-      writeU32(value) {
-        this.ensureBufferSizeToWrite(4);
-        this.view.setUint32(this.pos, value);
-        this.pos += 4;
-      }
-      writeI32(value) {
-        this.ensureBufferSizeToWrite(4);
-        this.view.setInt32(this.pos, value);
-        this.pos += 4;
-      }
-      writeF32(value) {
-        this.ensureBufferSizeToWrite(4);
-        this.view.setFloat32(this.pos, value);
-        this.pos += 4;
-      }
-      writeF64(value) {
-        this.ensureBufferSizeToWrite(8);
-        this.view.setFloat64(this.pos, value);
-        this.pos += 8;
-      }
-      writeU64(value) {
-        this.ensureBufferSizeToWrite(8);
-        (0, int_ts_1.setUint64)(this.view, this.pos, value);
-        this.pos += 8;
-      }
-      writeI64(value) {
-        this.ensureBufferSizeToWrite(8);
-        (0, int_ts_1.setInt64)(this.view, this.pos, value);
-        this.pos += 8;
-      }
-      writeBigUint64(value) {
-        this.ensureBufferSizeToWrite(8);
-        this.view.setBigUint64(this.pos, value);
-        this.pos += 8;
-      }
-      writeBigInt64(value) {
-        this.ensureBufferSizeToWrite(8);
-        this.view.setBigInt64(this.pos, value);
-        this.pos += 8;
-      }
-    };
-    exports2.Encoder = Encoder;
-  }
-});
-
-// node_modules/@msgpack/msgpack/dist.cjs/encode.cjs
-var require_encode = __commonJS({
-  "node_modules/@msgpack/msgpack/dist.cjs/encode.cjs"(exports2) {
-    "use strict";
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.encode = encode2;
-    var Encoder_ts_1 = require_Encoder();
-    function encode2(value, options2) {
-      const encoder = new Encoder_ts_1.Encoder(options2);
-      return encoder.encodeSharedRef(value);
-    }
-  }
-});
-
-// node_modules/@msgpack/msgpack/dist.cjs/utils/prettyByte.cjs
-var require_prettyByte = __commonJS({
-  "node_modules/@msgpack/msgpack/dist.cjs/utils/prettyByte.cjs"(exports2) {
-    "use strict";
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.prettyByte = prettyByte;
-    function prettyByte(byte) {
-      return `${byte < 0 ? "-" : ""}0x${Math.abs(byte).toString(16).padStart(2, "0")}`;
-    }
-  }
-});
-
-// node_modules/@msgpack/msgpack/dist.cjs/CachedKeyDecoder.cjs
-var require_CachedKeyDecoder = __commonJS({
-  "node_modules/@msgpack/msgpack/dist.cjs/CachedKeyDecoder.cjs"(exports2) {
-    "use strict";
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.CachedKeyDecoder = void 0;
-    var utf8_ts_1 = require_utf8();
-    var DEFAULT_MAX_KEY_LENGTH = 16;
-    var DEFAULT_MAX_LENGTH_PER_KEY = 16;
-    var CachedKeyDecoder = class {
-      constructor(maxKeyLength = DEFAULT_MAX_KEY_LENGTH, maxLengthPerKey = DEFAULT_MAX_LENGTH_PER_KEY) {
-        this.hit = 0;
-        this.miss = 0;
-        this.maxKeyLength = maxKeyLength;
-        this.maxLengthPerKey = maxLengthPerKey;
-        this.caches = [];
-        for (let i = 0; i < this.maxKeyLength; i++) {
-          this.caches.push([]);
-        }
-      }
-      canBeCached(byteLength) {
-        return byteLength > 0 && byteLength <= this.maxKeyLength;
-      }
-      find(bytes, inputOffset, byteLength) {
-        const records = this.caches[byteLength - 1];
-        FIND_CHUNK: for (const record of records) {
-          const recordBytes = record.bytes;
-          for (let j = 0; j < byteLength; j++) {
-            if (recordBytes[j] !== bytes[inputOffset + j]) {
-              continue FIND_CHUNK;
-            }
-          }
-          return record.str;
-        }
-        return null;
-      }
-      store(bytes, value) {
-        const records = this.caches[bytes.length - 1];
-        const record = { bytes, str: value };
-        if (records.length >= this.maxLengthPerKey) {
-          records[Math.random() * records.length | 0] = record;
-        } else {
-          records.push(record);
-        }
-      }
-      decode(bytes, inputOffset, byteLength) {
-        const cachedValue = this.find(bytes, inputOffset, byteLength);
-        if (cachedValue != null) {
-          this.hit++;
-          return cachedValue;
-        }
-        this.miss++;
-        const str2 = (0, utf8_ts_1.utf8DecodeJs)(bytes, inputOffset, byteLength);
-        const slicedCopyOfBytes = Uint8Array.prototype.slice.call(bytes, inputOffset, inputOffset + byteLength);
-        this.store(slicedCopyOfBytes, str2);
-        return str2;
-      }
-    };
-    exports2.CachedKeyDecoder = CachedKeyDecoder;
-  }
-});
-
-// node_modules/@msgpack/msgpack/dist.cjs/Decoder.cjs
-var require_Decoder = __commonJS({
-  "node_modules/@msgpack/msgpack/dist.cjs/Decoder.cjs"(exports2) {
-    "use strict";
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.Decoder = void 0;
-    var prettyByte_ts_1 = require_prettyByte();
-    var ExtensionCodec_ts_1 = require_ExtensionCodec();
-    var int_ts_1 = require_int2();
-    var utf8_ts_1 = require_utf8();
-    var typedArrays_ts_1 = require_typedArrays();
-    var CachedKeyDecoder_ts_1 = require_CachedKeyDecoder();
-    var DecodeError_ts_1 = require_DecodeError();
-    var STATE_ARRAY = "array";
-    var STATE_MAP_KEY = "map_key";
-    var STATE_MAP_VALUE = "map_value";
-    var mapKeyConverter = (key) => {
-      if (typeof key === "string" || typeof key === "number") {
-        return key;
-      }
-      throw new DecodeError_ts_1.DecodeError("The type of key must be string or number but " + typeof key);
-    };
-    var StackPool = class {
-      constructor() {
-        this.stack = [];
-        this.stackHeadPosition = -1;
-      }
-      get length() {
-        return this.stackHeadPosition + 1;
-      }
-      top() {
-        return this.stack[this.stackHeadPosition];
-      }
-      pushArrayState(size) {
-        const state = this.getUninitializedStateFromPool();
-        state.type = STATE_ARRAY;
-        state.position = 0;
-        state.size = size;
-        state.array = new Array(size);
-      }
-      pushMapState(size) {
-        const state = this.getUninitializedStateFromPool();
-        state.type = STATE_MAP_KEY;
-        state.readCount = 0;
-        state.size = size;
-        state.map = {};
-      }
-      getUninitializedStateFromPool() {
-        this.stackHeadPosition++;
-        if (this.stackHeadPosition === this.stack.length) {
-          const partialState = {
-            type: void 0,
-            size: 0,
-            array: void 0,
-            position: 0,
-            readCount: 0,
-            map: void 0,
-            key: null
-          };
-          this.stack.push(partialState);
-        }
-        return this.stack[this.stackHeadPosition];
-      }
-      release(state) {
-        const topStackState = this.stack[this.stackHeadPosition];
-        if (topStackState !== state) {
-          throw new Error("Invalid stack state. Released state is not on top of the stack.");
-        }
-        if (state.type === STATE_ARRAY) {
-          const partialState = state;
-          partialState.size = 0;
-          partialState.array = void 0;
-          partialState.position = 0;
-          partialState.type = void 0;
-        }
-        if (state.type === STATE_MAP_KEY || state.type === STATE_MAP_VALUE) {
-          const partialState = state;
-          partialState.size = 0;
-          partialState.map = void 0;
-          partialState.readCount = 0;
-          partialState.type = void 0;
-        }
-        this.stackHeadPosition--;
-      }
-      reset() {
-        this.stack.length = 0;
-        this.stackHeadPosition = -1;
-      }
-    };
-    var HEAD_BYTE_REQUIRED = -1;
-    var EMPTY_VIEW = new DataView(new ArrayBuffer(0));
-    var EMPTY_BYTES = new Uint8Array(EMPTY_VIEW.buffer);
-    try {
-      EMPTY_VIEW.getInt8(0);
-    } catch (e) {
-      if (!(e instanceof RangeError)) {
-        throw new Error("This module is not supported in the current JavaScript engine because DataView does not throw RangeError on out-of-bounds access");
-      }
-    }
-    var MORE_DATA = new RangeError("Insufficient data");
-    var sharedCachedKeyDecoder = new CachedKeyDecoder_ts_1.CachedKeyDecoder();
-    var Decoder = class _Decoder {
-      constructor(options2) {
-        this.totalPos = 0;
-        this.pos = 0;
-        this.view = EMPTY_VIEW;
-        this.bytes = EMPTY_BYTES;
-        this.headByte = HEAD_BYTE_REQUIRED;
-        this.stack = new StackPool();
-        this.entered = false;
-        this.extensionCodec = options2?.extensionCodec ?? ExtensionCodec_ts_1.ExtensionCodec.defaultCodec;
-        this.context = options2?.context;
-        this.useBigInt64 = options2?.useBigInt64 ?? false;
-        this.rawStrings = options2?.rawStrings ?? false;
-        this.maxStrLength = options2?.maxStrLength ?? int_ts_1.UINT32_MAX;
-        this.maxBinLength = options2?.maxBinLength ?? int_ts_1.UINT32_MAX;
-        this.maxArrayLength = options2?.maxArrayLength ?? int_ts_1.UINT32_MAX;
-        this.maxMapLength = options2?.maxMapLength ?? int_ts_1.UINT32_MAX;
-        this.maxExtLength = options2?.maxExtLength ?? int_ts_1.UINT32_MAX;
-        this.keyDecoder = options2?.keyDecoder !== void 0 ? options2.keyDecoder : sharedCachedKeyDecoder;
-        this.mapKeyConverter = options2?.mapKeyConverter ?? mapKeyConverter;
-      }
-      clone() {
-        return new _Decoder({
-          extensionCodec: this.extensionCodec,
-          context: this.context,
-          useBigInt64: this.useBigInt64,
-          rawStrings: this.rawStrings,
-          maxStrLength: this.maxStrLength,
-          maxBinLength: this.maxBinLength,
-          maxArrayLength: this.maxArrayLength,
-          maxMapLength: this.maxMapLength,
-          maxExtLength: this.maxExtLength,
-          keyDecoder: this.keyDecoder
-        });
-      }
-      reinitializeState() {
-        this.totalPos = 0;
-        this.headByte = HEAD_BYTE_REQUIRED;
-        this.stack.reset();
-      }
-      setBuffer(buffer) {
-        const bytes = (0, typedArrays_ts_1.ensureUint8Array)(buffer);
-        this.bytes = bytes;
-        this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-        this.pos = 0;
-      }
-      appendBuffer(buffer) {
-        if (this.headByte === HEAD_BYTE_REQUIRED && !this.hasRemaining(1)) {
-          this.setBuffer(buffer);
-        } else {
-          const remainingData = this.bytes.subarray(this.pos);
-          const newData = (0, typedArrays_ts_1.ensureUint8Array)(buffer);
-          const newBuffer = new Uint8Array(remainingData.length + newData.length);
-          newBuffer.set(remainingData);
-          newBuffer.set(newData, remainingData.length);
-          this.setBuffer(newBuffer);
-        }
-      }
-      hasRemaining(size) {
-        return this.view.byteLength - this.pos >= size;
-      }
-      createExtraByteError(posToShow) {
-        const { view, pos } = this;
-        return new RangeError(`Extra ${view.byteLength - pos} of ${view.byteLength} byte(s) found at buffer[${posToShow}]`);
-      }
-      /**
-       * @throws {@link DecodeError}
-       * @throws {@link RangeError}
-       */
-      decode(buffer) {
-        if (this.entered) {
-          const instance = this.clone();
-          return instance.decode(buffer);
-        }
-        try {
-          this.entered = true;
-          this.reinitializeState();
-          this.setBuffer(buffer);
-          const object = this.doDecodeSync();
-          if (this.hasRemaining(1)) {
-            throw this.createExtraByteError(this.pos);
-          }
-          return object;
-        } finally {
-          this.entered = false;
-        }
-      }
-      *decodeMulti(buffer) {
-        if (this.entered) {
-          const instance = this.clone();
-          yield* instance.decodeMulti(buffer);
-          return;
-        }
-        try {
-          this.entered = true;
-          this.reinitializeState();
-          this.setBuffer(buffer);
-          while (this.hasRemaining(1)) {
-            yield this.doDecodeSync();
-          }
-        } finally {
-          this.entered = false;
-        }
-      }
-      async decodeAsync(stream) {
-        if (this.entered) {
-          const instance = this.clone();
-          return instance.decodeAsync(stream);
-        }
-        try {
-          this.entered = true;
-          let decoded = false;
-          let object;
-          for await (const buffer of stream) {
-            if (decoded) {
-              this.entered = false;
-              throw this.createExtraByteError(this.totalPos);
-            }
-            this.appendBuffer(buffer);
-            try {
-              object = this.doDecodeSync();
-              decoded = true;
-            } catch (e) {
-              if (!(e instanceof RangeError)) {
-                throw e;
-              }
-            }
-            this.totalPos += this.pos;
-          }
-          if (decoded) {
-            if (this.hasRemaining(1)) {
-              throw this.createExtraByteError(this.totalPos);
-            }
-            return object;
-          }
-          const { headByte, pos, totalPos } = this;
-          throw new RangeError(`Insufficient data in parsing ${(0, prettyByte_ts_1.prettyByte)(headByte)} at ${totalPos} (${pos} in the current buffer)`);
-        } finally {
-          this.entered = false;
-        }
-      }
-      decodeArrayStream(stream) {
-        return this.decodeMultiAsync(stream, true);
-      }
-      decodeStream(stream) {
-        return this.decodeMultiAsync(stream, false);
-      }
-      async *decodeMultiAsync(stream, isArray) {
-        if (this.entered) {
-          const instance = this.clone();
-          yield* instance.decodeMultiAsync(stream, isArray);
-          return;
-        }
-        try {
-          this.entered = true;
-          let isArrayHeaderRequired = isArray;
-          let arrayItemsLeft = -1;
-          for await (const buffer of stream) {
-            if (isArray && arrayItemsLeft === 0) {
-              throw this.createExtraByteError(this.totalPos);
-            }
-            this.appendBuffer(buffer);
-            if (isArrayHeaderRequired) {
-              arrayItemsLeft = this.readArraySize();
-              isArrayHeaderRequired = false;
-              this.complete();
-            }
-            try {
-              while (true) {
-                yield this.doDecodeSync();
-                if (--arrayItemsLeft === 0) {
-                  break;
-                }
-              }
-            } catch (e) {
-              if (!(e instanceof RangeError)) {
-                throw e;
-              }
-            }
-            this.totalPos += this.pos;
-          }
-        } finally {
-          this.entered = false;
-        }
-      }
-      doDecodeSync() {
-        DECODE: while (true) {
-          const headByte = this.readHeadByte();
-          let object;
-          if (headByte >= 224) {
-            object = headByte - 256;
-          } else if (headByte < 192) {
-            if (headByte < 128) {
-              object = headByte;
-            } else if (headByte < 144) {
-              const size = headByte - 128;
-              if (size !== 0) {
-                this.pushMapState(size);
-                this.complete();
-                continue DECODE;
-              } else {
-                object = {};
-              }
-            } else if (headByte < 160) {
-              const size = headByte - 144;
-              if (size !== 0) {
-                this.pushArrayState(size);
-                this.complete();
-                continue DECODE;
-              } else {
-                object = [];
-              }
-            } else {
-              const byteLength = headByte - 160;
-              object = this.decodeString(byteLength, 0);
-            }
-          } else if (headByte === 192) {
-            object = null;
-          } else if (headByte === 194) {
-            object = false;
-          } else if (headByte === 195) {
-            object = true;
-          } else if (headByte === 202) {
-            object = this.readF32();
-          } else if (headByte === 203) {
-            object = this.readF64();
-          } else if (headByte === 204) {
-            object = this.readU8();
-          } else if (headByte === 205) {
-            object = this.readU16();
-          } else if (headByte === 206) {
-            object = this.readU32();
-          } else if (headByte === 207) {
-            if (this.useBigInt64) {
-              object = this.readU64AsBigInt();
-            } else {
-              object = this.readU64();
-            }
-          } else if (headByte === 208) {
-            object = this.readI8();
-          } else if (headByte === 209) {
-            object = this.readI16();
-          } else if (headByte === 210) {
-            object = this.readI32();
-          } else if (headByte === 211) {
-            if (this.useBigInt64) {
-              object = this.readI64AsBigInt();
-            } else {
-              object = this.readI64();
-            }
-          } else if (headByte === 217) {
-            const byteLength = this.lookU8();
-            object = this.decodeString(byteLength, 1);
-          } else if (headByte === 218) {
-            const byteLength = this.lookU16();
-            object = this.decodeString(byteLength, 2);
-          } else if (headByte === 219) {
-            const byteLength = this.lookU32();
-            object = this.decodeString(byteLength, 4);
-          } else if (headByte === 220) {
-            const size = this.readU16();
-            if (size !== 0) {
-              this.pushArrayState(size);
-              this.complete();
-              continue DECODE;
-            } else {
-              object = [];
-            }
-          } else if (headByte === 221) {
-            const size = this.readU32();
-            if (size !== 0) {
-              this.pushArrayState(size);
-              this.complete();
-              continue DECODE;
-            } else {
-              object = [];
-            }
-          } else if (headByte === 222) {
-            const size = this.readU16();
-            if (size !== 0) {
-              this.pushMapState(size);
-              this.complete();
-              continue DECODE;
-            } else {
-              object = {};
-            }
-          } else if (headByte === 223) {
-            const size = this.readU32();
-            if (size !== 0) {
-              this.pushMapState(size);
-              this.complete();
-              continue DECODE;
-            } else {
-              object = {};
-            }
-          } else if (headByte === 196) {
-            const size = this.lookU8();
-            object = this.decodeBinary(size, 1);
-          } else if (headByte === 197) {
-            const size = this.lookU16();
-            object = this.decodeBinary(size, 2);
-          } else if (headByte === 198) {
-            const size = this.lookU32();
-            object = this.decodeBinary(size, 4);
-          } else if (headByte === 212) {
-            object = this.decodeExtension(1, 0);
-          } else if (headByte === 213) {
-            object = this.decodeExtension(2, 0);
-          } else if (headByte === 214) {
-            object = this.decodeExtension(4, 0);
-          } else if (headByte === 215) {
-            object = this.decodeExtension(8, 0);
-          } else if (headByte === 216) {
-            object = this.decodeExtension(16, 0);
-          } else if (headByte === 199) {
-            const size = this.lookU8();
-            object = this.decodeExtension(size, 1);
-          } else if (headByte === 200) {
-            const size = this.lookU16();
-            object = this.decodeExtension(size, 2);
-          } else if (headByte === 201) {
-            const size = this.lookU32();
-            object = this.decodeExtension(size, 4);
-          } else {
-            throw new DecodeError_ts_1.DecodeError(`Unrecognized type byte: ${(0, prettyByte_ts_1.prettyByte)(headByte)}`);
-          }
-          this.complete();
-          const stack = this.stack;
-          while (stack.length > 0) {
-            const state = stack.top();
-            if (state.type === STATE_ARRAY) {
-              state.array[state.position] = object;
-              state.position++;
-              if (state.position === state.size) {
-                object = state.array;
-                stack.release(state);
-              } else {
-                continue DECODE;
-              }
-            } else if (state.type === STATE_MAP_KEY) {
-              if (object === "__proto__") {
-                throw new DecodeError_ts_1.DecodeError("The key __proto__ is not allowed");
-              }
-              state.key = this.mapKeyConverter(object);
-              state.type = STATE_MAP_VALUE;
-              continue DECODE;
-            } else {
-              state.map[state.key] = object;
-              state.readCount++;
-              if (state.readCount === state.size) {
-                object = state.map;
-                stack.release(state);
-              } else {
-                state.key = null;
-                state.type = STATE_MAP_KEY;
-                continue DECODE;
-              }
-            }
-          }
-          return object;
-        }
-      }
-      readHeadByte() {
-        if (this.headByte === HEAD_BYTE_REQUIRED) {
-          this.headByte = this.readU8();
-        }
-        return this.headByte;
-      }
-      complete() {
-        this.headByte = HEAD_BYTE_REQUIRED;
-      }
-      readArraySize() {
-        const headByte = this.readHeadByte();
-        switch (headByte) {
-          case 220:
-            return this.readU16();
-          case 221:
-            return this.readU32();
-          default: {
-            if (headByte < 160) {
-              return headByte - 144;
-            } else {
-              throw new DecodeError_ts_1.DecodeError(`Unrecognized array type byte: ${(0, prettyByte_ts_1.prettyByte)(headByte)}`);
-            }
-          }
-        }
-      }
-      pushMapState(size) {
-        if (size > this.maxMapLength) {
-          throw new DecodeError_ts_1.DecodeError(`Max length exceeded: map length (${size}) > maxMapLengthLength (${this.maxMapLength})`);
-        }
-        this.stack.pushMapState(size);
-      }
-      pushArrayState(size) {
-        if (size > this.maxArrayLength) {
-          throw new DecodeError_ts_1.DecodeError(`Max length exceeded: array length (${size}) > maxArrayLength (${this.maxArrayLength})`);
-        }
-        this.stack.pushArrayState(size);
-      }
-      decodeString(byteLength, headerOffset) {
-        if (!this.rawStrings || this.stateIsMapKey()) {
-          return this.decodeUtf8String(byteLength, headerOffset);
-        }
-        return this.decodeBinary(byteLength, headerOffset);
-      }
-      /**
-       * @throws {@link RangeError}
-       */
-      decodeUtf8String(byteLength, headerOffset) {
-        if (byteLength > this.maxStrLength) {
-          throw new DecodeError_ts_1.DecodeError(`Max length exceeded: UTF-8 byte length (${byteLength}) > maxStrLength (${this.maxStrLength})`);
-        }
-        if (this.bytes.byteLength < this.pos + headerOffset + byteLength) {
-          throw MORE_DATA;
-        }
-        const offset = this.pos + headerOffset;
-        let object;
-        if (this.stateIsMapKey() && this.keyDecoder?.canBeCached(byteLength)) {
-          object = this.keyDecoder.decode(this.bytes, offset, byteLength);
-        } else {
-          object = (0, utf8_ts_1.utf8Decode)(this.bytes, offset, byteLength);
-        }
-        this.pos += headerOffset + byteLength;
-        return object;
-      }
-      stateIsMapKey() {
-        if (this.stack.length > 0) {
-          const state = this.stack.top();
-          return state.type === STATE_MAP_KEY;
-        }
-        return false;
-      }
-      /**
-       * @throws {@link RangeError}
-       */
-      decodeBinary(byteLength, headOffset) {
-        if (byteLength > this.maxBinLength) {
-          throw new DecodeError_ts_1.DecodeError(`Max length exceeded: bin length (${byteLength}) > maxBinLength (${this.maxBinLength})`);
-        }
-        if (!this.hasRemaining(byteLength + headOffset)) {
-          throw MORE_DATA;
-        }
-        const offset = this.pos + headOffset;
-        const object = this.bytes.subarray(offset, offset + byteLength);
-        this.pos += headOffset + byteLength;
-        return object;
-      }
-      decodeExtension(size, headOffset) {
-        if (size > this.maxExtLength) {
-          throw new DecodeError_ts_1.DecodeError(`Max length exceeded: ext length (${size}) > maxExtLength (${this.maxExtLength})`);
-        }
-        const extType = this.view.getInt8(this.pos + headOffset);
-        const data = this.decodeBinary(
-          size,
-          headOffset + 1
-          /* extType */
-        );
-        return this.extensionCodec.decode(data, extType, this.context);
-      }
-      lookU8() {
-        return this.view.getUint8(this.pos);
-      }
-      lookU16() {
-        return this.view.getUint16(this.pos);
-      }
-      lookU32() {
-        return this.view.getUint32(this.pos);
-      }
-      readU8() {
-        const value = this.view.getUint8(this.pos);
-        this.pos++;
-        return value;
-      }
-      readI8() {
-        const value = this.view.getInt8(this.pos);
-        this.pos++;
-        return value;
-      }
-      readU16() {
-        const value = this.view.getUint16(this.pos);
-        this.pos += 2;
-        return value;
-      }
-      readI16() {
-        const value = this.view.getInt16(this.pos);
-        this.pos += 2;
-        return value;
-      }
-      readU32() {
-        const value = this.view.getUint32(this.pos);
-        this.pos += 4;
-        return value;
-      }
-      readI32() {
-        const value = this.view.getInt32(this.pos);
-        this.pos += 4;
-        return value;
-      }
-      readU64() {
-        const value = (0, int_ts_1.getUint64)(this.view, this.pos);
-        this.pos += 8;
-        return value;
-      }
-      readI64() {
-        const value = (0, int_ts_1.getInt64)(this.view, this.pos);
-        this.pos += 8;
-        return value;
-      }
-      readU64AsBigInt() {
-        const value = this.view.getBigUint64(this.pos);
-        this.pos += 8;
-        return value;
-      }
-      readI64AsBigInt() {
-        const value = this.view.getBigInt64(this.pos);
-        this.pos += 8;
-        return value;
-      }
-      readF32() {
-        const value = this.view.getFloat32(this.pos);
-        this.pos += 4;
-        return value;
-      }
-      readF64() {
-        const value = this.view.getFloat64(this.pos);
-        this.pos += 8;
-        return value;
-      }
-    };
-    exports2.Decoder = Decoder;
-  }
-});
-
-// node_modules/@msgpack/msgpack/dist.cjs/decode.cjs
-var require_decode = __commonJS({
-  "node_modules/@msgpack/msgpack/dist.cjs/decode.cjs"(exports2) {
-    "use strict";
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.decode = decode2;
-    exports2.decodeMulti = decodeMulti;
-    var Decoder_ts_1 = require_Decoder();
-    function decode2(buffer, options2) {
-      const decoder = new Decoder_ts_1.Decoder(options2);
-      return decoder.decode(buffer);
-    }
-    function decodeMulti(buffer, options2) {
-      const decoder = new Decoder_ts_1.Decoder(options2);
-      return decoder.decodeMulti(buffer);
-    }
-  }
-});
-
-// node_modules/@msgpack/msgpack/dist.cjs/utils/stream.cjs
-var require_stream = __commonJS({
-  "node_modules/@msgpack/msgpack/dist.cjs/utils/stream.cjs"(exports2) {
-    "use strict";
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.isAsyncIterable = isAsyncIterable;
-    exports2.asyncIterableFromStream = asyncIterableFromStream;
-    exports2.ensureAsyncIterable = ensureAsyncIterable;
-    function isAsyncIterable(object) {
-      return object[Symbol.asyncIterator] != null;
-    }
-    async function* asyncIterableFromStream(stream) {
-      const reader = stream.getReader();
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-            return;
-          }
-          yield value;
-        }
-      } finally {
-        reader.releaseLock();
-      }
-    }
-    function ensureAsyncIterable(streamLike) {
-      if (isAsyncIterable(streamLike)) {
-        return streamLike;
-      } else {
-        return asyncIterableFromStream(streamLike);
-      }
-    }
-  }
-});
-
-// node_modules/@msgpack/msgpack/dist.cjs/decodeAsync.cjs
-var require_decodeAsync = __commonJS({
-  "node_modules/@msgpack/msgpack/dist.cjs/decodeAsync.cjs"(exports2) {
-    "use strict";
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.decodeAsync = decodeAsync;
-    exports2.decodeArrayStream = decodeArrayStream;
-    exports2.decodeMultiStream = decodeMultiStream;
-    var Decoder_ts_1 = require_Decoder();
-    var stream_ts_1 = require_stream();
-    async function decodeAsync(streamLike, options2) {
-      const stream = (0, stream_ts_1.ensureAsyncIterable)(streamLike);
-      const decoder = new Decoder_ts_1.Decoder(options2);
-      return decoder.decodeAsync(stream);
-    }
-    function decodeArrayStream(streamLike, options2) {
-      const stream = (0, stream_ts_1.ensureAsyncIterable)(streamLike);
-      const decoder = new Decoder_ts_1.Decoder(options2);
-      return decoder.decodeArrayStream(stream);
-    }
-    function decodeMultiStream(streamLike, options2) {
-      const stream = (0, stream_ts_1.ensureAsyncIterable)(streamLike);
-      const decoder = new Decoder_ts_1.Decoder(options2);
-      return decoder.decodeStream(stream);
-    }
-  }
-});
-
-// node_modules/@msgpack/msgpack/dist.cjs/index.cjs
-var require_dist = __commonJS({
-  "node_modules/@msgpack/msgpack/dist.cjs/index.cjs"(exports2) {
-    "use strict";
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.decodeTimestampExtension = exports2.encodeTimestampExtension = exports2.decodeTimestampToTimeSpec = exports2.encodeTimeSpecToTimestamp = exports2.encodeDateToTimeSpec = exports2.EXT_TIMESTAMP = exports2.ExtData = exports2.ExtensionCodec = exports2.Encoder = exports2.DecodeError = exports2.Decoder = exports2.decodeMultiStream = exports2.decodeArrayStream = exports2.decodeAsync = exports2.decodeMulti = exports2.decode = exports2.encode = void 0;
-    var encode_ts_1 = require_encode();
-    Object.defineProperty(exports2, "encode", { enumerable: true, get: function() {
-      return encode_ts_1.encode;
-    } });
-    var decode_ts_1 = require_decode();
-    Object.defineProperty(exports2, "decode", { enumerable: true, get: function() {
-      return decode_ts_1.decode;
-    } });
-    Object.defineProperty(exports2, "decodeMulti", { enumerable: true, get: function() {
-      return decode_ts_1.decodeMulti;
-    } });
-    var decodeAsync_ts_1 = require_decodeAsync();
-    Object.defineProperty(exports2, "decodeAsync", { enumerable: true, get: function() {
-      return decodeAsync_ts_1.decodeAsync;
-    } });
-    Object.defineProperty(exports2, "decodeArrayStream", { enumerable: true, get: function() {
-      return decodeAsync_ts_1.decodeArrayStream;
-    } });
-    Object.defineProperty(exports2, "decodeMultiStream", { enumerable: true, get: function() {
-      return decodeAsync_ts_1.decodeMultiStream;
-    } });
-    var Decoder_ts_1 = require_Decoder();
-    Object.defineProperty(exports2, "Decoder", { enumerable: true, get: function() {
-      return Decoder_ts_1.Decoder;
-    } });
-    var DecodeError_ts_1 = require_DecodeError();
-    Object.defineProperty(exports2, "DecodeError", { enumerable: true, get: function() {
-      return DecodeError_ts_1.DecodeError;
-    } });
-    var Encoder_ts_1 = require_Encoder();
-    Object.defineProperty(exports2, "Encoder", { enumerable: true, get: function() {
-      return Encoder_ts_1.Encoder;
-    } });
-    var ExtensionCodec_ts_1 = require_ExtensionCodec();
-    Object.defineProperty(exports2, "ExtensionCodec", { enumerable: true, get: function() {
-      return ExtensionCodec_ts_1.ExtensionCodec;
-    } });
-    var ExtData_ts_1 = require_ExtData();
-    Object.defineProperty(exports2, "ExtData", { enumerable: true, get: function() {
-      return ExtData_ts_1.ExtData;
-    } });
-    var timestamp_ts_1 = require_timestamp2();
-    Object.defineProperty(exports2, "EXT_TIMESTAMP", { enumerable: true, get: function() {
-      return timestamp_ts_1.EXT_TIMESTAMP;
-    } });
-    Object.defineProperty(exports2, "encodeDateToTimeSpec", { enumerable: true, get: function() {
-      return timestamp_ts_1.encodeDateToTimeSpec;
-    } });
-    Object.defineProperty(exports2, "encodeTimeSpecToTimestamp", { enumerable: true, get: function() {
-      return timestamp_ts_1.encodeTimeSpecToTimestamp;
-    } });
-    Object.defineProperty(exports2, "decodeTimestampToTimeSpec", { enumerable: true, get: function() {
-      return timestamp_ts_1.decodeTimestampToTimeSpec;
-    } });
-    Object.defineProperty(exports2, "encodeTimestampExtension", { enumerable: true, get: function() {
-      return timestamp_ts_1.encodeTimestampExtension;
-    } });
-    Object.defineProperty(exports2, "decodeTimestampExtension", { enumerable: true, get: function() {
-      return timestamp_ts_1.decodeTimestampExtension;
-    } });
-  }
-});
-
-// node_modules/dpack/lib/serialize.js
-var require_serialize = __commonJS({
-  "node_modules/dpack/lib/serialize.js"(exports2) {
-    "use strict";
-    var PROPERTY_CODE = 0;
-    var TYPE_CODE = 3;
-    var STRING_CODE = 2;
-    var NUMBER_CODE = 1;
-    var SEQUENCE_CODE = 7;
-    var NULL = 0;
-    var FALSE = 3;
-    var TRUE = 4;
-    var UNDEFINED = 5;
-    var DEFAULT_TYPE = 6;
-    var ARRAY_TYPE = 7;
-    var REFERENCING_TYPE = 8;
-    var NUMBER_TYPE = 9;
-    var METADATA_TYPE = 11;
-    var REFERENCING_POSITION = 13;
-    var ERROR_METADATA = 500;
-    var OPEN_SEQUENCE = 12;
-    var END_SEQUENCE = 14;
-    var DEFERRED_REFERENCE = 15;
-    var nextId = 1;
-    var iteratorSymbol = typeof Symbol !== "undefined" ? Symbol.iterator : "__iterator_symbol__";
-    function createSerializer(options2) {
-      if (!options2)
-        options2 = {};
-      var extendedTypes = options2.converterByConstructor;
-      if (!extendedTypes) {
-        extendedTypes = /* @__PURE__ */ new Map();
-      }
-      extendedTypes.set(Map, {
-        name: "Map",
-        toValue: writeMap
-      });
-      extendedTypes.set(Set, {
-        name: "Set",
-        toValue: writeSet
-      });
-      extendedTypes.set(Date, {
-        name: "Date",
-        toValue: writeDate
-      });
-      var avoidShareUpdate = options2.outlet || options2.avoidShareUpdate;
-      var charEncoder = typeof global != "undefined" && global.Buffer && !(options2 && options2.encoding === "utf16le") ? exports2.nodeCharEncoder(options2) : browserCharEncoder(options2);
-      var writeString = charEncoder.writeString;
-      var writeToken = charEncoder.writeToken;
-      var startSequence = charEncoder.startSequence;
-      var endSequence = charEncoder.endSequence;
-      var writeBuffer = charEncoder.writeBuffer;
-      var forProperty = options2.forProperty;
-      var propertyUsed;
-      var valueUsed;
-      if (options2.shared) {
-        propertyUsed = options2.shared.propertyUsed;
-        valueUsed = options2.shared.propertyUsed;
-      }
-      var pendingEncodings = [];
-      var nextPropertyIndex = 8;
-      var property;
-      var bufferSymbol = exports2.bufferSymbol || "_bufferSymbol_";
-      var targetSymbol = exports2.targetSymbol || "_targetSymbol_";
-      var propertyComparisons = 0;
-      var serializerId = nextId++;
-      var writers = [
-        0,
-        1,
-        2,
-        3,
-        4,
-        5,
-        writeAsDefault,
-        writeAsArray,
-        writeAsReferencing,
-        writeAsNumber,
-        writeOnlyNull
-      ];
-      function writeNumber(number) {
-        writeToken(NUMBER_CODE, number);
-      }
-      function writeInlineString(string) {
-        writeToken(STRING_CODE, string.length);
-        writeString(string);
-      }
-      function writeAsReferencing(value) {
-        var type, values = property.values;
-        if (values) {
-          if (values.resetTo > -1 && values.serializer !== serializerId) {
-            values.serializer = serializerId;
-            if (values.resetTo < values.length)
-              values.length = values.resetTo;
-            writeToken(TYPE_CODE, REFERENCING_POSITION);
-            writeToken(NUMBER_CODE, values.resetTo);
-          }
-          var reference = values.indexOf(value);
-          if (reference > -1) {
-            return writeNumber(reference);
-          }
-        }
-        if ((type = typeof value) === "string" || type === "object" && value) {
-          if (property.writeSharedValue) {
-            if (property.writeSharedValue(value, writeToken, serializerId))
-              return;
-          } else if (values) {
-            var index = values.length;
-            if (index < 12)
-              values[index] = value;
-          }
-        }
-        if (type === "string") {
-          writeInlineString(value);
-        } else {
-          writeAsDefault(value);
-        }
-      }
-      function writeAsNumber(number) {
-        var type = typeof number;
-        if (type === "number") {
-          if (number >>> 0 === number || number > 0 && number < 70368744177664 && number % 1 === 0) {
-            writeToken(NUMBER_CODE, number);
-          } else {
-            var asString = number.toString();
-            writeInlineString(asString);
-          }
-        } else if (type === "object") {
-          writeAsDefault(number);
-        } else {
-          writeTypedValue(number);
-        }
-      }
-      function writeTypedValue(value) {
-        if (value === null)
-          writeToken(TYPE_CODE, NULL);
-        else if (value === false)
-          writeToken(TYPE_CODE, FALSE);
-        else if (value === true)
-          writeToken(TYPE_CODE, TRUE);
-        else if (value === void 0)
-          writeToken(TYPE_CODE, UNDEFINED);
-        else {
-          writeTypedNonConstant(value);
-        }
-      }
-      function writeTypedNonConstant(value) {
-        var type = typeof value;
-        var extendedType;
-        if (type === "object") {
-          if (value) {
-            var constructor2 = value.constructor;
-            if (constructor2 === Object) {
-            } else if (constructor2 === Array) {
-              type = "array";
-            } else {
-              extendedType = extendedTypes.get(constructor2);
-              if (extendedType && extendedType.toValue) {
-                value = extendedType.toValue(value);
-                type = typeof value;
-                if (value && type === "object" && value.constructor === Array) {
-                  type = "array";
-                }
-                if (property.type === type) {
-                  if (property.extendedType !== extendedType) {
-                    property.extendedType = extendedType;
-                    writeToken(TYPE_CODE, METADATA_TYPE);
-                    writeInlineString(extendedType.name);
-                  }
-                  return writers[property.code](value);
-                }
-              } else {
-                extendedType = false;
-              }
-            }
-          } else {
-            type = "undefined";
-          }
-        } else if (type === "boolean") {
-          type = "undefined";
-        } else if (type === "function") {
-          value = value.toString();
-          type = "string";
-        }
-        property = writeProperty(null, type, extendedType);
-        writers[property.code](value);
-      }
-      function writeOnlyNull() {
-        writeToken(TYPE_CODE, NULL);
-      }
-      function writeAsDefault(value, isRoot) {
-        var type = typeof value;
-        if (type === "object") {
-          if (!value) {
-            return writeToken(TYPE_CODE, NULL);
-          }
-        } else if (type === "string") {
-          return writeInlineString(value);
-        } else if (type === "number" && (value >>> 0 === value || value > 0 && value < 70368744177664 && value % 1 === 0)) {
-          return writeToken(NUMBER_CODE, value);
-        } else {
-          return writeTypedValue(value);
-        }
-        var object = value;
-        var constructor2 = object.constructor;
-        var notPlainObject;
-        if (object[targetSymbol]) {
-          return writeBlockReference(value);
-        } else if (constructor2 === Object) {
-          notPlainObject = false;
-        } else if (constructor2 === Array) {
-          property = writeProperty(property.key, "array");
-          return writers[property.code](value);
-        } else {
-          if (object.then) {
-            return writeBlockReference(value);
-          }
-          extendedType = extendedTypes.get(constructor2);
-          if (extendedType) {
-            if (extendedType.toValue) {
-              return writeTypedValue(object);
-            }
-          } else {
-            if (object[iteratorSymbol]) {
-              property = writeProperty(property.key, "array");
-              return writeAsIterable(object, isRoot);
-            }
-            extendedTypes.set(constructor2, extendedType = {
-              name: constructor2.name
-            });
-          }
-          if (property.constructs !== constructor2) {
-            writeToken(TYPE_CODE, METADATA_TYPE);
-            writeInlineString(extendedType.name);
-            property.constructs = constructor2;
-          }
-          notPlainObject = true;
-        }
-        var thisProperty = property;
-        if (thisProperty.resetTo < thisProperty.length && thisProperty.serializer != serializerId) {
-          thisProperty.length = thisProperty.resetTo;
-          thisProperty.serializer = serializerId;
-        }
-        startSequence();
-        var i = 0;
-        var resumeIndex = -2;
-        var propertyIndex = 0;
-        for (var key in object) {
-          if (notPlainObject && !object.hasOwnProperty(key))
-            continue;
-          var value = object[key];
-          type = typeof value;
-          property = thisProperty[propertyIndex];
-          var constructor2;
-          var extendedType = false;
-          if (type === "object") {
-            if (value) {
-              constructor2 = value.constructor;
-              if (constructor2 === Object) {
-              } else if (constructor2 === Array) {
-                type = "array";
-              } else {
-                extendedType = extendedTypes.get(constructor2);
-                if (extendedType && extendedType.toValue) {
-                  value = extendedType.toValue(value);
-                  type = typeof value;
-                  if (value && type === "object" && value.constructor === Array) {
-                    type = "array";
-                  }
-                } else if (value[iteratorSymbol] && !value.then) {
-                  type = "array";
-                } else {
-                  extendedType = false;
-                }
-              }
-            } else {
-              type = "undefined";
-            }
-          }
-          if (!property || property.key !== key || property.type !== type && type !== "boolean" && type !== "undefined" && !(type === "string" && property.type !== "number") || extendedType && property.extendedType !== constructor2) {
-            var lastPropertyIndex = propertyIndex;
-            if (resumeIndex > -2)
-              propertyIndex = resumeIndex;
-            do {
-              property = thisProperty[++propertyIndex];
-            } while (property && (property.key !== key || property.type !== type && type !== "boolean" && type !== "undefined" && !(type === "string" && property.type !== "number") || extendedType && property.extendedType !== constructor2));
-            if (property) {
-              writeToken(PROPERTY_CODE, propertyIndex);
-              if (resumeIndex === -2) {
-                resumeIndex = lastPropertyIndex - 1;
-              }
-            } else if (thisProperty.getProperty) {
-              property = thisProperty.getProperty(value, key, type, extendedType, writeProperty, writeToken, lastPropertyIndex);
-              propertyIndex = property.index;
-              if (lastPropertyIndex !== propertyIndex && resumeIndex === -2) {
-                resumeIndex = lastPropertyIndex - 1;
-              }
-            } else {
-              if (lastPropertyIndex === thisProperty.length) {
-                propertyIndex = lastPropertyIndex;
-              } else {
-                writeToken(PROPERTY_CODE, propertyIndex = thisProperty.length);
-                if (resumeIndex === -2) {
-                  resumeIndex = lastPropertyIndex - 1;
-                }
-              }
-              if (propertyIndex < thisProperty.resetTo) {
-                debugger;
-                throw new Error("overwriting frozen property");
-              }
-              property = thisProperty[propertyIndex] = writeProperty(key, type, extendedType);
-            }
-          }
-          if (propertyUsed)
-            propertyUsed(property, object, serializerId, i);
-          var code = property.code;
-          if (code > 7) {
-            if (code === 8)
-              writeAsReferencing(value);
-            else
-              writeAsNumber(value);
-          } else {
-            if (code === 6)
-              writeAsDefault(value);
-            else
-              writeAsArray(value);
-          }
-          propertyIndex++;
-          i++;
-        }
-        property = thisProperty;
-        endSequence(i);
-      }
-      function writeProperty(key, type, extendedType) {
-        var property2;
-        property2 = [];
-        property2.key = key;
-        property2.type = type;
-        if (type === "string") {
-          writeToken(TYPE_CODE, REFERENCING_TYPE);
-          property2.values = [];
-          property2.code = REFERENCING_TYPE;
-        } else if (type === "number") {
-          writeToken(TYPE_CODE, NUMBER_TYPE);
-          property2.code = NUMBER_TYPE;
-        } else if (type === "object") {
-          writeToken(TYPE_CODE, DEFAULT_TYPE);
-          property2.code = DEFAULT_TYPE;
-        } else if (type === "array") {
-          writeToken(TYPE_CODE, ARRAY_TYPE);
-          property2.code = ARRAY_TYPE;
-        } else if (type === "boolean" || type === "undefined") {
-          property2.type = "object";
-          writeToken(TYPE_CODE, DEFAULT_TYPE);
-          property2.code = DEFAULT_TYPE;
-        } else {
-          writeToken(TYPE_CODE, DEFAULT_TYPE);
-          property2.code = 10;
-          console.error("Unable to write value of type " + type);
-        }
-        if (typeof key === "string") {
-          writeInlineString(key);
-        } else if (!(key === null && (type === "object" || type === "array"))) {
-          writeAsDefault(key);
-        }
-        if (extendedType) {
-          property2.extendedType = extendedType;
-          writeToken(TYPE_CODE, METADATA_TYPE);
-          writeInlineString(extendedType.name);
-        }
-        return property2;
-      }
-      function writeAsIterable(iterable, isRoot, iterator) {
-        try {
-          if (!iterator) {
-            writeToken(SEQUENCE_CODE, OPEN_SEQUENCE);
-            iterator = iterable[iteratorSymbol]();
-          }
-          var arrayProperty = property;
-          property = arrayProperty.child || (arrayProperty.child = arrayProperty);
-          var result;
-          while (!(result = iterator.next()).done) {
-            writers[property.code](result.value, arrayProperty);
-            if (isRoot && charEncoder.hasWritten) {
-              charEncoder.hasWritten = false;
-              property = arrayProperty;
-              pendingEncodings.unshift({
-                then: function(callback) {
-                  writeAsIterable(null, true, iterator);
-                  return callback();
-                }
-              });
-              return;
-            }
-          }
-        } catch (error) {
-          writeToken(TYPE_CODE, METADATA_TYPE);
-          writeToken(NUMBER_CODE, ERROR_METADATA);
-          writeAsDefault(Object.assign(new (typeof error == "object" && error ? error.constructor : Error)(), {
-            name: error && error.name,
-            // make these enumerable so they will serialize
-            message: error && error.message || error
-          }));
-          throw error;
-        }
-        if (property !== arrayProperty.child) {
-          arrayProperty.child = property;
-        }
-        property = arrayProperty;
-        writeToken(SEQUENCE_CODE, END_SEQUENCE);
-      }
-      function writeAsArray(array) {
-        if (!array) {
-          writeTypedValue(array);
-        } else if (array[targetSymbol]) {
-          return writeBlockReference(array);
-        } else if (array.constructor === Array) {
-          var length = array.length;
-          var needsClosing;
-          if (length > 11) {
-            writeToken(SEQUENCE_CODE, OPEN_SEQUENCE);
-            needsClosing = true;
-          } else {
-            writeToken(SEQUENCE_CODE, length);
-          }
-          var arrayProperty = property;
-          property = arrayProperty[0];
-          if (arrayProperty.resetTo < arrayProperty.length && arrayProperty.serializer != serializerId) {
-            arrayProperty.length = arrayProperty.resetTo;
-            arrayProperty.serializer = serializerId;
-          }
-          var propertyIndex = 0;
-          for (var i = 0; i < length; i++) {
-            var value = array[i];
-            var type = typeof value;
-            if (type === "object") {
-              if (value) {
-                var constructor2 = value.constructor;
-                if (constructor2 === Object) {
-                } else if (constructor2 === Array) {
-                  type = "array";
-                } else {
-                  var extendedType = extendedTypes.get(constructor2);
-                  if (extendedType && extendedType.toValue) {
-                    value = extendedType.toValue(value);
-                    type = typeof value;
-                    if (value && type === "object" && value.constructor === Array) {
-                      type = "array";
-                    }
-                  } else {
-                    extendedType = false;
-                  }
-                }
-              } else {
-                type = "undefined";
-              }
-            }
-            if (!property) {
-              if (arrayProperty.getProperty) {
-                property = arrayProperty.getProperty(value, null, type, extendedType, writeProperty, writeToken, 0);
-              } else {
-                if (type === "string" || type === "number" || type === "array")
-                  property = writeProperty(null, type, extendedType);
-                else {
-                  property = [];
-                  property.type = type;
-                  property.key = null;
-                  property.code = DEFAULT_TYPE;
-                }
-                arrayProperty[0] = property;
-              }
-            } else if (property.type !== type && type !== "boolean" && type !== "undefined" && !(type === "string" && property.type !== "number") || extendedType && property.extendedType !== constructor2) {
-              propertyIndex = -1;
-              do {
-                property = arrayProperty[++propertyIndex];
-              } while (property && (property.type !== type && type !== "boolean" && type !== "undefined" && !(type === "string" && property.type !== "number") || extendedType && property.extendedType !== constructor2));
-              if (property) {
-                writeToken(PROPERTY_CODE, propertyIndex);
-              } else if (arrayProperty.getProperty) {
-                property = arrayProperty.getProperty(value, null, type, extendedType, writeProperty, writeToken, -1);
-              } else {
-                writeToken(PROPERTY_CODE, propertyIndex);
-                property = writeProperty(null, type, extendedType);
-                arrayProperty[propertyIndex] = property;
-              }
-            }
-            if (propertyUsed)
-              propertyUsed(property, array, serializerId, i);
-            var code = property.code;
-            if (code > 7) {
-              if (code === 8)
-                writeAsReferencing(value);
-              else
-                writeAsNumber(value);
-            } else {
-              if (code === 6)
-                writeAsDefault(value);
-              else
-                writeAsArray(value);
-            }
-          }
-          if (needsClosing) {
-            writeToken(SEQUENCE_CODE, END_SEQUENCE);
-          }
-          property = arrayProperty;
-        } else if (typeof array == "object" && array[iteratorSymbol]) {
-          return writeAsIterable(array);
-        } else if (type === "string") {
-          return writeInlineString(value);
-        } else if (type === "number" && (value >>> 0 === value || value > 0 && value < 70368744177664 && value % 1 === 0)) {
-          return writeToken(NUMBER_CODE, value);
-        } else {
-          writeTypedValue(array);
-        }
-      }
-      var blockProperty;
-      function writeBlockReference(block, writer) {
-        writeToken(SEQUENCE_CODE, DEFERRED_REFERENCE);
-        var blockProperty2 = property;
-        var lazyPromise = block[targetSymbol] ? {
-          then
-        } : {
-          then: function(callback) {
-            return block.then(function(value) {
-              block = value;
-              then(callback);
-            }, function(error) {
-              block = Object.assign(new (typeof error == "object" && error ? error.constructor : Error)(), {
-                name: error && error.name,
-                // make these enumerable so they will serialize
-                message: error && error.message || error
-              });
-              if (!blockProperty2.upgrade) {
-                writeToken(TYPE_CODE, METADATA_TYPE);
-                writeToken(NUMBER_CODE, ERROR_METADATA);
-              }
-              then(callback);
-            });
-          }
-        };
-        function then(callback) {
-          if (options2.forBlock && block) {
-            options2.forBlock(block, blockProperty2);
-          } else {
-            var buffer = block && block[bufferSymbol] && block[bufferSymbol](blockProperty2);
-            if (buffer) {
-              writeBuffer(buffer);
-            } else {
-              property = blockProperty2;
-              var lastPendingEncodings = pendingEncodings;
-              pendingEncodings = [];
-              writeAsDefault(block, true);
-              lastPendingEncodings.unshift.apply(lastPendingEncodings, pendingEncodings);
-              pendingEncodings = lastPendingEncodings;
-            }
-          }
-          callback();
-        }
-        pendingEncodings.push(lazyPromise);
-      }
-      var serializer = {
-        serialize: function(value, sharedProperty) {
-          var buffer = value && value[bufferSymbol] && value[bufferSymbol](sharedProperty);
-          if (buffer) {
-            charEncoder.writeBuffer(buffer);
-            return;
-          }
-          if (sharedProperty) {
-            property = sharedProperty;
-            writers[property.code](value);
-          } else {
-            property = [];
-            property.key = null;
-            writeAsDefault(value, true);
-          }
-        },
-        getSerialized: function() {
-          if (pendingEncodings.length > 0) {
-            var promises = [];
-            while (pendingEncodings.length > 0) {
-              var finished = false;
-              var promise = pendingEncodings.shift().then(function() {
-                finished = true;
-              });
-              if (!finished) {
-                promises.push(promise);
-              }
-            }
-            if (promises.length > 0) {
-              return Promise.all(promises).then(function() {
-                return serializer.getSerialized();
-              });
-            }
-          }
-          if (options2 && options2.encoding === "utf16le") {
-            return Buffer.from(charEncoder.getSerialized(), "utf16le");
-          }
-          return charEncoder.getSerialized();
-        },
-        flush: charEncoder.flush,
-        setOffset: charEncoder.setOffset,
-        finish: charEncoder.finish,
-        pendingEncodings,
-        getWriters: function() {
-          return {
-            writeProperty,
-            writeToken,
-            writeAsDefault,
-            writeBuffer
-          };
-        }
-      };
-      return serializer;
-    }
-    function serialize2(value, options2) {
-      var serializer = createSerializer(options2);
-      var sharedProperty = options2 && options2.shared;
-      var buffer;
-      if (sharedProperty && sharedProperty.startWrite) {
-        sharedProperty.startWrite(options2.avoidShareUpdate, value);
-      }
-      serializer.serialize(value, sharedProperty);
-      buffer = serializer.getSerialized();
-      if (sharedProperty && sharedProperty.endWrite) {
-        sharedProperty.endWrite(options2.avoidShareUpdate, value);
-      }
-      if (serializer.finish)
-        serializer.finish();
-      var sizeTable = value && value[exports2.sizeTableSymbol];
-      if (sizeTable) {
-        buffer.sizeTable = sizeTable;
-      }
-      if (options2 && options2.lazy) {
-        return Buffer.concat([value[exports2.sizeTableSymbol], buffer]);
-      }
-      return buffer;
-    }
-    exports2.serialize = serialize2;
-    exports2.createSerializer = createSerializer;
-    function browserCharEncoder() {
-      var serialized = "";
-      function writeToken(type, number) {
-        var serializedToken;
-        if (number < 16) {
-          serializedToken = String.fromCharCode((type << 4 | number) ^ 64);
-        } else if (number < 1024) {
-          serializedToken = String.fromCharCode(
-            (type << 4) + (number >>> 6),
-            (number & 63) + 64
-          );
-        } else if (number < 65536) {
-          serializedToken = String.fromCharCode(
-            (type << 4) + (number >>> 12),
-            number >>> 6 & 63,
-            (number & 63) + 64
-          );
-        } else if (number < 4194304) {
-          serializedToken = String.fromCharCode(
-            (type << 4) + (number >>> 18),
-            number >>> 12 & 63,
-            number >>> 6 & 63,
-            (number & 63) + 64
-          );
-        } else if (number < 268435456) {
-          serializedToken = String.fromCharCode(
-            (type << 4) + (number >>> 24),
-            number >>> 18 & 63,
-            number >>> 12 & 63,
-            number >>> 6 & 63,
-            (number & 63) + 64
-          );
-        } else if (number < 4294967296) {
-          serializedToken = String.fromCharCode(
-            (type << 4) + (number >>> 30),
-            number >>> 24 & 63,
-            number >>> 18 & 63,
-            number >>> 12 & 63,
-            number >>> 6 & 63,
-            (number & 63) + 64
-          );
-        } else if (number < 17179869184) {
-          serializedToken = String.fromCharCode(
-            (type << 4) + (number / 1073741824 >>> 0),
-            number >>> 24 & 63,
-            number >>> 18 & 63,
-            number >>> 12 & 63,
-            number >>> 6 & 63,
-            (number & 63) + 64
-          );
-        } else if (number < 1099511627776) {
-          serializedToken = String.fromCharCode(
-            (type << 4) + (number / 68719476736 >>> 0),
-            number / 1073741824 & 63,
-            number >>> 24 & 63,
-            number >>> 18 & 63,
-            number >>> 12 & 63,
-            number >>> 6 & 63,
-            (number & 63) + 64
-          );
-        } else if (number < 70368744177664) {
-          serializedToken = String.fromCharCode(
-            (type << 4) + (number / 4398046511104 >>> 0),
-            number / 68719476736 & 63,
-            number / 1073741824 & 63,
-            number >>> 24 & 63,
-            number >>> 18 & 63,
-            number >>> 12 & 63,
-            number >>> 6 & 63,
-            (number & 63) + 64
-          );
-        } else {
-          throw new Error("Too big of number");
-        }
-        serialized += serializedToken;
-      }
-      function writeString(string) {
-        serialized += string;
-      }
-      function getSerialized() {
-        return serialized;
-      }
-      return {
-        writeToken,
-        writeString,
-        //writeBuffer,
-        getSerialized,
-        //insertBuffer,
-        //flush,
-        startSequence: function() {
-          writeToken(SEQUENCE_CODE, OPEN_SEQUENCE);
-        },
-        endSequence: function() {
-          writeToken(SEQUENCE_CODE, END_SEQUENCE);
-        },
-        getOffset: function() {
-          return -1;
-        }
-      };
-    }
-    var ArrayFrom = Array.from || function(iterable, keyValue) {
-      var array = [];
-      var keyValue = iterable.constructor === Map;
-      iterable.forEach(function(key, value) {
-        if (keyValue) {
-          array.push([value, key]);
-        } else {
-          array.push(key);
-        }
-      });
-      return array;
-    };
-    function writeMap(map) {
-      var keyValues = ArrayFrom(map);
-      for (var i = 0, length = keyValues.length; i < length; i++) {
-        var keyValue = keyValues[i];
-        keyValues[i] = {
-          key: keyValue[0],
-          value: keyValue[1]
-        };
-      }
-      return keyValues;
-    }
-    function writeSet(set) {
-      return ArrayFrom(set);
-    }
-    function writeDate(date) {
-      return date.getTime();
-    }
-  }
-});
-
-// node_modules/dpack/lib/serialize-stream.js
-var require_serialize_stream = __commonJS({
-  "node_modules/dpack/lib/serialize-stream.js"(exports2) {
-    "use strict";
-    var { Transform } = __require("stream");
-    var { createSerializer } = require_serialize();
-    var DPackSerializeStream = class extends Transform {
-      constructor(options2) {
-        options2 = options2 || {};
-        super(options2);
-        this.options = options2;
-        this.continueWriting = true;
-      }
-      write(value) {
-        const serializer = this.serializer || (this.serializer = createSerializer({ asBlock: true }));
-        serializer.serialize(value);
-        const buffer = serializer.getSerialized();
-        if (buffer.then) {
-          buffer.then((buffer2) => this.push(buffer2));
-          this.serializer = null;
-        } else {
-          serializer.flush(this);
-        }
-      }
-      end(value) {
-        if (value) {
-          this.options.outlet = this;
-          const serializer = this.serializer || (this.serializer = createSerializer(this.options));
-          serializer.serialize(value);
-        }
-        if (this.serializer.pendingEncodings.length > 0) {
-          this.endWhenDone = true;
-          this.writeNext();
-        } else {
-          this.serializer.flush();
-          this.push(null);
-        }
-      }
-      writeBytes(buffer) {
-        try {
-          this.continueWriting = this.push(buffer);
-        } catch (error) {
-          throw error;
-        }
-      }
-      _read() {
-        this.continueWriting = true;
-        if (!this.pausedForPromise && this.serializer && this.endWhenDone && this.serializer.pendingEncodings.length > 0) {
-          this.writeNext();
-        }
-      }
-      writeNext() {
-        var isSync;
-        do {
-          var hasMoreToSend = this.serializer.pendingEncodings.length > 0;
-          isSync = null;
-          if (hasMoreToSend) {
-            this.serializer.pendingEncodings.shift().then(() => {
-              if (isSync === false) {
-                this.pausedForPromise = false;
-                if (this.continueWriting || this.serializer.pendingEncodings.length === 0)
-                  this.writeNext();
-                else {
-                  this.serializer.flush();
-                }
-              } else {
-                isSync = true;
-              }
-            }, (error) => {
-              console.error(error);
-              this.push(error.toString());
-              this.push(null);
-            });
-            if (!isSync) {
-              isSync = false;
-              this.pausedForPromise = true;
-              this.serializer.flush();
-            } else if (!this.continueWriting && this.serializer.pendingEncodings.length > 0) {
-              this.serializer.flush();
-              return;
-            }
-          } else if (this.endWhenDone) {
-            this.serializer.flush();
-            this.push("]");
-            this.push(null);
-          }
-        } while (isSync);
-      }
-    };
-    exports2.createSerializeStream = () => {
-      return new DPackSerializeStream();
-    };
-  }
-});
-
-// node_modules/dpack/lib/parse.js
-var require_parse2 = __commonJS({
-  "node_modules/dpack/lib/parse.js"(exports2) {
-    "use strict";
-    var FALSE = 3;
-    var TRUE = 4;
-    var DEFAULT_TYPE = 6;
-    var ARRAY_TYPE = 7;
-    var REFERENCING_TYPE = 8;
-    var NUMBER_TYPE = 9;
-    var METADATA_TYPE = 11;
-    var REFERENCING_POSITION = 13;
-    var TYPE_DEFINITION = 14;
-    var ERROR_METADATA = 500;
-    var OPEN_SEQUENCE = 12;
-    var END_SEQUENCE = 14;
-    var DEFERRED_REFERENCE = 15;
-    var MAX_LENGTH = 1024 * 1024 * 16;
-    function createParser(options2) {
-      if (!options2)
-        options2 = {};
-      var offset;
-      var source;
-      var isPartial;
-      var classByName = options2.classByName || /* @__PURE__ */ new Map();
-      classByName.set("Map", readMap);
-      classByName.set("Set", readSet);
-      classByName.set("Date", readDate);
-      var pausedState;
-      var deferredReads;
-      function pause(state, lastRead) {
-        state.previous = pausedState;
-        state.resume = true;
-        pausedState = state;
-        if (!isPartial)
-          throw new Error("Unexpected end of dpack stream");
-        if (!parser.onResume)
-          parser.onResume = function(nextString, isPartialString, rebuildString) {
-            var resumeState = pausedState;
-            pausedState = null;
-            parser.onResume = null;
-            if (lastRead < source.length)
-              source = source.slice(lastRead) + nextString;
-            else {
-              if (rebuildString)
-                source = nextString.slice(0, 1) + nextString.slice(1);
-              else
-                source = nextString;
-            }
-            isPartial = isPartialString;
-            disposedChars += lastRead;
-            offset = 0;
-            return resumeState.reader ? resumeState.reader(resumeState) : readSequence(resumeState.length, resumeState);
-          };
-        return state.object;
-      }
-      function readSequence(length, thisProperty) {
-        var propertyState = 0;
-        thisProperty = thisProperty || [];
-        var property, isArray, object, value, i = 0, propertyIndex = 0;
-        if (thisProperty.resume) {
-          property = thisProperty.previous;
-          if (property) {
-            var value = property.reader ? property.reader(property) : readSequence(property.length, property);
-            var values = property.values;
-            if (values) {
-              if (pausedState) {
-                pausedState.values = values;
-              } else {
-                if (value.nextPosition > -1) {
-                  values[values.nextPosition++] = value;
-                } else {
-                  values.push(value);
-                }
-              }
-            }
-          }
-          if (thisProperty.code && thisProperty.code !== thisProperty.thisProperty.code) {
-            thisProperty.resume = false;
-          } else {
-            i = thisProperty.i || 0;
-            object = thisProperty.object;
-            propertyState = thisProperty.propertyState || 0;
-            propertyIndex = thisProperty.propertyIndex || 0;
-            thisProperty = thisProperty.thisProperty;
-          }
-        }
-        isArray = thisProperty.code === ARRAY_TYPE;
-        object = object || (thisProperty.constructs ? new thisProperty.constructs() : isArray ? [] : {});
-        for (; i < length; ) {
-          var type, number;
-          var lastRead = offset;
-          var token = source.charCodeAt(offset++);
-          if (token >= 48) {
-            if (token > 12288) {
-              type = token >>> 12 ^ 4;
-              number = token & 4095;
-            } else {
-              type = token >>> 4 ^ 4;
-              number = token & 15;
-            }
-          } else {
-            type = token >>> 4 & 11;
-            number = token & 15;
-            token = source.charCodeAt(offset++);
-            number = (number << 6) + (token & 63);
-            if (!(token >= 64)) {
-              token = source.charCodeAt(offset++);
-              number = (number << 6) + (token & 63);
-              if (!(token >= 64)) {
-                token = source.charCodeAt(offset++);
-                number = (number << 6) + (token & 63);
-                if (!(token >= 64)) {
-                  token = source.charCodeAt(offset++);
-                  number = (number << 6) + (token & 63);
-                  if (!(token >= 64)) {
-                    token = source.charCodeAt(offset++);
-                    number = number * 64 + (token & 63);
-                    if (!(token >= 64)) {
-                      token = source.charCodeAt(offset++);
-                      number = number * 64 + (token & 63);
-                      if (!(token >= 64)) {
-                        token = source.charCodeAt(offset++);
-                        number = number * 64 + (token & 63);
-                        if (!(token >= 0)) {
-                          if (offset > source.length) {
-                            return pause({
-                              length,
-                              thisProperty,
-                              i,
-                              object,
-                              propertyIndex,
-                              propertyState
-                            }, lastRead);
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          if (type === 0) {
-            propertyIndex = number;
-            propertyState = 0;
-            continue;
-          }
-          property = thisProperty[propertyIndex];
-          if (type === 3) {
-            if (number < 6) {
-              if (number < 3) {
-                if (number === 0) {
-                  value = null;
-                } else {
-                  value = "Unknown token, type: " + type + " number: " + number;
-                }
-              } else {
-                if (number === TRUE) {
-                  value = true;
-                } else if (number === FALSE) {
-                  value = false;
-                } else {
-                  value = void 0;
-                }
-              }
-            } else {
-              if (number <= NUMBER_TYPE) {
-                if (propertyState === 1) {
-                  propertyIndex++;
-                  i++;
-                  property = thisProperty[propertyIndex];
-                }
-                if (propertyIndex < thisProperty.resetTo) {
-                  throw new Error("Overwriting frozen property");
-                }
-                if (property) {
-                  if (!property.resume) {
-                    value = property.key;
-                    property = thisProperty[propertyIndex] = [];
-                    property.key = value;
-                  }
-                } else {
-                  property = thisProperty[propertyIndex] = [];
-                  property.key = null;
-                }
-                property.code = number;
-                property.parent = thisProperty;
-                propertyState = 2;
-                if (number === REFERENCING_TYPE) {
-                  property.values = [];
-                } else if (number === ARRAY_TYPE) {
-                  property[0] = [];
-                  property[0].key = null;
-                  property[0].code = DEFAULT_TYPE;
-                  property[0].parent = property;
-                }
-              } else {
-                propertyState = number;
-              }
-              continue;
-            }
-          } else {
-            if (type === 2) {
-              value = source.slice(offset, offset += number);
-              if (offset > source.length) {
-                return pause({
-                  length,
-                  thisProperty,
-                  i,
-                  object,
-                  propertyIndex,
-                  propertyState
-                }, lastRead);
-              }
-              if (propertyState < 2) {
-                if (property.code === NUMBER_TYPE) {
-                  value = +value;
-                }
-              }
-            } else if (type === 1) {
-              value = number;
-            } else {
-              if (number > 13) {
-                if (number === END_SEQUENCE)
-                  return object;
-                else if (number === DEFERRED_REFERENCE) {
-                  value = readSequence(0, property);
-                  propertyState = 0;
-                  if (options2.forDeferred) {
-                    value = options2.forDeferred(value, property);
-                  } else {
-                    (deferredReads || (deferredReads = [])).push({
-                      property,
-                      value
-                    });
-                  }
-                }
-              } else {
-                if (number >= OPEN_SEQUENCE) {
-                  number = 2e9;
-                }
-                if (propertyState > 1) {
-                  if (propertyState === 2) {
-                    propertyState = 0;
-                    value = readSequence(number, property);
-                  } else if (propertyState === METADATA_TYPE)
-                    value = readSequence(number, [{ key: null, code: 6 }]);
-                  else if (property.resume && (property.code || DEFAULT_TYPE) === property.thisProperty.code)
-                    value = readSequence(number, property.thisProperty);
-                  else
-                    value = readSequence(number, property);
-                } else
-                  value = readSequence(number, property);
-                if (pausedState) {
-                  if (value === void 0) {
-                    pausedState = null;
-                    parser.onResume = null;
-                    return pause({
-                      length,
-                      thisProperty,
-                      i,
-                      object,
-                      property,
-                      propertyIndex,
-                      previousProperty,
-                      propertyState
-                    }, lastRead);
-                  } else {
-                    pausedState.values = property.values instanceof Array ? property.values : void 0;
-                  }
-                }
-              }
-            }
-          }
-          if (!property) {
-            throw new Error("No property defined for slot" + (thisProperty.key ? " in " + thisProperty.key : ""));
-          }
-          if (propertyState < 2 && property && property.code === REFERENCING_TYPE) {
-            var values = property.values;
-            if (typeof value === "number") {
-              value = values[number];
-              if (value === void 0 && !(number in values)) {
-                throw new Error("Referencing value that has not been read yet");
-              }
-            } else if ((type === 2 || type === 7) && values) {
-              if (values.nextPosition > -1) {
-                if (property.recordValueReference) {
-                  property.recordValueReference(values);
-                }
-                values[values.nextPosition++] = value;
-              } else {
-                values.push(value);
-              }
-            }
-          }
-          if (propertyState > 1) {
-            if (propertyState === 2) {
-              property.key = value;
-            } else if (propertyState === METADATA_TYPE) {
-              if (typeof value === "string") {
-                var extendedType = classByName.get(value);
-                if (extendedType) {
-                  if (extendedType.fromValue) {
-                    property.fromValue = extendedType.fromValue;
-                  } else {
-                    property.constructs = extendedType;
-                  }
-                } else if (options2.errorOnUnknownClass) {
-                  throw new Error("Attempt to deserialize to unknown class " + parameter);
-                } else {
-                }
-                property.extendedType = extendedType;
-              } else {
-                property.metadata = value;
-                if (value === ERROR_METADATA)
-                  property.fromValue = onError;
-              }
-            } else if (propertyState === REFERENCING_POSITION) {
-              var values = property.values || (property.values = []);
-              values.nextPosition = value;
-            } else if (propertyState === TYPE_DEFINITION) {
-            } else {
-              throw new Error("Unknown property type " + propertyState);
-            }
-            propertyState = 1;
-            continue;
-          } else {
-            propertyState = 0;
-          }
-          if (property.fromValue) {
-            value = property.fromValue(value);
-          }
-          if (isArray && property.key === null) {
-            object.push(value);
-          } else if (value !== void 0) {
-            object[property.key] = value;
-          }
-          i++;
-          if (!isArray)
-            propertyIndex++;
-        }
-        return object;
-      }
-      function unknownType2(number) {
-        throw new Error("Unknown type " + number);
-      }
-      var nonParsingError;
-      function onError(error) {
-        var g = typeof global != "undefined" ? global : window;
-        if (error && error.name && g[error.name])
-          error = new g[error.name](error.message);
-        else if (typeof error == "string")
-          error = new Error(error);
-        if (options2.onError)
-          options2.onError(error);
-        else {
-          nonParsingError = true;
-          throw error;
-        }
-      }
-      var disposedChars = 0;
-      function read(property) {
-        try {
-          if (property && property.resume) {
-            var previous = property.previous;
-            value = readSequence(previous.length, previous);
-            value = property.object || value;
-            property = property.property;
-          } else {
-            property = property || [options2 && options2.shared || {
-              key: null,
-              code: 6
-            }];
-            var value = readSequence(1, property)[property[0].key];
-          }
-          while (true) {
-            if (pausedState) {
-              return pause({
-                reader: read,
-                object: value,
-                property
-              });
-            }
-            if (!deferredReads) {
-              return value;
-            }
-            var index = deferredReads.index || 0;
-            var deferredRead = deferredReads[index];
-            deferredReads.index = index + 1;
-            if (!deferredRead) {
-              deferredReads = deferredReads.parent;
-              continue;
-            }
-            var target = deferredRead.value;
-            var parentDeferredReads = deferredReads;
-            deferredReads = [];
-            deferredReads.parent = parentDeferredReads;
-            var targetProperty = deferredRead.property;
-            var result = readSequence(1, property = [{
-              resume: true,
-              key: null,
-              thisProperty: targetProperty,
-              object: target
-            }]);
-            result = result.null || result[targetProperty.key];
-            if (result != target) {
-              Object.assign(target, result);
-              if (pausedState && pausedState.object === result) {
-                pausedState.object = target;
-              }
-              if (result && result.constructor === Array) {
-                target.length = result.length;
-                Object.setPrototypeOf(target, Object.getPrototypeOf(result));
-              }
-            }
-          }
-        } catch (error) {
-          if (!nonParsingError)
-            error.message = "DPack parsing error: " + error.message + " at position: " + (offset + disposedChars) + " near: " + source.slice(offset - 10, offset + 10);
-          throw error;
-        }
-      }
-      var parser = {
-        setSource: function(string, startOffset, isPartialString) {
-          source = string;
-          offset = startOffset || 0;
-          disposedChars = 0;
-          isPartial = isPartialString;
-          return this;
-        },
-        hasMoreData: function() {
-          return source.length > offset;
-        },
-        isPaused: function() {
-          return pausedState;
-        },
-        hasUnfulfilledReferences: function() {
-          return deferredReads && deferredReads.length > deferredReads.index;
-        },
-        getOffset: function() {
-          return offset + disposedChars;
-        },
-        read
-      };
-      return parser;
-    }
-    exports2.parse = function(stringOrBuffer, options2) {
-      var source;
-      if (typeof stringOrBuffer === "string") {
-        source = stringOrBuffer;
-      } else if (stringOrBuffer && stringOrBuffer.toString) {
-        source = stringOrBuffer.toString(options2 && options2.encoding || "utf8");
-      } else {
-        return stringOrBuffer;
-      }
-      var parser = createParser(options2).setSource(source);
-      if (options2 && options2.shared)
-        return parser.read([options2.shared]);
-      return parser.read();
-    };
-    exports2.createParser = createParser;
-    var readMap = {
-      fromValue: function(entries) {
-        var map = /* @__PURE__ */ new Map();
-        for (var i = 0, l = entries.length; i < l; i++) {
-          var entry = entries[i];
-          map.set(entry.key, entry.value);
-        }
-        return map;
-      }
-    };
-    var readSet = {
-      fromValue: function(values) {
-        var set = new Set(values);
-        if (set.size === 0 && values.length > 0) {
-          for (var i = 0, l = values.length; i < l; i++) {
-            set.add(values[i]);
-          }
-        }
-        return set;
-      }
-    };
-    var readDate = {
-      fromValue: function(time) {
-        return new Date(time);
-      }
-    };
-  }
-});
-
-// node_modules/dpack/lib/parse-stream.js
-var require_parse_stream = __commonJS({
-  "node_modules/dpack/lib/parse-stream.js"(exports2) {
-    "use strict";
-    var Transform = __require("stream").Transform;
-    var createParser = require_parse2().createParser;
-    var DEFAULT_OPTIONS = { objectMode: true };
-    var DPackParseStream = class extends Transform {
-      constructor(options2) {
-        if (options2) {
-          options2.objectMode = true;
-        } else {
-          options2 = DEFAULT_OPTIONS;
-        }
-        super(options2);
-        this.parser = createParser(options2);
-        this.waitingValues = [];
-      }
-      _transform(chunk, encoding, callback) {
-        var value;
-        try {
-          var sourceString = chunk.toString();
-          var parser = this.parser;
-          if (parser.onResume) {
-            value = parser.onResume(sourceString, true);
-            if (!parser.isPaused())
-              this.sendValue(value);
-          } else {
-            parser.setSource(sourceString, 0, true);
-          }
-          while (parser.hasMoreData()) {
-            value = parser.read();
-            if (parser.isPaused())
-              break;
-            else
-              this.sendValue(value);
-          }
-        } catch (error) {
-          console.error(error);
-        }
-        if (callback) callback();
-      }
-      sendValue(value) {
-        if (this.parser.hasUnfulfilledReferences()) {
-          if (value !== void 0) {
-            this.waitingValues.push(value);
-          }
-        } else {
-          while (this.waitingValues.length > 0) {
-            this.push(this.waitingValues.shift());
-          }
-          if (value !== void 0) {
-            this.push(value);
-          }
-        }
-      }
-    };
-    exports2.createParseStream = () => new DPackParseStream();
-  }
-});
-
-// node_modules/dpack/lib/node-encoder.js
-var require_node_encoder = __commonJS({
-  "node_modules/dpack/lib/node-encoder.js"(exports2) {
-    var PREFERRED_MAX_BUFFER_SIZE = 32768;
-    var availableBuffers = [];
-    function nodeCharEncoder(options2) {
-      var offset = options2.startOffset || 0;
-      var bufferSize;
-      var outlet = options2.outlet;
-      var buffer = availableBuffers.pop();
-      if (buffer && buffer.length > offset + 128) {
-        bufferSize = buffer.length;
-      } else {
-        bufferSize = (offset >> 12 << 12) + 8192;
-        buffer = Buffer.allocUnsafeSlow(bufferSize);
-      }
-      var encoding = options2.encoding;
-      var sequences = [];
-      function makeRoom(bytesNeeded) {
-        if (outlet) {
-          outlet.writeBytes(buffer.slice(0, offset));
-          if (bufferSize < PREFERRED_MAX_BUFFER_SIZE || bytesNeeded > PREFERRED_MAX_BUFFER_SIZE) {
-            bufferSize = Math.max(bufferSize * 4, bytesNeeded);
-          }
-          buffer = Buffer.allocUnsafeSlow(bufferSize);
-          offset = 0;
-          sequences = [];
-          encoder.hasWritten = true;
-        } else {
-          bufferSize = Math.max(bufferSize * 4, bufferSize + bytesNeeded, 8192);
-          var oldBuffer = buffer;
-          buffer = Buffer.allocUnsafeSlow(bufferSize);
-          oldBuffer.copy(buffer, 0, 0, offset);
-        }
-      }
-      function flush(specifiedOutlet) {
-        (specifiedOutlet || outlet).writeBytes(buffer.slice(0, offset));
-        if (offset + 128 > buffer.length)
-          buffer = Buffer.allocUnsafeSlow(bufferSize = Math.min(Math.max((offset >> 10 << 10) + 8192, bufferSize), 32768));
-        else {
-          buffer = buffer.slice(offset);
-          bufferSize = buffer.length;
-        }
-        offset = 0;
-        sequences = [];
-      }
-      function writeToken(type, number) {
-        if (number < 16) {
-          buffer[offset++] = (type << 4) + number ^ 64;
-        } else if (number < 1024) {
-          buffer[offset++] = (type << 4) + (number >>> 6);
-          buffer[offset++] = (number & 63) + 64;
-        } else if (number < 65536) {
-          buffer[offset++] = (type << 4) + (number >>> 12);
-          buffer[offset++] = number >>> 6 & 63;
-          buffer[offset++] = (number & 63) + 64;
-        } else if (number < 4194304) {
-          buffer[offset++] = (type << 4) + (number >>> 18);
-          buffer[offset++] = number >>> 12 & 63;
-          buffer[offset++] = number >>> 6 & 63;
-          buffer[offset++] = (number & 63) + 64;
-        } else if (number < 268435456) {
-          buffer[offset++] = (type << 4) + (number >>> 24);
-          buffer[offset++] = number >>> 18 & 63;
-          buffer[offset++] = number >>> 12 & 63;
-          buffer[offset++] = number >>> 6 & 63;
-          buffer[offset++] = (number & 63) + 64;
-        } else if (number < 4294967296) {
-          buffer[offset++] = (type << 4) + (number >>> 30);
-          buffer[offset++] = number >>> 24 & 63;
-          buffer[offset++] = number >>> 18 & 63;
-          buffer[offset++] = number >>> 12 & 63;
-          buffer[offset++] = number >>> 6 & 63;
-          buffer[offset++] = (number & 63) + 64;
-        } else if (number < 17179869184) {
-          buffer[offset++] = (type << 4) + (number / 1073741824 >>> 0);
-          buffer[offset++] = number >>> 24 & 63;
-          buffer[offset++] = number >>> 18 & 63;
-          buffer[offset++] = number >>> 12 & 63;
-          buffer[offset++] = number >>> 6 & 63;
-          buffer[offset++] = (number & 63) + 64;
-        } else if (number < 1099511627776) {
-          buffer[offset++] = (type << 4) + (number / 68719476736 >>> 0);
-          buffer[offset++] = number / 1073741824 & 63;
-          buffer[offset++] = number >>> 24 & 63;
-          buffer[offset++] = number >>> 18 & 63;
-          buffer[offset++] = number >>> 12 & 63;
-          buffer[offset++] = number >>> 6 & 63;
-          buffer[offset++] = (number & 63) + 64;
-        } else if (number < 70368744177664) {
-          buffer[offset++] = (type << 4) + (number / 4398046511104 >>> 0);
-          buffer[offset++] = number / 68719476736 & 63;
-          buffer[offset++] = number / 1073741824 & 63;
-          buffer[offset++] = number >>> 24 & 63;
-          buffer[offset++] = number >>> 18 & 63;
-          buffer[offset++] = number >>> 12 & 63;
-          buffer[offset++] = number >>> 6 & 63;
-          buffer[offset++] = (number & 63) + 64;
-        } else {
-          throw new Error("Invalid number " + number);
-        }
-        if (offset > bufferSize - 10) {
-          makeRoom(0);
-        }
-      }
-      function writeBuffer(source) {
-        var sourceLength = source.length;
-        if (sourceLength + offset + 10 > bufferSize) {
-          makeRoom(sourceLength + 10);
-        }
-        source.copy(buffer, offset);
-        offset += sourceLength;
-      }
-      function writeString(string) {
-        var length = string.length;
-        var maxStringLength = length * 3 + 10;
-        if (offset + maxStringLength > bufferSize) {
-          makeRoom(maxStringLength + 10);
-        }
-        var bytesWritten = encoding ? buffer.write(string, offset, buffer.length, encoding) : buffer.utf8Write(string, offset, buffer.length);
-        offset += bytesWritten;
-      }
-      function getSerialized() {
-        return buffer.slice(0, offset);
-      }
-      function insertBuffer(headerBuffer, position) {
-        var headerLength = headerBuffer.length;
-        if (offset + headerLength + 10 > bufferSize) {
-          makeRoom(headerLength + 10);
-        }
-        buffer.copy(buffer, headerLength + position, position, offset);
-        headerBuffer.copy(buffer, position);
-        offset += headerLength;
-      }
-      var encoder = {
-        writeToken,
-        writeString,
-        writeBuffer,
-        getSerialized,
-        insertBuffer,
-        flush,
-        startSequence() {
-          var currentOffset = offset;
-          buffer[offset++] = 60;
-          sequences.push(currentOffset);
-          if (offset > bufferSize - 10) {
-            makeRoom(0);
-          }
-        },
-        endSequence(length) {
-          var startOffset = sequences.pop();
-          if (length < 12 && startOffset > -1) {
-            buffer[startOffset] = 48 + length;
-            return;
-          }
-          buffer[offset++] = 62;
-        },
-        finish() {
-          if (buffer.length - offset > 144)
-            availableBuffers.push(buffer.slice(offset));
-        },
-        getOffset() {
-          return offset;
-        },
-        setOffset(newOffset) {
-          offset = newOffset;
-        }
-      };
-      if (false) {
-        global.typeCount = [];
-        encoder.writeToken = function(type, number) {
-          typeCount[type] = (typeCount[type] || 0) + 1;
-          writeToken(type, number);
-        };
-        global.stringCount = /* @__PURE__ */ new Map();
-        encoder.writeString = function(string) {
-          stringCount.set(string, (stringCount.get(string) || 0) + 1);
-          writeString(string);
-        };
-        setTimeout(function() {
-          var stringDuplicationCount = 0;
-          console.log("stringCount", Array.from(stringCount).filter(([string, count3]) => {
-            if (count3 > 1 & string.length > 3) {
-              stringDuplicationCount += (count3 - 1) * string.length;
-              return true;
-            }
-          }));
-          console.log("stringDuplicationCount", stringDuplicationCount);
-          console.log("typeCount", typeCount);
-        });
-      }
-      return encoder;
-    }
-    exports2.nodeCharEncoder = nodeCharEncoder;
-  }
-});
-
-// node_modules/dpack/lib/Options.js
-var require_Options = __commonJS({
-  "node_modules/dpack/lib/Options.js"(exports2) {
-    "use strict";
-    function Options() {
-      var classByName = this.classByName = /* @__PURE__ */ new Map();
-      this.converterByConstructor = /* @__PURE__ */ new Map();
-    }
-    Options.prototype.addExtension = function(Class, name, options2) {
-      if (name && Class.name !== name) {
-        Class.name = name;
-      }
-      this.classByName.set(Class.name, options2 && options2.fromArray ? options2 : Class);
-      this.converterByConstructor.set(Class, options2 && options2.toArray ? options2 : Class);
-    };
-    exports2.Options = Options;
-  }
-});
-
-// node_modules/dpack/lib/shared.js
-var require_shared = __commonJS({
-  "node_modules/dpack/lib/shared.js"(exports2) {
-    var createSerializer = require_serialize().createSerializer;
-    var serialize2 = require_serialize().serialize;
-    var createParser = require_parse2().createParser;
-    var Options = require_Options().Options;
-    var PROPERTY_CODE = 0;
-    var TYPE_CODE = 3;
-    var SEQUENCE_CODE = 7;
-    var DEFAULT_TYPE = 6;
-    var ARRAY_TYPE = 7;
-    var REFERENCING_TYPE = 8;
-    var NUMBER_TYPE = 9;
-    var TYPE_DEFINITION = 14;
-    var UNSTRUCTURED_MARKER = 11;
-    var OPEN_SEQUENCE = 12;
-    var END_SEQUENCE = 14;
-    exports2.createSharedStructure = createSharedStructure;
-    exports2.readSharedStructure = readSharedStructure;
-    function readSharedStructure(from) {
-      var parser = createParser();
-      var sharedProperty = [];
-      sharedProperty.code = 6;
-      sharedProperty.key = null;
-      parser.setSource(from + "p").read([sharedProperty]);
-      setupShared(sharedProperty);
-      sharedProperty.serialized = from;
-      return sharedProperty;
-    }
-    function setupShared(property) {
-      property.resetTo = property.length;
-      property.upgrade = upgrade;
-      property.type = types[property.code];
-      property.isFrozen = true;
-      Object.defineProperty(property, "serialized", {
-        get() {
-          return this._serialized || (this._serialized = serializeSharedStructure(this));
-        }
-      });
-      if (typeof property.values === "object" && property.values) {
-        property.values.resetTo = property.values.length;
-        property.lastIndex = property.values.length;
-      }
-      for (var i = 0, l = property.length; i < l; i++) {
-        property[i].index = i;
-        property[i].resumeIndex = i;
-        setupShared(property[i]);
-      }
-    }
-    function upgrade(property) {
-      if (!property) {
-        return 1;
-      }
-      var compatibility;
-      if (property) {
-        if (property.insertedFrom === this && property.insertedVersion === this.version && (property.recordUpdate || property.isFrozen || property.length == 0 && property.code == this.code && property.values == null)) {
-          return 0;
-        }
-        var changedCode;
-        if (this.code !== property.code)
-          changedCode = true;
-        if (property.upgrade) {
-          var compatibility = copyProperty(this, property);
-          if (changedCode)
-            compatibility = 2;
-          if (property.isFrozen && compatibility > 0) {
-            return 2;
-          }
-          property.insertedFrom = this;
-          property.insertedVersion = this.version;
-          if (compatibility === 2) {
-            debugger;
-            console.error("Inserting incompatible block into property");
-            return 2;
-          } else
-            return 0;
-        } else {
-          property.insertedFrom = this;
-          property.insertedVersion = this.version;
-          property.length = 0;
-          property.values = null;
-          if (property.fromValue)
-            property.fromValue = null;
-          return 1;
-        }
-      } else {
-        if (this.length > 0) {
-          blockBuffer = Buffer.concat([this.serialized, blockBuffer]);
-        }
-      }
-      return 1;
-    }
-    var typeToCode = {
-      string: REFERENCING_TYPE,
-      number: NUMBER_TYPE,
-      object: DEFAULT_TYPE,
-      boolean: DEFAULT_TYPE,
-      undefined: DEFAULT_TYPE,
-      array: ARRAY_TYPE
-    };
-    var lastPropertyOnObject = /* @__PURE__ */ new WeakMap();
-    function createSharedStructure(from, options2) {
-      var instanceProperty = [];
-      instanceProperty.key = null;
-      instanceProperty.code = 6;
-      instanceProperty.type = "object";
-      let activeList = [];
-      let needsCleanup = [];
-      activeList.iteration = 0;
-      var previousAvoidShareUpdate;
-      class Shared extends Array {
-        constructor(instanceProperty2) {
-          super();
-          let hasUpdates;
-          this.key = typeof instanceProperty2.key == "string" ? isolateString(instanceProperty2.key) : instanceProperty2.key;
-          this.type = instanceProperty2.type;
-          this.code = instanceProperty2.code;
-          this.count = 0;
-          this.comesAfter = [];
-          if (this.code == REFERENCING_TYPE) {
-            this.values = [];
-            this.values.resetTo = 512;
-            this.values.nextPosition = 512;
-            this.previousValues = /* @__PURE__ */ new Map();
-            this.lastIndex = 0;
-            this.repetitions = 0;
-          }
-        }
-        newProperty(instance) {
-          return new Shared(instance);
-        }
-        getProperty(value, key, type, extendedType, writeProperty, writeToken, lastPropertyIndex) {
-          let property;
-          if (this.insertedFrom) {
-            propertySearch(this.insertedFrom);
-            if (property) {
-              if (lastPropertyIndex !== property.index) {
-                writeToken(PROPERTY_CODE, propertyIndex);
-              }
-              return property;
-            }
-            if (this.insertedFrom.getProperty) {
-              return this.insertedFrom.getProperty(value, key, type, extendedType, writeProperty, writeToken, lastPropertyIndex);
-            } else {
-              debugger;
-            }
-          }
-          this.recordUpdate();
-          let propertyIndex = this.length;
-          if (lastPropertyIndex !== propertyIndex) {
-            writeToken(PROPERTY_CODE, propertyIndex);
-          }
-          if (type === "boolean" || type === "undefined") {
-            type = "object";
-          }
-          property = this[propertyIndex] = new Shared({
-            key,
-            type,
-            code: typeToCode[type]
-          });
-          property.parent = this;
-          property.index = propertyIndex;
-          return property;
-          function propertySearch(parentProperty) {
-            let propertyIndex2 = -1;
-            do {
-              property = parentProperty[++propertyIndex2];
-            } while (property && (property.key !== key || property.type !== type && type !== "boolean" && type !== "undefined" || extendedType && property.extendedType !== constructor));
-          }
-        }
-        writeSharedValue(value, writeToken, serializerId) {
-          let valueEntry = this.previousValues.get(value);
-          if (valueEntry) {
-            if (valueEntry.serializer == serializerId) {
-              this.repetitions++;
-            } else {
-              valueEntry.serializations++;
-              valueEntry.serializer = serializerId;
-            }
-          } else {
-            this.previousValues.set(value, valueEntry = {
-              serializations: 1,
-              serializer: serializerId
-            });
-          }
-          if (!this.active) {
-            this.active = 2;
-            activeList.push(this);
-          }
-          return false;
-        }
-        propertyUsed(property, object, serializerId, i) {
-          if (property.lastSerializer !== serializerId) {
-            property.lastSerializer = serializerId;
-            property.count++;
-          }
-          if (i !== 0) {
-            let lastProperty = lastPropertyOnObject.get(object);
-            if (lastProperty && property.comesAfter.indexOf(lastProperty) === -1)
-              property.comesAfter.push(lastProperty);
-          }
-          lastPropertyOnObject.set(object, property);
-        }
-        recordUpdate() {
-          var property = this;
-          do {
-            property.version = (property.version || 0) + 1;
-            if (property.insertedFrom) {
-              property.insertedFrom = null;
-            }
-            if (property._serialized)
-              property._serialized = null;
-          } while (property = property.parent);
-        }
-        readingBlock(parse3) {
-          try {
-            return parse3();
-          } finally {
-            this.readReset();
-            if (this.length > 500) {
-              debugger;
-            }
-          }
-        }
-        //active:
-        // 0 - not-actively being monitored
-        // 1 - being monitored, but an iteration hasn't started for this
-        // 2 - being monitored, and an iteration has started
-        startWrite(avoidShareUpdate, value) {
-          activeList.iteration++;
-          if (value && value.constructor === Array) {
-            if (this.code !== ARRAY_TYPE && this.version > 0) {
-              throw new Error("Can not change the root type of a shared object to an array");
-            }
-            if (this.code != ARRAY_TYPE)
-              this.recordUpdate();
-            this.code = ARRAY_TYPE;
-            this.type = "array";
-          }
-          if (this.writing)
-            return;
-          else
-            this.writing = true;
-          return;
-          previousAvoidShareUpdate = currentAvoidShareUpdate;
-          if (avoidShareUpdate)
-            currentAvoidShareUpdate = true;
-        }
-        endWrite() {
-          if (this.writing)
-            this.writing = false;
-          else
-            return;
-          let iterations = this.iterations = (this.iterations || 0) + 1;
-          for (let i = 0; i < activeList.length; i++) {
-            let activeSharedProperty = activeList[i];
-            let previousValues = activeSharedProperty.previousValues;
-            if (previousValues && previousValues.size && !activeSharedProperty.isFrozen) {
-              if (!currentAvoidShareUpdate) {
-                if (activeSharedProperty.values.length == 0 && iterations > ((activeSharedProperty.repetitions || 0) + 10) * 5) {
-                  console.log("changing referenceable to default", activeSharedProperty.key);
-                  activeSharedProperty.previousValues = null;
-                  activeSharedProperty.code = DEFAULT_TYPE;
-                  activeSharedProperty.type = "object";
-                  activeSharedProperty.recordUpdate();
-                  activeList.splice(i--, 1);
-                  previousValues = [];
-                }
-                for (let [value, entry] of previousValues) {
-                  let values = activeSharedProperty.values;
-                  if ((entry.serializations + 3) * 8 < iterations - (entry.startingIteration || (entry.startingIteration = iterations)) || values.length > 500) {
-                    previousValues.delete(value);
-                  }
-                  if (entry.serializations > 50 && entry.serializations * 3 > iterations) {
-                    values[activeSharedProperty.lastIndex++] = value;
-                    activeSharedProperty.recordUpdate();
-                    console.log("adding value", value, "to", activeSharedProperty.key);
-                    previousValues.delete(value);
-                  }
-                }
-              }
-            } else {
-              activeSharedProperty.active = 0;
-              activeList.splice(i--, 1);
-            }
-          }
-          if (activeList.hasUpdates) {
-            activeList.hasUpdates = false;
-            this.version++;
-            if (!this._serialized)
-              this._serialized = null;
-            if (options2 && options2.onUpdate)
-              options2.onUpdate();
-          }
-          currentAvoidShareUpdate = previousAvoidShareUpdate;
-        }
-        upgrade(property) {
-          return upgrade.call(this, property);
-        }
-        get serialized() {
-          return this._serialized || (this._serialized = serializeSharedStructure(this));
-        }
-        serializeCommonStructure(embedded) {
-          var usageThreshold = Math.sqrt(activeList.iteration);
-          return serializeSharedStructure(this, (childProperty) => childProperty.count >= usageThreshold, embedded);
-        }
-      }
-      var sharedStructure = new Shared(instanceProperty);
-      sharedStructure.version = 0;
-      sharedStructure.freeze = function() {
-        this.isFrozen = true;
-        this.reset();
-      };
-      if (from) {
-        var parser = createParser({
-          forDeferred(block, property) {
-            property.isBlock = true;
-            return block;
-          },
-          parseDeferreds: true
-        });
-        var readProperty = [];
-        readProperty.code = 6;
-        readProperty.key = null;
-        parser.setSource(from + "p").read([readProperty]);
-        copyProperty(readProperty, sharedStructure);
-        activeList.hasUpdates = false;
-        sharedStructure.version = 1;
-      }
-      sharedStructure.key = null;
-      return sharedStructure;
-    }
-    var types = {
-      6: "object",
-      7: "array",
-      8: "string",
-      9: "number"
-    };
-    var currentAvoidShareUpdate;
-    function serializeSharedStructure(property, condition, embedded) {
-      var serializer = createSerializer();
-      var writers = serializer.getWriters();
-      serializeSharedProperty(property, !embedded, !embedded);
-      function serializeSharedProperty(property2, expectsObjectWithNullKey, isRoot) {
-        if (property2.insertedFrom && property2.insertedFrom.serializeCommonStructure) {
-          property2 = property2.insertedFrom;
-          return writers.writeBuffer(property2.serializeCommonStructure(!isRoot));
-        }
-        var isArray = property2.code === ARRAY_TYPE;
-        var commonProperties = condition ? orderProperties(property2.filter(condition)) : property2;
-        var length = commonProperties.length;
-        if (!(expectsObjectWithNullKey && property2.code === DEFAULT_TYPE)) {
-          let key = isRoot ? null : property2.key;
-          writers.writeProperty(key, types[property2.code]);
-          if (length === 0 && key === null && (property2.code === DEFAULT_TYPE || property2.code === ARRAY_TYPE)) {
-            writers.writeToken(SEQUENCE_CODE, 0);
-          }
-        }
-        if (isRoot && length > 0) {
-          writers.writeToken(TYPE_CODE, TYPE_DEFINITION);
-        }
-        if (length > 0) {
-          writers.writeToken(SEQUENCE_CODE, OPEN_SEQUENCE);
-          for (var i = 0; i < length; i++) {
-            var childProperty = commonProperties[i];
-            childProperty.index = i;
-            if (isArray && i > 0) {
-              writers.writeToken(PROPERTY_CODE, i);
-            }
-            serializeSharedProperty(childProperty, commonProperties.code === ARRAY_TYPE && i === 0, false, condition);
-          }
-          writers.writeToken(SEQUENCE_CODE, END_SEQUENCE);
-        }
-        var first = true;
-        if (property2.lastIndex > 0) {
-          for (var i = 0, l = property2.lastIndex; i < l; i++) {
-            var value = property2.values[i];
-            if (first)
-              first = false;
-            else
-              writers.writeToken(PROPERTY_CODE, property2.index);
-            writers.writeAsDefault(value);
-          }
-        }
-      }
-      let serialized = serializer.getSerialized();
-      return serialized;
-    }
-    function copyProperty(source, target, freezeTarget, startingIndex) {
-      var compatibility = 0;
-      target.code = source.code;
-      target.type = source.type || types[source.code];
-      if (freezeTarget) {
-        target.isFrozen = true;
-        if (target.previousValues)
-          target.previousValues = null;
-      }
-      let sourceLength = source.resetTo > -1 ? source.resetTo : source.length;
-      if (target.resetTo > -1 && target.resetTo < target.length)
-        target.length = target.resetTo;
-      for (var i = startingIndex || 0; i < sourceLength; i++) {
-        var targetChild = target[i];
-        var childProperty = source[i];
-        if (targetChild && (targetChild.key != childProperty.key || targetChild.extendedType != childProperty.extendedType || targetChild.code != childProperty.code && !(targetChild.code == 8 && childProperty.code === 6 && (!targetChild.values || !targetChild.values.length)))) {
-          if (target.isFrozen)
-            return 2;
-          compatibility = 2;
-        }
-        if (!targetChild) {
-          if (target.isFrozen)
-            return 2;
-          var targetChild = [];
-          targetChild.code = childProperty.code;
-          if (target.newProperty) {
-            targetChild = target.newProperty(targetChild);
-          }
-          target[i] = targetChild;
-          if (childProperty.metadata)
-            targetChild.metadata = childProperty.metadata;
-          if (childProperty.insertedFrom) {
-            targetChild.insertedFrom = childProperty.insertedFrom;
-            targetChild.insertedVersion = childProperty.insertedVersion;
-          }
-          targetChild.parent = target;
-        }
-        targetChild.key = childProperty.key;
-        if (childProperty.values && childProperty.values.length > 0) {
-          if (childProperty.values.resetTo > -1) {
-            childProperty.values.length = childProperty.values.resetTo;
-          }
-          if (!targetChild.values || childProperty.values.length > (targetChild.values.resetTo > -1 ? targetChild.values.resetTo : targetChild.values.length)) {
-            targetChild.values = childProperty.values.slice(0);
-            targetChild.values.nextPosition = childProperty.values.length;
-            if (targetChild.values.length >= 12) {
-              targetChild.previousValues = null;
-            }
-            if (compatibility == 0) {
-              compatibility = 1;
-            }
-          }
-        }
-        var childCompatibility = copyProperty(childProperty, targetChild, freezeTarget);
-        if (childCompatibility > compatibility)
-          compatibility = childCompatibility;
-      }
-      let targetLength = target.resetTo > -1 ? target.resetTo : target.length;
-      if (targetLength > sourceLength) {
-        if (target.recordUpdate) {
-          source.metadata = UNSTRUCTURED_MARKER;
-          source.recordUpdate();
-        } else if (target.isFrozen) {
-          return 2;
-        }
-      }
-      return compatibility;
-    }
-    function isolateString(string) {
-      return string.slice(0, 1) + string.slice(1);
-    }
-    function orderProperties(properties) {
-      var ordered = [];
-      var traversed = /* @__PURE__ */ new Set();
-      function addProperty(property) {
-        if (traversed.has(property))
-          return;
-        traversed.add(property);
-        for (var propertyBefore of property.comesAfter) {
-          addProperty(propertyBefore);
-        }
-        ordered.push(property);
-      }
-      for (let property of properties) {
-        addProperty(property);
-      }
-      return ordered;
-    }
-  }
-});
-
-// node_modules/dpack/lib/Block.js
-var require_Block = __commonJS({
-  "node_modules/dpack/lib/Block.js"(exports2) {
-    "use strict";
-    var makeSymbol = typeof Symbol !== "undefined" ? Symbol : function(name) {
-      return "symbol-" + name;
-    };
-    var nextVersion = 1;
-    var bufferSymbol = makeSymbol("buffer");
-    var sizeTableSymbol = makeSymbol("sizeTable");
-    var headerSymbol = makeSymbol("header");
-    var parsedSymbol = makeSymbol("parsed");
-    var sharedSymbol = makeSymbol("shared");
-    var targetSymbol = makeSymbol("target");
-    var freezeObjects = process.env.NODE_ENV != "production";
-    var DEFAULT_TYPE = 6;
-    var ARRAY_TYPE = 7;
-    function Block() {
-    }
-    var serializeModule = require_serialize();
-    exports2.Block = Block;
-    exports2.bufferSymbol = serializeModule.bufferSymbol = bufferSymbol;
-    exports2.parsedSymbol = parsedSymbol;
-    exports2.sharedSymbol = sharedSymbol;
-    exports2.targetSymbol = serializeModule.targetSymbol = targetSymbol;
-    exports2.sizeTableSymbol = serializeModule.sizeTableSymbol = sizeTableSymbol;
-    var serialize2 = serializeModule.serialize;
-    var createSerializer = serializeModule.createSerializer;
-    exports2.asBlock = asBlock;
-    function asBlock(object, shared) {
-      if (object && object[targetSymbol]) {
-        return object;
-      }
-      if (Array.isArray(object)) {
-        let target = [];
-        target.parsed = object;
-        target.shared = shared;
-        return new Proxy(target, onDemandHandler);
-      }
-      return new Proxy({
-        parsed: object,
-        shared
-      }, onDemandHandler);
-    }
-    exports2.isBlock = isBlock;
-    function isBlock(object) {
-      return object && object[targetSymbol];
-    }
-    exports2.makeBlockFromBuffer = makeBlockFromBuffer;
-    function makeBlockFromBuffer(buffer, shared) {
-      var dpackBuffer, sizeTableBuffer;
-      if (buffer[0] < 128) {
-        dpackBuffer = buffer;
-      } else {
-        var type = buffer[0] >> 6;
-        var dpackOffset;
-        if (type === 2) {
-          dpackOffset = buffer.readUInt16BE(0) & 16383;
-        } else {
-          dpackOffset = buffer.readUInt32BE(0) & 1073741823;
-        }
-        dpackBuffer = buffer.slice(dpackOffset);
-        sizeTableBuffer = buffer.slice(0, dpackOffset);
-      }
-      var target = {
-        dpackBuffer,
-        sizeTableBuffer,
-        shared,
-        reassign: function(buffer2) {
-          this.buffer = buffer2;
-        }
-      };
-      buffer.owner = target;
-      return new Proxy(target, onDemandHandler);
-    }
-    exports2.getLazyHeader = function(block) {
-      return block[sizeTableSymbol];
-    };
-    var onDemandHandler = {
-      get: function(target, key) {
-        if (specialGetters.hasOwnProperty(key)) {
-          return specialGetters[key].call(target);
-        }
-        var parsed = target.parsed;
-        if (!parsed) {
-          parsed = getParsed(target);
-        }
-        return parsed[key];
-      },
-      set: function(target, key, value) {
-        if (typeof key === "symbol") {
-          target[key] = value;
-          makeSymbolGetter(key);
-          return true;
-        }
-        throw new Error("No changes are allowed on frozen parsed object, Use dpack copy() function to modify");
-      },
-      deleteProperty: function() {
-        throw new Error("No changes are allowed on frozen parsed object, Use dpack copy() function to modify");
-      },
-      getOwnPropertyDescriptor: function(target, key) {
-        var parsed = getParsed(target);
-        return Object.getOwnPropertyDescriptor(parsed, key);
-      },
-      has: function(target, key) {
-        var parsed = getParsed(target);
-        return key in parsed;
-      },
-      ownKeys: function(target) {
-        var parsed = getParsed(target);
-        var keys = Object.keys(parsed);
-        if (Array.isArray(parsed)) {
-          keys.push("length");
-        }
-        return keys;
-      },
-      getPrototypeOf: function(target) {
-        var parsed = getParsed(target);
-        return Object.getPrototypeOf(parsed);
-      }
-    };
-    exports2.reassignBuffers = reassignBuffers;
-    function reassignBuffers(block, newParentNodeBuffer, parentArrayBuffer) {
-      var target = block[targetSymbol];
-      var buffer = target.dpackBuffer;
-      if (!parentArrayBuffer)
-        parentArrayBuffer = buffer.buffer;
-      if (buffer && buffer.buffer === parentArrayBuffer) {
-        var byteOffset = buffer.byteOffset;
-        target.dpackBuffer = newParentNodeBuffer.slice(byteOffset, byteOffset + buffer.length);
-      }
-      var buffer = target.sizeTableBuffer;
-      if (buffer && buffer.buffer === parentArrayBuffer) {
-        var byteOffset = buffer.byteOffset;
-        target.sizeTableBuffer = newParentNodeBuffer.slice(byteOffset, byteOffset + buffer.length);
-      }
-      if (target.parsed) {
-        var parsed = target.parsed;
-        for (var key in parsed) {
-          var value = parsed[key];
-          if (isBlock(value)) {
-            reassignBuffers(value, newParentNodeBuffer, parentArrayBuffer);
-          }
-        }
-      }
-    }
-    var copyOnWriteHandler = {
-      get: function(target, key) {
-        if (specialGetters.hasOwnProperty(key)) {
-          return specialGetters[key].call(target);
-        }
-        var cachedParsed = target.cachedParsed;
-        if (cachedParsed && cachedParsed.hasOwnProperty(key) && !(key == "length" && Array.isArray(cachedParsed))) {
-          return cachedParsed[key];
-        }
-        var parsed = target.parsed;
-        if (!parsed) {
-          parsed = getParsed(target);
-        }
-        var value = parsed[key];
-        if (value && value[targetSymbol]) {
-          if (!cachedParsed) {
-            target.cachedParsed = cachedParsed = parsed instanceof Array ? [] : {};
-          }
-          cachedParsed[key] = value = copyWithParent(value, target);
-        }
-        return value;
-      },
-      changed: function(target) {
-        target.dpackBuffer = null;
-        target.sizeTableBuffer = null;
-        target.shared = null;
-        var parsed = target.parsed;
-        if (!parsed) {
-          parsed = getParsed(target);
-        }
-        if (!target.copied) {
-          var cachedParsed = target.cachedParsed;
-          var copied = target.parsed = target.cachedParsed = parsed instanceof Array ? [] : {};
-          for (var key in parsed) {
-            var value = cachedParsed && cachedParsed[key];
-            if (!value) {
-              value = parsed[key];
-              if (value && value[targetSymbol]) {
-                value = copyWithParent(value, target);
-              }
-            }
-            copied[key] = value;
-          }
-          parsed = copied;
-          target.copied = true;
-        }
-        target.version = nextVersion++;
-        return parsed;
-      },
-      checkVersion: function(target) {
-        var cachedParsed = target.cachedParsed;
-        let version = target.version || 0;
-        if (cachedParsed) {
-          for (let key in cachedParsed) {
-            var value = cachedParsed[key];
-            if (value && value[targetSymbol]) {
-              version = Math.max(version, this.checkVersion(value[targetSymbol]));
-            }
-          }
-        }
-        if (version != (target.version || 0)) {
-          this.changed(target);
-          target.version = version;
-        }
-        return version;
-      },
-      set: function(target, key, value, proxy) {
-        if (specialSetters.hasOwnProperty(key)) {
-          specialSetters[key].call(target, value);
-          return true;
-        }
-        var parsed = copyOnWriteHandler.changed(target);
-        parsed[key] = value;
-        return true;
-      },
-      deleteProperty: function(target, key) {
-        var parsed = copyOnWriteHandler.changed(target);
-        return delete parsed[key];
-      },
-      getOwnPropertyDescriptor: function(target, key) {
-        var parsed = getParsed(target);
-        return Object.getOwnPropertyDescriptor(parsed, key);
-      },
-      has: function(target, key) {
-        var parsed = getParsed(target);
-        return key in parsed;
-      },
-      ownKeys: function(target) {
-        var parsed = getParsed(target);
-        var keys = Object.keys(parsed);
-        if (Array.isArray(parsed)) {
-          keys.push("length");
-        }
-        if (target.copied) {
-          for (var key in target.copied) {
-            if (keys.indexOf(key) === -1) {
-              keys.push(key);
-            }
-          }
-        }
-        return keys;
-      },
-      getPrototypeOf: function(target) {
-        var parsed = getParsed(target);
-        return Object.getPrototypeOf(parsed);
-      }
-    };
-    var specialGetters = {};
-    specialGetters[bufferSymbol] = function() {
-      return function(property, randomAccess) {
-        var propertyIsShared = property && property.upgrade;
-        var buffer;
-        if (this.cachedParsed && this.dpackBuffer) {
-          copyOnWriteHandler.checkVersion(this);
-        }
-        if (!(this.shared && this.shared.upgrade) && propertyIsShared) {
-          if (this.dpackBuffer) {
-            this.sizeTableBuffer = null;
-            return inSeparateProperty(this.dpackBuffer, true);
-          } else {
-            return getSerialized(this, this.shared = property);
-          }
-        }
-        if (!this.dpackBuffer) {
-          getSerialized(this, this.shared);
-        }
-        if (this.shared && this.shared.upgrade && this.shared !== property) {
-          var compatibility = this.shared.upgrade(property, randomAccess);
-          if (compatibility > 0) {
-            this.sizeTableBuffer = null;
-            var sharedBuffer = this.shared.serialized;
-            if (sharedBuffer.length > 0) {
-              if (compatibility == 2 && !(property.isFrozen && property.resetTo === 0))
-                sharedBuffer = inSeparateProperty(sharedBuffer);
-              buffer = Buffer.concat([sharedBuffer, this.dpackBuffer]);
-              buffer.mustSequence = true;
-              return buffer;
-            }
-          }
-        } else if (property) {
-          if (!propertyIsShared) {
-            property.length = 0;
-          }
-          if (property.insertedFrom)
-            property.insertedFrom = null;
-        }
-        return this.dpackBuffer;
-        function inSeparateProperty(dpackBuffer) {
-          var serializer = createSerializer();
-          var isArray = dpackBuffer[0] === 119;
-          var writeToken = serializer.getWriters().writeToken;
-          if (isArray) {
-            dpackBuffer = dpackBuffer.slice(1);
-          }
-          writeToken(0, 1e3);
-          writeToken(3, isArray ? ARRAY_TYPE : DEFAULT_TYPE);
-          if (property && property.key !== null)
-            serializer.serialize(property.key);
-          dpackBuffer = Buffer.concat([serializer.getSerialized(), dpackBuffer]);
-          dpackBuffer.mustSequence = true;
-          return dpackBuffer;
-        }
-      }.bind(this);
-    };
-    specialGetters[targetSymbol] = function() {
-      return this;
-    };
-    specialGetters[sharedSymbol] = function() {
-      return this.shared;
-    };
-    specialGetters[parsedSymbol] = function() {
-      return this.parsed || getParsed(this);
-    };
-    specialGetters[sizeTableSymbol] = function() {
-      if (!this.dpackBuffer) {
-        getSerialized(this);
-      }
-      return this.sizeTableBuffer;
-    };
-    specialGetters.then = function() {
-    };
-    specialGetters.toJSON = function() {
-      return valueOf;
-    };
-    specialGetters.valueOf = function() {
-      return valueOf;
-    };
-    specialGetters.entries = function() {
-      return entries;
-    };
-    function entries() {
-      return this[parsedSymbol].entries();
-    }
-    specialGetters[Symbol.iterator] = function() {
-      var parsed = this.parsed || getParsed(this);
-      return parsed && parsed[Symbol.iterator] && iterator;
-    };
-    function iterator() {
-      var parsed = this[parsedSymbol];
-      return parsed && parsed[Symbol.iterator] ? parsed[Symbol.iterator]() : [][Symbol.iterator]();
-    }
-    specialGetters.constructor = function() {
-      if (this.parsed) {
-        return this.parsed.constructor;
-      }
-      if (this.dpackBuffer) {
-        let firstByte = this.dpackBuffer[0];
-        if (firstByte >= 48 && firstByte <= 60) {
-          if (this.shared) {
-            if (this.shared.code == DEFAULT_TYPE) {
-              return Object;
-            } else if (this.shared.code == ARRAY_TYPE) {
-              return Array;
-            }
-          } else {
-            return Object;
-          }
-        } else if (firstByte === 119) {
-          return Array;
-        }
-      }
-      return getParsed(this).constructor;
-    };
-    function makeSymbolGetter(symbol) {
-      if (!specialGetters[symbol])
-        specialGetters[symbol] = function() {
-          return this[symbol];
-        };
-    }
-    function valueOf() {
-      return this[parsedSymbol];
-    }
-    function copy(source) {
-      return copyWithParent(source);
-    }
-    function copyWithParent(source, parent) {
-      if (!isBlock(source)) {
-        return source;
-      }
-      let isArray = Array.isArray(source);
-      let target = isArray ? [] : {};
-      Object.defineProperties(target, {
-        parsed: {
-          get() {
-            return source[parsedSymbol];
-          },
-          set(value) {
-            Object.defineProperty(this, "parsed", {
-              value,
-              writable: true,
-              enumerable: true
-            });
-          },
-          configurable: true
-        },
-        shared: {
-          get() {
-            return source[sharedSymbol];
-          },
-          set(value) {
-            Object.defineProperty(this, "shared", {
-              value,
-              writable: true,
-              enumerable: true
-            });
-            this.dpackBuffer = null;
-            this.sizeTableBuffer = null;
-          },
-          configurable: true
-        },
-        dpackBuffer: {
-          get() {
-            return source[targetSymbol].dpackBuffer;
-          },
-          set(value) {
-            Object.defineProperty(this, "dpackBuffer", {
-              value,
-              writable: true,
-              enumerable: true
-            });
-          },
-          configurable: true
-        },
-        sizeTableBuffer: {
-          get() {
-            return source[sizeTableSymbol];
-          },
-          set(value) {
-            Object.defineProperty(this, "sizeTableBuffer", {
-              value,
-              writable: true,
-              enumerable: true
-            });
-          },
-          configurable: true
-        }
-      });
-      if (isArray) {
-        Object.define;
-      }
-      return new Proxy(target, copyOnWriteHandler);
-    }
-    exports2.copy = copy;
-    var specialSetters = {};
-    function getParsed(target) {
-      var parsed = target.parsed;
-      if (parsed)
-        return parsed;
-      var sizeTableBuffer = target.sizeTableBuffer;
-      var dpackBuffer = target.dpackBuffer;
-      if (!sizeTableBuffer) {
-        return target.parsed = parse3(dpackBuffer, {
-          freezeObjects,
-          shared: target.shared
-        });
-      }
-      var totalSizeTableLength = sizeTableBuffer.length;
-      var totalDPackLength;
-      var rootBlockLength;
-      var type = sizeTableBuffer[0] >> 6;
-      var offset;
-      if (type === 2) {
-        rootBlockLength = sizeTableBuffer.readUInt16BE(4);
-        offset = 6;
-      } else {
-        rootBlockLength = sizeTableBuffer.readUIntBE(10, 6);
-        offset = 16;
-      }
-      var childSizeTables = [];
-      var childDpackBlocks = [];
-      var dpackChildOffset = rootBlockLength;
-      while (offset < totalSizeTableLength) {
-        var type = sizeTableBuffer[offset] >> 6;
-        var sizeTableLength;
-        var dpackLength;
-        if (type < 2) {
-          if (type == 0) {
-            sizeTableLength = 1;
-            dpackLength = sizeTableBuffer[offset];
-          } else {
-            sizeTableLength = 2;
-            dpackLength = sizeTableBuffer.readUInt16BE(offset) & 16383;
-          }
-        } else if (type === 2) {
-          sizeTableLength = sizeTableBuffer.readUInt16BE(offset) & 16383;
-          dpackLength = sizeTableBuffer.readUInt16BE(offset + 2);
-        } else {
-          sizeTableLength = sizeTableBuffer.readUInt32BE(offset) & 1073741823;
-          dpackLength = sizeTableBuffer.readUIntBE(offset + 4, 6);
-        }
-        childSizeTables.push(type < 2 || type == 3 && sizeTableLength == 16 ? (
-          // type 3 with a length of 16 is a long leaf node
-          void 0
-        ) : sizeTableBuffer.slice(offset, offset + sizeTableLength));
-        offset += sizeTableLength;
-        childDpackBlocks.push(dpackBuffer.slice(dpackChildOffset, dpackChildOffset += dpackLength));
-      }
-      var blockIndex = 0;
-      var rootBlock = target.dpackBuffer.slice(0, rootBlockLength);
-      return target.parsed = parse3(rootBlock, childDpackBlocks.length > 0 ? {
-        // if no child blocks, use normal deferred parsing
-        shared: target.shared,
-        forDeferred: function(value, property) {
-          let target2 = new value.constructor();
-          target2.dpackBuffer = childDpackBlocks[blockIndex];
-          target2.sizeTableBuffer = childSizeTables[blockIndex++];
-          target2.shared = property ? property.upgrade ? property : { code: property.code, key: null, type: property.type } : null;
-          return new Proxy(target2, onDemandHandler);
-        },
-        freezeObjects
-      } : {
-        shared: target.shared
-      });
-    }
-    function getSerialized(target, shareProperty) {
-      var childBlocks = [];
-      var childSizeTables = [];
-      var childDpackSizes = 0;
-      var mustSequence;
-      var serializerOptions = {
-        forBlock: function(block, property) {
-          var dpackBuffer2 = block[bufferSymbol](property, true);
-          if (dpackBuffer2.mustSequence) {
-            mustSequence = true;
-            childBlocks.push(dpackBuffer2);
-            return dpackBuffer2;
-          }
-          var sizeTableBuffer = block[sizeTableSymbol];
-          if (!sizeTableBuffer) {
-            var bufferLength = dpackBuffer2.length;
-            if (bufferLength < 64) {
-              sizeTableBuffer = Buffer.from([bufferLength]);
-            } else if (bufferLength < 16384) {
-              sizeTableBuffer = Buffer.from([bufferLength >> 8 | 64, bufferLength & 255]);
-            } else {
-              sizeTableBuffer = Buffer.allocUnsafe(16);
-              sizeTableBuffer.writeUInt32BE(3221225488);
-              sizeTableBuffer.writeUIntBE(bufferLength, 4, 6);
-              sizeTableBuffer.writeUIntBE(bufferLength, 10, 6);
-            }
-          }
-          childSizeTables.push(sizeTableBuffer);
-          childDpackSizes += dpackBuffer2.length;
-          childBlocks.push(dpackBuffer2);
-          return dpackBuffer2;
-        },
-        shared: shareProperty,
-        freezeObjects
-      };
-      var rootBlock = serialize2(target.parsed, serializerOptions);
-      if (childBlocks.length == 0) {
-        return target.dpackBuffer = rootBlock;
-      }
-      childBlocks.unshift(rootBlock);
-      var dpackBuffer = target.dpackBuffer = Buffer.concat(childBlocks);
-      if (mustSequence) {
-        return dpackBuffer;
-      }
-      var ourSizeBlock = Buffer.allocUnsafe(dpackBuffer.length >= 65536 ? 16 : 6);
-      childSizeTables.unshift(ourSizeBlock);
-      ourSizeBlock = target.sizeTableBuffer = Buffer.concat(childSizeTables);
-      if (dpackBuffer.length >= 65536) {
-        ourSizeBlock.writeUInt32BE(ourSizeBlock.length + 3221225472, 0);
-        ourSizeBlock.writeUIntBE(dpackBuffer.length, 4, 6);
-        ourSizeBlock.writeUIntBE(rootBlock.length, 10, 6);
-      } else {
-        ourSizeBlock.writeUInt16BE(ourSizeBlock.length | 32768, 0);
-        ourSizeBlock.writeUInt16BE(dpackBuffer.length, 2);
-        ourSizeBlock.writeUInt16BE(rootBlock.length, 4);
-      }
-      return dpackBuffer;
-    }
-    var parse3 = require_parse2().parse;
-    var serializeSharedBlock = require_shared().serializeSharedBlock;
-    exports2.parseLazy = function(buffer, options2) {
-      if (buffer[0] & 128 || // starts with size table
-      buffer[0] >> 4 === 3 || // sequence (object)
-      buffer[0] === 119) {
-        return makeBlockFromBuffer(buffer, options2 && options2.shared);
-      } else {
-        return parse3(buffer, options2);
-      }
-    };
-  }
-});
-
-// node_modules/dpack/index.js
-var require_dpack = __commonJS({
-  "node_modules/dpack/index.js"(exports2) {
-    exports2.createSerializeStream = require_serialize_stream().createSerializeStream;
-    exports2.createParseStream = require_parse_stream().createParseStream;
-    var serialize2 = require_serialize();
-    serialize2.nodeCharEncoder = require_node_encoder().nodeCharEncoder;
-    var parse3 = require_parse2();
-    var Options = require_Options().Options;
-    exports2.serialize = serialize2.serialize;
-    exports2.parse = parse3.parse;
-    exports2.createSerializer = serialize2.createSerializer;
-    exports2.createParser = parse3.createParser;
-    var Block = require_Block();
-    exports2.parseLazy = Block.parseLazy;
-    exports2.asBlock = Block.asBlock;
-    exports2.isBlock = Block.isBlock;
-    exports2.copy = Block.copy;
-    exports2.reassignBuffers = Block.reassignBuffers;
-    exports2.Options = Options;
-    exports2.createSharedStructure = require_shared().createSharedStructure;
-    exports2.readSharedStructure = require_shared().readSharedStructure;
   }
 });
 
@@ -8410,8 +8410,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path6, errorMaps, issueData } = params;
-  const fullPath = [...path6, ...issueData.path || []];
+  const { data, path: path7, errorMaps, issueData } = params;
+  const fullPath = [...path7, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -8527,11 +8527,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path6, key) {
+  constructor(parent, value, path7, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path6;
+    this._path = path7;
     this._key = key;
   }
   get path() {
@@ -12107,58 +12107,6 @@ function getConfig() {
   return cachedConfig;
 }
 
-// src/core/memory.ts
-import { promises as fs4 } from "node:fs";
-import path5 from "node:path";
-import { createHash } from "node:crypto";
-
-// node_modules/uuid/dist/esm-node/stringify.js
-var byteToHex = [];
-for (let i = 0; i < 256; ++i) {
-  byteToHex.push((i + 256).toString(16).slice(1));
-}
-function unsafeStringify(arr, offset = 0) {
-  return (byteToHex[arr[offset + 0]] + byteToHex[arr[offset + 1]] + byteToHex[arr[offset + 2]] + byteToHex[arr[offset + 3]] + "-" + byteToHex[arr[offset + 4]] + byteToHex[arr[offset + 5]] + "-" + byteToHex[arr[offset + 6]] + byteToHex[arr[offset + 7]] + "-" + byteToHex[arr[offset + 8]] + byteToHex[arr[offset + 9]] + "-" + byteToHex[arr[offset + 10]] + byteToHex[arr[offset + 11]] + byteToHex[arr[offset + 12]] + byteToHex[arr[offset + 13]] + byteToHex[arr[offset + 14]] + byteToHex[arr[offset + 15]]).toLowerCase();
-}
-
-// node_modules/uuid/dist/esm-node/rng.js
-import crypto from "node:crypto";
-var rnds8Pool = new Uint8Array(256);
-var poolPtr = rnds8Pool.length;
-function rng() {
-  if (poolPtr > rnds8Pool.length - 16) {
-    crypto.randomFillSync(rnds8Pool);
-    poolPtr = 0;
-  }
-  return rnds8Pool.slice(poolPtr, poolPtr += 16);
-}
-
-// node_modules/uuid/dist/esm-node/native.js
-import crypto2 from "node:crypto";
-var native_default = {
-  randomUUID: crypto2.randomUUID
-};
-
-// node_modules/uuid/dist/esm-node/v4.js
-function v4(options2, buf, offset) {
-  if (native_default.randomUUID && !buf && !options2) {
-    return native_default.randomUUID();
-  }
-  options2 = options2 || {};
-  const rnds = options2.random || (options2.rng || rng)();
-  rnds[6] = rnds[6] & 15 | 64;
-  rnds[8] = rnds[8] & 63 | 128;
-  if (buf) {
-    offset = offset || 0;
-    for (let i = 0; i < 16; ++i) {
-      buf[offset + i] = rnds[i];
-    }
-    return buf;
-  }
-  return unsafeStringify(rnds);
-}
-var v4_default = v4;
-
 // src/utils/logger.ts
 import { appendFileSync, mkdirSync, existsSync } from "node:fs";
 import path2 from "node:path";
@@ -12236,242 +12184,6 @@ var logger = {
   transcript: createLoggerWithErrors("transcript"),
   extractor: createLoggerWithErrors("extractor")
 };
-
-// src/utils/markdown.ts
-var import_gray_matter = __toESM(require_gray_matter(), 1);
-var STOP_WORDS = /* @__PURE__ */ new Set([
-  "a",
-  "an",
-  "the",
-  "and",
-  "or",
-  "but",
-  "in",
-  "on",
-  "at",
-  "to",
-  "for",
-  "of",
-  "with",
-  "by",
-  "from",
-  "as",
-  "is",
-  "was",
-  "are",
-  "were",
-  "been",
-  "be",
-  "have",
-  "has",
-  "had",
-  "do",
-  "does",
-  "did",
-  "will",
-  "would",
-  "could",
-  "should",
-  "may",
-  "might",
-  "must",
-  "shall",
-  "can",
-  "need",
-  "dare",
-  "ought",
-  "used",
-  "it",
-  "its",
-  "this",
-  "that",
-  "these",
-  "those",
-  "i",
-  "you",
-  "he",
-  "she",
-  "we",
-  "they",
-  "what",
-  "which",
-  "who",
-  "whom",
-  "when",
-  "where",
-  "why",
-  "how",
-  "all",
-  "each",
-  "every",
-  "both",
-  "few",
-  "more",
-  "most",
-  "other",
-  "some",
-  "such",
-  "no",
-  "nor",
-  "not",
-  "only",
-  "own",
-  "same",
-  "so",
-  "than",
-  "too",
-  "very",
-  "just",
-  "also",
-  "now",
-  "here",
-  "there",
-  "then",
-  "once",
-  "if",
-  "else",
-  "because",
-  "while",
-  "although",
-  "though",
-  "after",
-  "before",
-  "above",
-  "below",
-  "between",
-  "into",
-  "through",
-  "during",
-  "about",
-  "against",
-  "without",
-  "within",
-  "along",
-  "following",
-  "across",
-  "behind",
-  "beyond",
-  "plus",
-  "except",
-  "up",
-  "out",
-  "around",
-  "down",
-  "off",
-  "over",
-  "under",
-  "again",
-  "further",
-  "any",
-  "our",
-  "your",
-  "my",
-  "his",
-  "her",
-  "their",
-  "me",
-  "him",
-  "us",
-  "them",
-  "myself",
-  "yourself",
-  "himself",
-  "herself",
-  "itself",
-  "ourselves",
-  "themselves",
-  "being",
-  "having",
-  "doing",
-  "get",
-  "got",
-  "getting",
-  "let",
-  "lets",
-  "make",
-  "made",
-  "making",
-  "take",
-  "took",
-  "taking",
-  "come",
-  "came",
-  "coming",
-  "go",
-  "went",
-  "going",
-  "see",
-  "saw",
-  "seeing",
-  "know",
-  "knew",
-  "knowing",
-  "think",
-  "thought",
-  "thinking",
-  "say",
-  "said",
-  "saying",
-  "tell",
-  "told",
-  "telling",
-  "ask",
-  "asked",
-  "asking",
-  "use",
-  "using",
-  "try",
-  "tried",
-  "trying",
-  "want",
-  "wanted",
-  "wanting",
-  "look",
-  "looked",
-  "looking",
-  "give",
-  "gave",
-  "giving",
-  "keep",
-  "kept",
-  "keeping",
-  "put",
-  "putting"
-]);
-function parseMarkdown(content) {
-  const { data, content: body } = (0, import_gray_matter.default)(content);
-  return {
-    frontmatter: data,
-    body: body.trim()
-  };
-}
-function serializeMemory(memory) {
-  const frontmatter = {
-    id: memory.id,
-    subject: memory.subject,
-    keywords: memory.keywords,
-    applies_to: memory.applies_to,
-    occurred_at: memory.occurred_at,
-    content_hash: memory.content_hash
-  };
-  return import_gray_matter.default.stringify(memory.content, frontmatter);
-}
-function extractKeywordsFromText(text, options2 = {}) {
-  const maxKeywords = options2.maxKeywords ?? 10;
-  const minLength = options2.minLength ?? 3;
-  const additionalStops = new Set(
-    (options2.additionalStopWords ?? []).map((w) => w.toLowerCase())
-  );
-  const words = text.toLowerCase().split(/[^a-z0-9]+/).filter(
-    (word) => word.length >= minLength && !STOP_WORDS.has(word) && !additionalStops.has(word) && !/^\d+$/.test(word)
-    // Exclude pure numbers
-  );
-  const frequency = /* @__PURE__ */ new Map();
-  for (const word of words) {
-    frequency.set(word, (frequency.get(word) ?? 0) + 1);
-  }
-  return [...frequency.entries()].sort((a, b) => b[1] - a[1]).slice(0, maxKeywords).map(([word]) => word);
-}
 
 // src/utils/gitignore.ts
 import { promises as fs2 } from "node:fs";
@@ -12708,15 +12420,15 @@ function getDocumentProperties(doc, paths) {
   const properties = {};
   const pathsLength = paths.length;
   for (let i = 0; i < pathsLength; i++) {
-    const path6 = paths[i];
-    const pathTokens = path6.split(".");
+    const path7 = paths[i];
+    const pathTokens = path7.split(".");
     let current = doc;
     const pathTokensLength = pathTokens.length;
     for (let j = 0; j < pathTokensLength; j++) {
       current = current[pathTokens[j]];
       if (typeof current === "object") {
         if (current !== null && "lat" in current && "lon" in current && typeof current.lat === "number" && typeof current.lon === "number") {
-          current = properties[path6] = current;
+          current = properties[path7] = current;
           break;
         } else if (!Array.isArray(current) && current !== null && j === pathTokensLength - 1) {
           current = void 0;
@@ -12728,14 +12440,14 @@ function getDocumentProperties(doc, paths) {
       }
     }
     if (typeof current !== "undefined") {
-      properties[path6] = current;
+      properties[path7] = current;
     }
   }
   return properties;
 }
-function getNested(obj, path6) {
-  const props = getDocumentProperties(obj, [path6]);
-  return props[path6];
+function getNested(obj, path7) {
+  const props = getDocumentProperties(obj, [path7]);
+  return props[path7];
 }
 var mapDistanceToMeters = {
   cm: 0.01,
@@ -12759,10 +12471,10 @@ function removeVectorsFromHits(searchResult, vectorProperties) {
       ...result.document,
       // Remove embeddings from the result
       ...vectorProperties.reduce((acc, prop) => {
-        const path6 = prop.split(".");
-        const lastKey = path6.pop();
+        const path7 = prop.split(".");
+        const lastKey = path7.pop();
         let obj = acc;
-        for (const key of path6) {
+        for (const key of path7) {
           obj[key] = obj[key] ?? {};
           obj = obj[key];
         }
@@ -13359,15 +13071,15 @@ var AVLTree = class _AVLTree {
     if (node === null) {
       return new AVLNode(key, [value]);
     }
-    const path6 = [];
+    const path7 = [];
     let current = node;
     let parent = null;
     while (current !== null) {
-      path6.push({ parent, node: current });
+      path7.push({ parent, node: current });
       if (key < current.k) {
         if (current.l === null) {
           current.l = new AVLNode(key, [value]);
-          path6.push({ parent: current, node: current.l });
+          path7.push({ parent: current, node: current.l });
           break;
         } else {
           parent = current;
@@ -13376,7 +13088,7 @@ var AVLTree = class _AVLTree {
       } else if (key > current.k) {
         if (current.r === null) {
           current.r = new AVLNode(key, [value]);
-          path6.push({ parent: current, node: current.r });
+          path7.push({ parent: current, node: current.r });
           break;
         } else {
           parent = current;
@@ -13391,8 +13103,8 @@ var AVLTree = class _AVLTree {
     if (this.insertCount++ % rebalanceThreshold === 0) {
       needRebalance = true;
     }
-    for (let i = path6.length - 1; i >= 0; i--) {
-      const { parent: parent2, node: currentNode } = path6[i];
+    for (let i = path7.length - 1; i >= 0; i--) {
+      const { parent: parent2, node: currentNode } = path7[i];
       currentNode.updateHeight();
       if (needRebalance) {
         const rebalancedNode = this.rebalanceNode(currentNode);
@@ -13498,10 +13210,10 @@ var AVLTree = class _AVLTree {
   removeNode(node, key) {
     if (node === null)
       return null;
-    const path6 = [];
+    const path7 = [];
     let current = node;
     while (current !== null && current.k !== key) {
-      path6.push(current);
+      path7.push(current);
       if (key < current.k) {
         current = current.l;
       } else {
@@ -13513,10 +13225,10 @@ var AVLTree = class _AVLTree {
     }
     if (current.l === null || current.r === null) {
       const child = current.l ? current.l : current.r;
-      if (path6.length === 0) {
+      if (path7.length === 0) {
         node = child;
       } else {
-        const parent = path6[path6.length - 1];
+        const parent = path7[path7.length - 1];
         if (parent.l === current) {
           parent.l = child;
         } else {
@@ -13539,13 +13251,13 @@ var AVLTree = class _AVLTree {
       }
       current = successorParent;
     }
-    path6.push(current);
-    for (let i = path6.length - 1; i >= 0; i--) {
-      const currentNode = path6[i];
+    path7.push(current);
+    for (let i = path7.length - 1; i >= 0; i--) {
+      const currentNode = path7[i];
       currentNode.updateHeight();
       const rebalancedNode = this.rebalanceNode(currentNode);
       if (i > 0) {
-        const parent = path6[i - 1];
+        const parent = path7[i - 1];
         if (parent.l === currentNode) {
           parent.l = rebalancedNode;
         } else if (parent.r === currentNode) {
@@ -14633,15 +14345,15 @@ function create2(orama, sharedInternalDocumentStore, schema, index, prefix = "")
     };
   }
   for (const [prop, type] of Object.entries(schema)) {
-    const path6 = `${prefix}${prefix ? "." : ""}${prop}`;
+    const path7 = `${prefix}${prefix ? "." : ""}${prop}`;
     if (typeof type === "object" && !Array.isArray(type)) {
-      create2(orama, sharedInternalDocumentStore, type, index, path6);
+      create2(orama, sharedInternalDocumentStore, type, index, path7);
       continue;
     }
     if (isVectorType(type)) {
-      index.searchableProperties.push(path6);
-      index.searchablePropertiesWithTypes[path6] = type;
-      index.vectorIndexes[path6] = {
+      index.searchableProperties.push(path7);
+      index.searchablePropertiesWithTypes[path7] = type;
+      index.vectorIndexes[path7] = {
         type: "Vector",
         node: new VectorIndex(getVectorSize(type)),
         isArray: false
@@ -14651,32 +14363,32 @@ function create2(orama, sharedInternalDocumentStore, schema, index, prefix = "")
       switch (type) {
         case "boolean":
         case "boolean[]":
-          index.indexes[path6] = { type: "Bool", node: new BoolNode(), isArray };
+          index.indexes[path7] = { type: "Bool", node: new BoolNode(), isArray };
           break;
         case "number":
         case "number[]":
-          index.indexes[path6] = { type: "AVL", node: new AVLTree(0, []), isArray };
+          index.indexes[path7] = { type: "AVL", node: new AVLTree(0, []), isArray };
           break;
         case "string":
         case "string[]":
-          index.indexes[path6] = { type: "Radix", node: new RadixTree(), isArray };
-          index.avgFieldLength[path6] = 0;
-          index.frequencies[path6] = {};
-          index.tokenOccurrences[path6] = {};
-          index.fieldLengths[path6] = {};
+          index.indexes[path7] = { type: "Radix", node: new RadixTree(), isArray };
+          index.avgFieldLength[path7] = 0;
+          index.frequencies[path7] = {};
+          index.tokenOccurrences[path7] = {};
+          index.fieldLengths[path7] = {};
           break;
         case "enum":
         case "enum[]":
-          index.indexes[path6] = { type: "Flat", node: new FlatTree(), isArray };
+          index.indexes[path7] = { type: "Flat", node: new FlatTree(), isArray };
           break;
         case "geopoint":
-          index.indexes[path6] = { type: "BKD", node: new BKDTree(), isArray };
+          index.indexes[path7] = { type: "BKD", node: new BKDTree(), isArray };
           break;
         default:
-          throw createError("INVALID_SCHEMA_TYPE", Array.isArray(type) ? "array" : type, path6);
+          throw createError("INVALID_SCHEMA_TYPE", Array.isArray(type) ? "array" : type, path7);
       }
-      index.searchableProperties.push(path6);
-      index.searchablePropertiesWithTypes[path6] = type;
+      index.searchableProperties.push(path7);
+      index.searchablePropertiesWithTypes[path7] = type;
     }
   }
   return index;
@@ -15224,12 +14936,12 @@ function innerCreate(orama, sharedInternalDocumentStore, schema, sortableDeniedP
     sorts: {}
   };
   for (const [prop, type] of Object.entries(schema)) {
-    const path6 = `${prefix}${prefix ? "." : ""}${prop}`;
-    if (sortableDeniedProperties.includes(path6)) {
+    const path7 = `${prefix}${prefix ? "." : ""}${prop}`;
+    if (sortableDeniedProperties.includes(path7)) {
       continue;
     }
     if (typeof type === "object" && !Array.isArray(type)) {
-      const ret = innerCreate(orama, sharedInternalDocumentStore, type, sortableDeniedProperties, path6);
+      const ret = innerCreate(orama, sharedInternalDocumentStore, type, sortableDeniedProperties, path7);
       safeArrayPush(sorter.sortableProperties, ret.sortableProperties);
       sorter.sorts = {
         ...sorter.sorts,
@@ -15246,9 +14958,9 @@ function innerCreate(orama, sharedInternalDocumentStore, schema, sortableDeniedP
         case "boolean":
         case "number":
         case "string":
-          sorter.sortableProperties.push(path6);
-          sorter.sortablePropertiesWithTypes[path6] = type;
-          sorter.sorts[path6] = {
+          sorter.sortableProperties.push(path7);
+          sorter.sortablePropertiesWithTypes[path7] = type;
+          sorter.sorts[path7] = {
             docs: /* @__PURE__ */ new Map(),
             orderedDocsToRemove: /* @__PURE__ */ new Map(),
             orderedDocs: [],
@@ -15264,7 +14976,7 @@ function innerCreate(orama, sharedInternalDocumentStore, schema, sortableDeniedP
         case "string[]":
           continue;
         default:
-          throw createError("INVALID_SORT_SCHEMA_TYPE", Array.isArray(type) ? "array" : type, path6);
+          throw createError("INVALID_SORT_SCHEMA_TYPE", Array.isArray(type) ? "array" : type, path7);
       }
     }
   }
@@ -16775,8 +16487,8 @@ function innerFullTextSearch(orama, params, language) {
 function escapeRegex(str2) {
   return str2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-function getPropValue(obj, path6) {
-  const keys = path6.split(".");
+function getPropValue(obj, path7) {
+  const keys = path7.split(".");
   let value = obj;
   for (const key of keys) {
     if (value && typeof value === "object" && key in value) {
@@ -18416,61 +18128,438 @@ function getVectorStore(options2 = {}) {
   return new VectorStore({ baseDir, readonly });
 }
 
-// src/core/memory.ts
+// src/core/episodic-jsonl-store.ts
+import path6 from "node:path";
+import { createHash } from "node:crypto";
+
+// node_modules/uuid/dist/esm-node/stringify.js
+var byteToHex = [];
+for (let i = 0; i < 256; ++i) {
+  byteToHex.push((i + 256).toString(16).slice(1));
+}
+function unsafeStringify(arr, offset = 0) {
+  return (byteToHex[arr[offset + 0]] + byteToHex[arr[offset + 1]] + byteToHex[arr[offset + 2]] + byteToHex[arr[offset + 3]] + "-" + byteToHex[arr[offset + 4]] + byteToHex[arr[offset + 5]] + "-" + byteToHex[arr[offset + 6]] + byteToHex[arr[offset + 7]] + "-" + byteToHex[arr[offset + 8]] + byteToHex[arr[offset + 9]] + "-" + byteToHex[arr[offset + 10]] + byteToHex[arr[offset + 11]] + byteToHex[arr[offset + 12]] + byteToHex[arr[offset + 13]] + byteToHex[arr[offset + 14]] + byteToHex[arr[offset + 15]]).toLowerCase();
+}
+
+// node_modules/uuid/dist/esm-node/rng.js
+import crypto from "node:crypto";
+var rnds8Pool = new Uint8Array(256);
+var poolPtr = rnds8Pool.length;
+function rng() {
+  if (poolPtr > rnds8Pool.length - 16) {
+    crypto.randomFillSync(rnds8Pool);
+    poolPtr = 0;
+  }
+  return rnds8Pool.slice(poolPtr, poolPtr += 16);
+}
+
+// node_modules/uuid/dist/esm-node/native.js
+import crypto2 from "node:crypto";
+var native_default = {
+  randomUUID: crypto2.randomUUID
+};
+
+// node_modules/uuid/dist/esm-node/v4.js
+function v4(options2, buf, offset) {
+  if (native_default.randomUUID && !buf && !options2) {
+    return native_default.randomUUID();
+  }
+  options2 = options2 || {};
+  const rnds = options2.random || (options2.rng || rng)();
+  rnds[6] = rnds[6] & 15 | 64;
+  rnds[8] = rnds[8] & 63 | 128;
+  if (buf) {
+    offset = offset || 0;
+    for (let i = 0; i < 16; ++i) {
+      buf[offset + i] = rnds[i];
+    }
+    return buf;
+  }
+  return unsafeStringify(rnds);
+}
+var v4_default = v4;
+
+// src/core/jsonl-types.ts
+var scopeSchema = external_exports.string().refine(
+  (val) => val === "global" || val.startsWith("file:") || val.startsWith("area:"),
+  { message: "Scope must be 'global', 'file:<path>', or 'area:<name>'" }
+);
+var episodicAddEntrySchema = external_exports.object({
+  action: external_exports.literal("add"),
+  id: external_exports.string().uuid(),
+  subject: external_exports.string().min(1).max(200),
+  keywords: external_exports.array(external_exports.string().min(1).max(50)).min(1).max(20),
+  applies_to: scopeSchema,
+  occurred_at: external_exports.string().datetime(),
+  content_hash: external_exports.string(),
+  content: external_exports.string().min(10),
+  timestamp: external_exports.string().datetime()
+});
+var thinkingAddEntrySchema = external_exports.object({
+  action: external_exports.literal("add"),
+  id: external_exports.string().uuid(),
+  subject: external_exports.string().min(1).max(200),
+  applies_to: scopeSchema,
+  occurred_at: external_exports.string().datetime(),
+  content_hash: external_exports.string(),
+  content: external_exports.string().min(10),
+  timestamp: external_exports.string().datetime()
+});
+var deleteEntrySchema = external_exports.object({
+  action: external_exports.literal("delete"),
+  id: external_exports.string().uuid(),
+  timestamp: external_exports.string().datetime()
+});
+var embeddingEntrySchema = external_exports.object({
+  action: external_exports.literal("embedding"),
+  id: external_exports.string().uuid(),
+  embedding: external_exports.array(external_exports.number()),
+  timestamp: external_exports.string().datetime()
+});
+var episodicEntrySchema = external_exports.discriminatedUnion("action", [
+  episodicAddEntrySchema,
+  deleteEntrySchema,
+  embeddingEntrySchema
+]);
+var thinkingEntrySchema = external_exports.discriminatedUnion("action", [
+  thinkingAddEntrySchema,
+  deleteEntrySchema,
+  embeddingEntrySchema
+]);
+var compactionConfigSchema = external_exports.object({
+  /** Maximum file size in MB before triggering compaction */
+  maxFileSizeMb: external_exports.number().positive().default(50),
+  /** Maximum ratio of delete entries before triggering compaction */
+  maxDeleteRatio: external_exports.number().min(0).max(1).default(0.3),
+  /** Minimum number of entries before checking delete ratio */
+  minEntriesForRatioCheck: external_exports.number().positive().default(100)
+});
+
+// src/core/jsonl-store.ts
+import { promises as fs4 } from "node:fs";
+import path5 from "node:path";
+var JsonlStore = class {
+  filePath;
+  entrySchema;
+  entryToMemory;
+  getEntryId;
+  isDeleteEntry;
+  isEmbeddingEntry;
+  getEmbedding;
+  compactionConfig;
+  // In-memory state
+  memories = null;
+  embeddings = null;
+  stats = null;
+  constructor(options2) {
+    this.filePath = options2.filePath;
+    this.entrySchema = options2.entrySchema;
+    this.entryToMemory = options2.entryToMemory;
+    this.getEntryId = options2.getEntryId;
+    this.isDeleteEntry = options2.isDeleteEntry;
+    this.isEmbeddingEntry = options2.isEmbeddingEntry;
+    this.getEmbedding = options2.getEmbedding;
+    this.compactionConfig = compactionConfigSchema.parse(options2.compactionConfig ?? {});
+  }
+  /**
+   * Load the JSONL file and replay entries to build state
+   */
+  async load() {
+    if (this.memories !== null) {
+      return;
+    }
+    this.memories = /* @__PURE__ */ new Map();
+    this.embeddings = /* @__PURE__ */ new Map();
+    this.stats = {
+      totalEntries: 0,
+      addEntries: 0,
+      deleteEntries: 0,
+      embeddingEntries: 0,
+      activeMemories: 0,
+      memoriesWithEmbeddings: 0,
+      fileSizeBytes: 0
+    };
+    try {
+      const content = await fs4.readFile(this.filePath, "utf-8");
+      this.stats.fileSizeBytes = Buffer.byteLength(content, "utf-8");
+      const lines = content.split("\n").filter((line) => line.trim());
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        try {
+          const parsed = JSON.parse(line);
+          const entry = this.entrySchema.parse(parsed);
+          this.applyEntry(entry);
+          this.stats.totalEntries++;
+        } catch {
+          if (i === lines.length - 1) {
+            logger.memory.warn(`Truncated last line in JSONL, skipping: ${line.slice(0, 50)}...`);
+          } else {
+            logger.memory.warn(`Invalid JSONL entry at line ${i + 1}, skipping: ${line.slice(0, 50)}...`);
+          }
+        }
+      }
+      this.stats.activeMemories = this.memories.size;
+      this.stats.memoriesWithEmbeddings = this.embeddings.size;
+      logger.memory.debug(
+        `Loaded JSONL: ${this.memories.size} memories, ${this.embeddings.size} embeddings`
+      );
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        logger.memory.debug("No JSONL file found, starting fresh");
+      } else {
+        logger.memory.error(`Failed to load JSONL file: ${error}`);
+        throw error;
+      }
+    }
+  }
+  /**
+   * Apply an entry to the in-memory state
+   */
+  applyEntry(entry) {
+    const id = this.getEntryId(entry);
+    if (this.isDeleteEntry(entry)) {
+      this.memories?.delete(id);
+      this.embeddings?.delete(id);
+      if (this.stats) this.stats.deleteEntries++;
+    } else if (this.isEmbeddingEntry(entry)) {
+      const embedding = this.getEmbedding(entry);
+      if (embedding && this.embeddings) {
+        this.embeddings.set(id, embedding);
+      }
+      if (this.stats) this.stats.embeddingEntries++;
+    } else {
+      const memory = this.entryToMemory(entry);
+      if (memory && this.memories) {
+        this.memories.set(id, memory);
+      }
+      if (this.stats) this.stats.addEntries++;
+    }
+  }
+  /**
+   * Append an entry to the JSONL file
+   */
+  async appendEntry(entry) {
+    await this.load();
+    const dir = path5.dirname(this.filePath);
+    await fs4.mkdir(dir, { recursive: true });
+    const line = JSON.stringify(entry) + "\n";
+    await fs4.appendFile(this.filePath, line, "utf-8");
+    this.applyEntry(entry);
+    if (this.stats) {
+      this.stats.totalEntries++;
+      this.stats.fileSizeBytes += Buffer.byteLength(line, "utf-8");
+      this.stats.activeMemories = this.memories?.size ?? 0;
+      this.stats.memoriesWithEmbeddings = this.embeddings?.size ?? 0;
+    }
+  }
+  /**
+   * Get a memory by ID
+   */
+  async getMemory(id) {
+    await this.load();
+    return this.memories?.get(id) ?? null;
+  }
+  /**
+   * Get all memories
+   */
+  async listMemories() {
+    await this.load();
+    return Array.from(this.memories?.values() ?? []);
+  }
+  /**
+   * Get the number of active memories
+   */
+  async count() {
+    await this.load();
+    return this.memories?.size ?? 0;
+  }
+  /**
+   * Check if a memory exists
+   */
+  async has(id) {
+    await this.load();
+    return this.memories?.has(id) ?? false;
+  }
+  /**
+   * Get embedding for a memory
+   */
+  async getEmbeddingForMemory(id) {
+    await this.load();
+    return this.embeddings?.get(id) ?? null;
+  }
+  /**
+   * Get all embeddings
+   */
+  async getAllEmbeddings() {
+    await this.load();
+    return new Map(this.embeddings ?? []);
+  }
+  /**
+   * Get memories that don't have embeddings
+   */
+  async getMemoriesWithoutEmbeddings() {
+    await this.load();
+    const result = [];
+    if (this.memories && this.embeddings) {
+      for (const [id, memory] of this.memories) {
+        if (!this.embeddings.has(id)) {
+          result.push(memory);
+        }
+      }
+    }
+    return result;
+  }
+  /**
+   * Get current statistics
+   */
+  async getStats() {
+    await this.load();
+    return { ...this.stats };
+  }
+  /**
+   * Check if compaction is needed
+   */
+  async needsCompaction() {
+    await this.load();
+    if (!this.stats) {
+      return { needsCompaction: false };
+    }
+    const fileSizeMb = this.stats.fileSizeBytes / (1024 * 1024);
+    if (fileSizeMb > this.compactionConfig.maxFileSizeMb) {
+      return {
+        needsCompaction: true,
+        reason: "file_size",
+        fileSizeMb
+      };
+    }
+    if (this.stats.totalEntries >= this.compactionConfig.minEntriesForRatioCheck) {
+      const deleteRatio = this.stats.deleteEntries / this.stats.totalEntries;
+      if (deleteRatio > this.compactionConfig.maxDeleteRatio) {
+        return {
+          needsCompaction: true,
+          reason: "delete_ratio",
+          deleteRatio,
+          totalEntries: this.stats.totalEntries
+        };
+      }
+    }
+    return { needsCompaction: false };
+  }
+  /**
+   * Compact the JSONL file by rewriting only current state
+   *
+   * @param createAddEntry - Function to create an add entry from a memory
+   * @param createEmbeddingEntry - Function to create an embedding entry
+   */
+  async compact(createAddEntry, createEmbeddingEntry) {
+    await this.load();
+    const originalLines = this.stats?.totalEntries ?? 0;
+    if (!this.memories || this.memories.size === 0) {
+      try {
+        await fs4.unlink(this.filePath);
+      } catch {
+      }
+      this.clearCache();
+      return { originalLines, newLines: 0 };
+    }
+    const backupPath = `${this.filePath}.backup-${Date.now()}`;
+    try {
+      await fs4.copyFile(this.filePath, backupPath);
+    } catch {
+    }
+    try {
+      const lines = [];
+      for (const [id, memory] of this.memories) {
+        const addEntry = createAddEntry(memory);
+        lines.push(JSON.stringify(addEntry));
+        const embedding = this.embeddings?.get(id);
+        if (embedding) {
+          const embeddingEntry = createEmbeddingEntry(id, embedding);
+          lines.push(JSON.stringify(embeddingEntry));
+        }
+      }
+      const tempPath = `${this.filePath}.compact.tmp`;
+      await fs4.writeFile(tempPath, lines.join("\n") + "\n", "utf-8");
+      await fs4.rename(tempPath, this.filePath);
+      this.clearCache();
+      try {
+        await fs4.unlink(backupPath);
+      } catch {
+      }
+      logger.memory.info(`Compacted JSONL: ${originalLines} \u2192 ${lines.length} entries`);
+      return { originalLines, newLines: lines.length };
+    } catch (error) {
+      try {
+        await fs4.copyFile(backupPath, this.filePath);
+      } catch {
+      }
+      throw error;
+    }
+  }
+  /**
+   * Clear the in-memory cache (forces reload on next access)
+   */
+  clearCache() {
+    this.memories = null;
+    this.embeddings = null;
+    this.stats = null;
+  }
+  /**
+   * Get the file path
+   */
+  getFilePath() {
+    return this.filePath;
+  }
+};
+
+// src/core/episodic-jsonl-store.ts
+var EPISODIC_JSONL_FILENAME = "episodic.jsonl";
 function computeContentHash(content) {
   return createHash("sha256").update(content).digest("hex").slice(0, 16);
 }
-var MemoryManager = class {
-  _baseDir;
-  memoriesDir;
-  constructor(baseDir) {
-    const config = getConfig();
-    this._baseDir = baseDir ?? config.memoryDir;
-    this.memoriesDir = path5.join(this._baseDir, "episodic-memory");
-  }
-  /**
-   * Get the base directory used by this manager
-   */
-  get baseDir() {
-    return this._baseDir;
-  }
-  /**
-   * Ensure the memories directory exists and .gitignore is present
-   */
-  async ensureDir() {
-    await fs4.mkdir(this.memoriesDir, { recursive: true });
-    await ensureGitignore(this._baseDir);
-  }
-  /**
-   * Get the file path for a memory by ID
-   */
-  getFilePath(id) {
-    return path5.join(this.memoriesDir, `${id}.md`);
-  }
-  /**
-   * Check if a memory with the same occurred_at and content_hash already exists
-   */
-  async findDuplicate(occurredAt, contentHash) {
-    await this.ensureDir();
-    const files = await fs4.readdir(this.memoriesDir);
-    const mdFiles = files.filter((f) => f.endsWith(".md"));
-    for (const file of mdFiles) {
-      const filePath = path5.join(this.memoriesDir, file);
-      const content = await fs4.readFile(filePath, "utf-8");
-      const memory = this.parseMemory(content);
-      if (memory && memory.occurred_at === occurredAt && memory.content_hash === contentHash) {
-        return memory;
-      }
-    }
+function entryToMemory(entry) {
+  if (entry.action !== "add") {
     return null;
+  }
+  return {
+    id: entry.id,
+    subject: entry.subject,
+    keywords: entry.keywords,
+    applies_to: entry.applies_to,
+    occurred_at: entry.occurred_at,
+    content_hash: entry.content_hash,
+    content: entry.content
+  };
+}
+var EpisodicJsonlStore = class {
+  store;
+  baseDir;
+  constructor(options2 = {}) {
+    const config = getConfig();
+    this.baseDir = options2.baseDir ?? config.memoryDir;
+    const filePath = path6.join(this.baseDir, EPISODIC_JSONL_FILENAME);
+    this.store = new JsonlStore({
+      filePath,
+      entrySchema: episodicEntrySchema,
+      entryToMemory,
+      getEntryId: (entry) => entry.id,
+      isDeleteEntry: (entry) => entry.action === "delete",
+      isEmbeddingEntry: (entry) => entry.action === "embedding",
+      getEmbedding: (entry) => entry.action === "embedding" ? entry.embedding : null
+    });
+  }
+  /**
+   * Initialize the store (loads existing data)
+   */
+  async initialize() {
+    await this.store.load();
   }
   /**
    * Create a new memory (idempotent - returns existing if duplicate)
    */
   async createMemory(input) {
-    logger.memory.debug(`Creating memory: "${input.subject}"`);
+    logger.memory.debug(`Creating episodic memory: "${input.subject}"`);
     const validated = createMemoryInputSchema.parse(input);
-    await this.ensureDir();
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const occurredAt = validated.occurred_at ?? now;
     const contentHash = computeContentHash(validated.content);
@@ -18489,52 +18578,54 @@ var MemoryManager = class {
       content_hash: contentHash,
       content: validated.content
     };
-    await this.writeMemory(memory);
-    try {
-      const vectorStore = getVectorStore({ baseDir: this._baseDir });
-      await vectorStore.add(memory);
-    } catch (error) {
-      logger.memory.warn(`Failed to add memory to vector store: ${error}`);
-    }
-    logger.memory.info(`Created memory ${id}: "${memory.subject}"`);
+    const entry = {
+      action: "add",
+      id: memory.id,
+      subject: memory.subject,
+      keywords: memory.keywords,
+      applies_to: memory.applies_to,
+      occurred_at: memory.occurred_at,
+      content_hash: memory.content_hash,
+      content: memory.content,
+      timestamp: now
+    };
+    await this.store.appendEntry(entry);
+    logger.memory.info(`Created episodic memory ${id}: "${memory.subject}"`);
     return memory;
   }
   /**
    * Get a memory by ID
    */
   async getMemory(id) {
-    const filePath = this.getFilePath(id);
-    try {
-      const content = await fs4.readFile(filePath, "utf-8");
-      return this.parseMemory(content);
-    } catch (error) {
-      if (error.code === "ENOENT") {
-        return null;
-      }
-      throw error;
+    return this.store.getMemory(id);
+  }
+  /**
+   * Delete a memory by ID
+   */
+  async deleteMemory(id) {
+    const exists = await this.store.has(id);
+    if (!exists) {
+      return false;
     }
+    const entry = {
+      action: "delete",
+      id,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    await this.store.appendEntry(entry);
+    logger.memory.info(`Deleted episodic memory ${id}`);
+    return true;
   }
   /**
    * List all memories with optional filtering
    */
   async listMemories(filter) {
-    await this.ensureDir();
-    const files = await fs4.readdir(this.memoriesDir);
-    const mdFiles = files.filter((f) => f.endsWith(".md"));
-    const memories = [];
-    for (const file of mdFiles) {
-      const filePath = path5.join(this.memoriesDir, file);
-      const content = await fs4.readFile(filePath, "utf-8");
-      const memory = this.parseMemory(content);
-      if (memory) {
-        if (filter?.scope && memory.applies_to !== filter.scope) {
-          continue;
-        }
-        if (filter?.keyword && !memory.keywords.includes(filter.keyword)) {
-          continue;
-        }
-        memories.push(memory);
-      }
+    let memories = await this.store.listMemories();
+    if (filter?.scope) {
+      memories = memories.filter((m) => m.applies_to === filter.scope);
+    }
+    if (filter?.keyword) {
+      memories = memories.filter((m) => m.keywords.includes(filter.keyword));
     }
     memories.sort(
       (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()
@@ -18544,53 +18635,451 @@ var MemoryManager = class {
     return memories.slice(offset, offset + limit);
   }
   /**
+   * Find a duplicate memory by occurred_at and content_hash
+   */
+  async findDuplicate(occurredAt, contentHash) {
+    const memories = await this.store.listMemories();
+    return memories.find(
+      (m) => m.occurred_at === occurredAt && m.content_hash === contentHash
+    ) ?? null;
+  }
+  /**
+   * Store an embedding for a memory
+   */
+  async storeEmbedding(id, embedding) {
+    const exists = await this.store.has(id);
+    if (!exists) {
+      logger.memory.warn(`Cannot store embedding: memory ${id} not found`);
+      return;
+    }
+    const entry = {
+      action: "embedding",
+      id,
+      embedding,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    await this.store.appendEntry(entry);
+    logger.memory.debug(`Stored embedding for memory ${id}`);
+  }
+  /**
+   * Get embedding for a memory
+   */
+  async getEmbedding(id) {
+    return this.store.getEmbeddingForMemory(id);
+  }
+  /**
+   * Get all embeddings
+   */
+  async getAllEmbeddings() {
+    return this.store.getAllEmbeddings();
+  }
+  /**
+   * Get memories that don't have embeddings yet
+   */
+  async getMemoriesNeedingEmbeddings() {
+    return this.store.getMemoriesWithoutEmbeddings();
+  }
+  /**
+   * Get the number of active memories
+   */
+  async count() {
+    return this.store.count();
+  }
+  /**
+   * Check if compaction is needed
+   */
+  async needsCompaction() {
+    const status = await this.store.needsCompaction();
+    return status.needsCompaction;
+  }
+  /**
+   * Compact the JSONL file
+   */
+  async compact() {
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    return this.store.compact(
+      // Create add entry from memory
+      (memory) => ({
+        action: "add",
+        id: memory.id,
+        subject: memory.subject,
+        keywords: memory.keywords,
+        applies_to: memory.applies_to,
+        occurred_at: memory.occurred_at,
+        content_hash: memory.content_hash,
+        content: memory.content,
+        timestamp: now
+      }),
+      // Create embedding entry
+      (id, embedding) => ({
+        action: "embedding",
+        id,
+        embedding,
+        timestamp: now
+      })
+    );
+  }
+  /**
+   * Clear the in-memory cache
+   */
+  clearCache() {
+    this.store.clearCache();
+  }
+  /**
+   * Get the base directory
+   */
+  getBaseDir() {
+    return this.baseDir;
+  }
+  /**
+   * Get the JSONL file path
+   */
+  getFilePath() {
+    return this.store.getFilePath();
+  }
+};
+
+// src/core/memory.ts
+var MemoryManager = class {
+  _baseDir;
+  store;
+  constructor(baseDir) {
+    const config = getConfig();
+    this._baseDir = baseDir ?? config.memoryDir;
+    this.store = new EpisodicJsonlStore({ baseDir: this._baseDir });
+  }
+  /**
+   * Get the base directory used by this manager
+   */
+  get baseDir() {
+    return this._baseDir;
+  }
+  /**
+   * Initialize the manager (ensures directory and gitignore exist)
+   */
+  async initialize() {
+    await ensureGitignore(this._baseDir);
+    await this.store.initialize();
+  }
+  /**
+   * Check if a memory with the same occurred_at and content_hash already exists
+   */
+  async findDuplicate(occurredAt, contentHash) {
+    return this.store.findDuplicate(occurredAt, contentHash);
+  }
+  /**
+   * Create a new memory (idempotent - returns existing if duplicate)
+   */
+  async createMemory(input) {
+    const memory = await this.store.createMemory(input);
+    try {
+      const vectorStore = getVectorStore({ baseDir: this._baseDir });
+      await vectorStore.add(memory);
+    } catch (error) {
+      logger.memory.warn(`Failed to add memory to vector store: ${error}`);
+    }
+    return memory;
+  }
+  /**
+   * Get a memory by ID
+   */
+  async getMemory(id) {
+    return this.store.getMemory(id);
+  }
+  /**
+   * List all memories with optional filtering
+   */
+  async listMemories(filter) {
+    return this.store.listMemories(filter);
+  }
+  /**
    * Delete a memory by ID
    */
   async deleteMemory(id) {
-    const filePath = this.getFilePath(id);
-    try {
-      await fs4.unlink(filePath);
+    const deleted = await this.store.deleteMemory(id);
+    if (deleted) {
       try {
         const vectorStore = getVectorStore({ baseDir: this._baseDir });
         await vectorStore.remove(id);
       } catch (error) {
         logger.memory.warn(`Failed to remove memory from vector store: ${error}`);
       }
-      logger.memory.info(`Deleted memory ${id}`);
-      return true;
-    } catch (error) {
-      if (error.code === "ENOENT") {
-        return false;
-      }
-      throw error;
     }
+    return deleted;
   }
   /**
-   * Write a memory to disk using the markdown utility
+   * Store an embedding for a memory in the JSONL file
    */
-  async writeMemory(memory) {
-    const fileContent = serializeMemory(memory);
-    const filePath = this.getFilePath(memory.id);
-    const tempPath = `${filePath}.tmp`;
-    await fs4.writeFile(tempPath, fileContent, "utf-8");
-    await fs4.rename(tempPath, filePath);
+  async storeEmbedding(id, embedding) {
+    await this.store.storeEmbedding(id, embedding);
   }
   /**
-   * Parse a memory from markdown content using the markdown utility
+   * Get embedding for a memory from the JSONL file
    */
-  parseMemory(content) {
-    try {
-      const { frontmatter, body } = parseMarkdown(content);
-      const validated = memoryFrontmatterSchema.parse(frontmatter);
-      return {
-        ...validated,
-        content: body
-      };
-    } catch {
-      return null;
-    }
+  async getEmbedding(id) {
+    return this.store.getEmbedding(id);
+  }
+  /**
+   * Get all embeddings from the JSONL file
+   */
+  async getAllEmbeddings() {
+    return this.store.getAllEmbeddings();
+  }
+  /**
+   * Get memories that don't have embeddings yet
+   */
+  async getMemoriesNeedingEmbeddings() {
+    return this.store.getMemoriesNeedingEmbeddings();
+  }
+  /**
+   * Get the number of active memories
+   */
+  async count() {
+    return this.store.count();
+  }
+  /**
+   * Check if compaction is needed
+   */
+  async needsCompaction() {
+    return this.store.needsCompaction();
+  }
+  /**
+   * Compact the JSONL file
+   */
+  async compact() {
+    return this.store.compact();
+  }
+  /**
+   * Clear the in-memory cache (forces reload on next access)
+   */
+  clearCache() {
+    this.store.clearCache();
+  }
+  /**
+   * Get the JSONL file path
+   */
+  getFilePath() {
+    return this.store.getFilePath();
   }
 };
+
+// src/utils/markdown.ts
+var import_gray_matter = __toESM(require_gray_matter(), 1);
+var STOP_WORDS = /* @__PURE__ */ new Set([
+  "a",
+  "an",
+  "the",
+  "and",
+  "or",
+  "but",
+  "in",
+  "on",
+  "at",
+  "to",
+  "for",
+  "of",
+  "with",
+  "by",
+  "from",
+  "as",
+  "is",
+  "was",
+  "are",
+  "were",
+  "been",
+  "be",
+  "have",
+  "has",
+  "had",
+  "do",
+  "does",
+  "did",
+  "will",
+  "would",
+  "could",
+  "should",
+  "may",
+  "might",
+  "must",
+  "shall",
+  "can",
+  "need",
+  "dare",
+  "ought",
+  "used",
+  "it",
+  "its",
+  "this",
+  "that",
+  "these",
+  "those",
+  "i",
+  "you",
+  "he",
+  "she",
+  "we",
+  "they",
+  "what",
+  "which",
+  "who",
+  "whom",
+  "when",
+  "where",
+  "why",
+  "how",
+  "all",
+  "each",
+  "every",
+  "both",
+  "few",
+  "more",
+  "most",
+  "other",
+  "some",
+  "such",
+  "no",
+  "nor",
+  "not",
+  "only",
+  "own",
+  "same",
+  "so",
+  "than",
+  "too",
+  "very",
+  "just",
+  "also",
+  "now",
+  "here",
+  "there",
+  "then",
+  "once",
+  "if",
+  "else",
+  "because",
+  "while",
+  "although",
+  "though",
+  "after",
+  "before",
+  "above",
+  "below",
+  "between",
+  "into",
+  "through",
+  "during",
+  "about",
+  "against",
+  "without",
+  "within",
+  "along",
+  "following",
+  "across",
+  "behind",
+  "beyond",
+  "plus",
+  "except",
+  "up",
+  "out",
+  "around",
+  "down",
+  "off",
+  "over",
+  "under",
+  "again",
+  "further",
+  "any",
+  "our",
+  "your",
+  "my",
+  "his",
+  "her",
+  "their",
+  "me",
+  "him",
+  "us",
+  "them",
+  "myself",
+  "yourself",
+  "himself",
+  "herself",
+  "itself",
+  "ourselves",
+  "themselves",
+  "being",
+  "having",
+  "doing",
+  "get",
+  "got",
+  "getting",
+  "let",
+  "lets",
+  "make",
+  "made",
+  "making",
+  "take",
+  "took",
+  "taking",
+  "come",
+  "came",
+  "coming",
+  "go",
+  "went",
+  "going",
+  "see",
+  "saw",
+  "seeing",
+  "know",
+  "knew",
+  "knowing",
+  "think",
+  "thought",
+  "thinking",
+  "say",
+  "said",
+  "saying",
+  "tell",
+  "told",
+  "telling",
+  "ask",
+  "asked",
+  "asking",
+  "use",
+  "using",
+  "try",
+  "tried",
+  "trying",
+  "want",
+  "wanted",
+  "wanting",
+  "look",
+  "looked",
+  "looking",
+  "give",
+  "gave",
+  "giving",
+  "keep",
+  "kept",
+  "keeping",
+  "put",
+  "putting"
+]);
+function extractKeywordsFromText(text, options2 = {}) {
+  const maxKeywords = options2.maxKeywords ?? 10;
+  const minLength = options2.minLength ?? 3;
+  const additionalStops = new Set(
+    (options2.additionalStopWords ?? []).map((w) => w.toLowerCase())
+  );
+  const words = text.toLowerCase().split(/[^a-z0-9]+/).filter(
+    (word) => word.length >= minLength && !STOP_WORDS.has(word) && !additionalStops.has(word) && !/^\d+$/.test(word)
+    // Exclude pure numbers
+  );
+  const frequency = /* @__PURE__ */ new Map();
+  for (const word of words) {
+    frequency.set(word, (frequency.get(word) ?? 0) + 1);
+  }
+  return [...frequency.entries()].sort((a, b) => b[1] - a[1]).slice(0, maxKeywords).map(([word]) => word);
+}
 
 // src/utils/transcript.ts
 function extractTextFromBlocks(blocks) {

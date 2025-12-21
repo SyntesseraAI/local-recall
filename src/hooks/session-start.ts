@@ -94,52 +94,75 @@ async function main(): Promise<void> {
     }
 
     if (episodicMemories.length === 0 && thinkingMemories.length === 0) {
-      console.log('# Local Recall: No memories loaded');
-      console.log('');
-      console.log('No prior memories found for this session. Memories will be created as the session progresses.');
+      // Use JSON format for plugin hooks to properly inject context
+      const output = {
+        hookSpecificOutput: {
+          hookEventName: 'SessionStart',
+          additionalContext: '# Local Recall: No memories loaded\n\nNo prior memories found for this session. Memories will be created as the session progresses.',
+        },
+      };
+      console.log(JSON.stringify(output));
       logger.hooks.info('SessionStart hook completed (no memories)');
       process.exit(0);
     }
 
-    // Output episodic memories
+    // Build context parts
+    const contextParts: string[] = [];
+
+    // Format episodic memories
     if (episodicMemories.length > 0) {
-      console.log('# Local Recall: Recent Memories');
-      console.log('');
-      console.log(`Found ${episodicMemories.length} recent episodic memories for context.`);
-      console.log('');
+      const parts: string[] = [
+        '# Local Recall: Recent Memories',
+        '',
+        `Found ${episodicMemories.length} recent episodic memories for context.`,
+        '',
+      ];
 
       for (const memory of episodicMemories) {
-        console.log(formatMemoryForDisplay(memory));
-        console.log('');
-        console.log('---');
-        console.log('');
+        parts.push(formatMemoryForDisplay(memory));
+        parts.push('');
+        parts.push('---');
+        parts.push('');
       }
+      contextParts.push(parts.join('\n'));
     }
 
-    // Output thinking memories
+    // Format thinking memories
     if (thinkingMemories.length > 0) {
-      console.log('# Local Recall: Recent Thoughts');
-      console.log('');
-      console.log(`Found ${thinkingMemories.length} recent thinking memories for context.`);
-      console.log('');
+      const parts: string[] = [
+        '# Local Recall: Recent Thoughts',
+        '',
+        `Found ${thinkingMemories.length} recent thinking memories for context.`,
+        '',
+      ];
 
       for (const memory of thinkingMemories) {
-        console.log(formatThinkingMemoryForDisplay(memory));
-        console.log('');
-        console.log('---');
-        console.log('');
+        parts.push(formatThinkingMemoryForDisplay(memory));
+        parts.push('');
+        parts.push('---');
+        parts.push('');
       }
+      contextParts.push(parts.join('\n'));
     }
 
-    // Output memory stats
-    console.log('## Memory Status');
-    console.log('');
+    // Add memory stats
+    const statsLines: string[] = ['## Memory Status', ''];
     if (config.episodicEnabled) {
-      console.log(`- Total episodic memories: ${totalEpisodic}`);
+      statsLines.push(`- Total episodic memories: ${totalEpisodic}`);
     }
     if (config.thinkingEnabled) {
-      console.log(`- Total thinking memories: ${totalThinking}`);
+      statsLines.push(`- Total thinking memories: ${totalThinking}`);
     }
+    contextParts.push(statsLines.join('\n'));
+
+    // Output as structured JSON for Claude Code hooks (required for plugin hooks)
+    const output = {
+      hookSpecificOutput: {
+        hookEventName: 'SessionStart',
+        additionalContext: contextParts.join('\n\n'),
+      },
+    };
+    console.log(JSON.stringify(output));
 
     // Exit 0 for success
     logger.hooks.info('SessionStart hook completed successfully');

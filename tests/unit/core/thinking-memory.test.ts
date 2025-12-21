@@ -42,7 +42,7 @@ describe('ThinkingMemoryManager', () => {
       expect((memory as any).keywords).toBeUndefined();
     });
 
-    it('should create thinking memory file on disk', async () => {
+    it('should create thinking memory in JSONL file on disk', async () => {
       const input = {
         subject: 'Disk test',
         applies_to: 'global' as const,
@@ -50,10 +50,15 @@ describe('ThinkingMemoryManager', () => {
       };
 
       const memory = await memoryManager.createMemory(input);
-      const filePath = path.join(testDir, 'thinking-memory', `${memory.id}.md`);
+      const filePath = path.join(testDir, 'thinking.jsonl');
 
       const exists = await fs.access(filePath).then(() => true).catch(() => false);
       expect(exists).toBe(true);
+
+      // Verify the memory is in the JSONL file
+      const content = await fs.readFile(filePath, 'utf-8');
+      expect(content).toContain(memory.id);
+      expect(content).toContain('"action":"add"');
     });
 
     it('should create thinking memory with file scope', async () => {
