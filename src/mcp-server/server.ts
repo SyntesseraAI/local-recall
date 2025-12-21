@@ -19,8 +19,9 @@ import { runTranscriptProcessing } from '../core/memory-extractor.js';
 import { runThinkingExtraction } from '../core/thinking-extractor.js';
 import { getVectorStore } from '../core/vector-store.js';
 import { getThinkingVectorStore } from '../core/thinking-vector-store.js';
-import { MemoryManager } from '../core/memory.js';
-import { ThinkingMemoryManager } from '../core/thinking-memory.js';
+import { EpisodicJsonlStore } from '../core/episodic-jsonl-store.js';
+import { ThinkingJsonlStore } from '../core/thinking-jsonl-store.js';
+import { runMigrationIfNeeded } from '../core/migration.js';
 
 /** Transcript processing interval in milliseconds (5 minutes) */
 const PROCESSING_INTERVAL_MS = 5 * 60 * 1000;
@@ -70,7 +71,7 @@ async function runDaemonProcessing(): Promise<void> {
 }
 
 /**
- * Sync vector store with file-based memories
+ * Sync vector store with JSONL-based memories and run compaction if needed
  */
 async function runVectorSync(): Promise<void> {
   const config = getConfig();
@@ -85,14 +86,25 @@ async function runVectorSync(): Promise<void> {
   }
 
   isSyncing = true;
-  logger.mcp.info('Starting vector store sync');
+  logger.mcp.info('Starting vector store sync with JSONL');
 
   try {
-    const memoryManager = new MemoryManager();
-    const memories = await memoryManager.listMemories();
+    const jsonlStore = new EpisodicJsonlStore();
+    await jsonlStore.initialize();
     const vectorStore = getVectorStore();
-    const result = await vectorStore.sync(memories);
-    logger.mcp.info(`Vector sync complete: ${result.added} added, ${result.removed} removed`);
+    const result = await vectorStore.syncWithJsonlStore(jsonlStore);
+    logger.mcp.info(
+      `Vector sync complete: ${result.added} added, ${result.removed} removed, ${result.embeddingsGenerated} embeddings generated`
+    );
+
+    // Check if compaction is needed
+    if (await jsonlStore.needsCompaction()) {
+      logger.mcp.info('Compaction threshold reached, running compaction');
+      const compactResult = await jsonlStore.compact();
+      logger.mcp.info(
+        `Compaction complete: ${compactResult.originalLines} → ${compactResult.newLines} lines`
+      );
+    }
   } catch (error) {
     logger.mcp.error(`Vector sync failed: ${String(error)}`);
   } finally {
@@ -130,7 +142,7 @@ async function runThinkingDaemonProcessing(): Promise<void> {
 }
 
 /**
- * Sync thinking vector store with file-based thinking memories
+ * Sync thinking vector store with JSONL-based memories and run compaction if needed
  */
 async function runThinkingVectorSync(): Promise<void> {
   const config = getConfig();
@@ -145,14 +157,25 @@ async function runThinkingVectorSync(): Promise<void> {
   }
 
   isThinkingSyncing = true;
-  logger.mcp.info('Starting thinking vector store sync');
+  logger.mcp.info('Starting thinking vector store sync with JSONL');
 
   try {
-    const memoryManager = new ThinkingMemoryManager();
-    const memories = await memoryManager.listMemories();
+    const jsonlStore = new ThinkingJsonlStore();
+    await jsonlStore.initialize();
     const vectorStore = getThinkingVectorStore();
-    const result = await vectorStore.sync(memories);
-    logger.mcp.info(`Thinking vector sync complete: ${result.added} added, ${result.removed} removed`);
+    const result = await vectorStore.syncWithJsonlStore(jsonlStore);
+    logger.mcp.info(
+      `Thinking vector sync complete: ${result.added} added, ${result.removed} removed, ${result.embeddingsGenerated} embeddings generated`
+    );
+
+    // Check if compaction is needed
+    if (await jsonlStore.needsCompaction()) {
+      logger.mcp.info('Thinking compaction threshold reached, running compaction');
+      const compactResult = await jsonlStore.compact();
+      logger.mcp.info(
+        `Thinking compaction complete: ${compactResult.originalLines} → ${compactResult.newLines} lines`
+      );
+    }
   } catch (error) {
     logger.mcp.error(`Thinking vector sync failed: ${String(error)}`);
   } finally {
@@ -225,6 +248,18 @@ async function main(): Promise<void> {
   // Load configuration
   await loadConfig();
   logger.mcp.debug('Configuration loaded');
+
+  // Run migration if needed (converts old markdown files to JSONL)
+  try {
+    const migrationResult = await runMigrationIfNeeded();
+    if (migrationResult) {
+      logger.mcp.info(
+        `Migration complete: ${migrationResult.episodic.migrated} episodic, ${migrationResult.thinking.migrated} thinking memories migrated`
+      );
+    }
+  } catch (error) {
+    logger.mcp.error(`Migration failed: ${String(error)}`);
+  }
 
   // NOTE: Using Orama (pure JavaScript) for vector search - no native mutex issues
 

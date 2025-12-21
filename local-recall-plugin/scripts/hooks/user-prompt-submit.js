@@ -18015,9 +18015,19 @@ var VectorStore = class {
     }
   }
   /**
-   * Add a memory to the vector store
+   * Add a memory to the vector store (generates embedding if not provided)
    */
   async add(memory) {
+    const textForEmbedding = `${memory.subject}
+
+${memory.content}`;
+    const embedding = await this.embeddingService.embed(textForEmbedding);
+    await this.addWithEmbedding(memory, embedding);
+  }
+  /**
+   * Add a memory with a pre-computed embedding
+   */
+  async addWithEmbedding(memory, embedding) {
     if (!this.initialized) {
       await this.initialize();
     }
@@ -18034,10 +18044,6 @@ var VectorStore = class {
       logger.search.debug(`Memory ${memory.id} already exists in vector store`);
       return;
     }
-    const textForEmbedding = `${memory.subject}
-
-${memory.content}`;
-    const embedding = await this.embeddingService.embed(textForEmbedding);
     await insert3(this.db, {
       id: memory.id,
       subject: memory.subject,
@@ -18176,6 +18182,53 @@ ${memory.content}`;
     }
     logger.search.info(`Sync complete: ${added} added, ${removed} removed`);
     return { added, removed };
+  }
+  /**
+   * Sync vector store with JSONL store
+   * Uses pre-computed embeddings from JSONL when available, generates new ones otherwise
+   * Stores newly generated embeddings back to the JSONL store
+   */
+  async syncWithJsonlStore(jsonlStore) {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+    const memories = await jsonlStore.listMemories();
+    const storedEmbeddings = await jsonlStore.getAllEmbeddings();
+    logger.search.info(
+      `Syncing Orama store with JSONL (${memories.length} memories, ${storedEmbeddings.size} embeddings)`
+    );
+    const storedIds = await this.getStoredIds();
+    const memoryIds = new Set(memories.map((m) => m.id));
+    let added = 0;
+    let removed = 0;
+    let embeddingsGenerated = 0;
+    for (const memory of memories) {
+      if (!storedIds.has(memory.id)) {
+        const embedding = storedEmbeddings.get(memory.id);
+        if (embedding) {
+          await this.addWithEmbedding(memory, embedding);
+        } else {
+          const textForEmbedding = `${memory.subject}
+
+${memory.content}`;
+          const newEmbedding = await this.embeddingService.embed(textForEmbedding);
+          await this.addWithEmbedding(memory, newEmbedding);
+          await jsonlStore.storeEmbedding(memory.id, newEmbedding);
+          embeddingsGenerated++;
+        }
+        added++;
+      }
+    }
+    for (const storedId of storedIds) {
+      if (!memoryIds.has(storedId)) {
+        await this.remove(storedId);
+        removed++;
+      }
+    }
+    logger.search.info(
+      `JSONL sync complete: ${added} added, ${removed} removed, ${embeddingsGenerated} embeddings generated`
+    );
+    return { added, removed, embeddingsGenerated };
   }
   /**
    * Close the vector store (persists any pending changes)
@@ -19118,9 +19171,19 @@ var ThinkingVectorStore = class {
     }
   }
   /**
-   * Add a thinking memory to the vector store
+   * Add a thinking memory to the vector store (generates embedding if not provided)
    */
   async add(memory) {
+    const textForEmbedding = `${memory.subject}
+
+${memory.content}`;
+    const embedding = await this.embeddingService.embed(textForEmbedding);
+    await this.addWithEmbedding(memory, embedding);
+  }
+  /**
+   * Add a thinking memory with a pre-computed embedding
+   */
+  async addWithEmbedding(memory, embedding) {
     if (!this.initialized) {
       await this.initialize();
     }
@@ -19137,10 +19200,6 @@ var ThinkingVectorStore = class {
       logger.search.debug(`Thinking memory ${memory.id} already exists in vector store`);
       return;
     }
-    const textForEmbedding = `${memory.subject}
-
-${memory.content}`;
-    const embedding = await this.embeddingService.embed(textForEmbedding);
     await insert3(this.db, {
       id: memory.id,
       subject: memory.subject,
@@ -19277,6 +19336,53 @@ ${memory.content}`;
     }
     logger.search.info(`Thinking sync complete: ${added} added, ${removed} removed`);
     return { added, removed };
+  }
+  /**
+   * Sync vector store with JSONL store
+   * Uses pre-computed embeddings from JSONL when available, generates new ones otherwise
+   * Stores newly generated embeddings back to the JSONL store
+   */
+  async syncWithJsonlStore(jsonlStore) {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+    const memories = await jsonlStore.listMemories();
+    const storedEmbeddings = await jsonlStore.getAllEmbeddings();
+    logger.search.info(
+      `Syncing Orama thinking store with JSONL (${memories.length} memories, ${storedEmbeddings.size} embeddings)`
+    );
+    const storedIds = await this.getStoredIds();
+    const memoryIds = new Set(memories.map((m) => m.id));
+    let added = 0;
+    let removed = 0;
+    let embeddingsGenerated = 0;
+    for (const memory of memories) {
+      if (!storedIds.has(memory.id)) {
+        const embedding = storedEmbeddings.get(memory.id);
+        if (embedding) {
+          await this.addWithEmbedding(memory, embedding);
+        } else {
+          const textForEmbedding = `${memory.subject}
+
+${memory.content}`;
+          const newEmbedding = await this.embeddingService.embed(textForEmbedding);
+          await this.addWithEmbedding(memory, newEmbedding);
+          await jsonlStore.storeEmbedding(memory.id, newEmbedding);
+          embeddingsGenerated++;
+        }
+        added++;
+      }
+    }
+    for (const storedId of storedIds) {
+      if (!memoryIds.has(storedId)) {
+        await this.remove(storedId);
+        removed++;
+      }
+    }
+    logger.search.info(
+      `Thinking JSONL sync complete: ${added} added, ${removed} removed, ${embeddingsGenerated} embeddings generated`
+    );
+    return { added, removed, embeddingsGenerated };
   }
   /**
    * Close the vector store (persists any pending changes)
