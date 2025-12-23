@@ -18307,6 +18307,7 @@ var JsonlStore = class {
   stats = null;
   currentFileNumber = 1;
   currentFileEntryCount = 0;
+  loadPromise = null;
   constructor(options2) {
     this.baseDir = options2.baseDir;
     this.filePrefix = options2.filePrefix;
@@ -18358,14 +18359,31 @@ var JsonlStore = class {
   }
   /**
    * Load all JSONL files and replay entries to build state
+   *
+   * Uses a promise guard to prevent race conditions when multiple
+   * concurrent calls attempt to load before completion.
    */
   async load() {
     if (this.memories !== null) {
       return;
     }
-    this.memories = /* @__PURE__ */ new Map();
-    this.embeddings = /* @__PURE__ */ new Map();
-    this.stats = {
+    if (this.loadPromise !== null) {
+      return this.loadPromise;
+    }
+    this.loadPromise = this.doLoad();
+    try {
+      await this.loadPromise;
+    } finally {
+      this.loadPromise = null;
+    }
+  }
+  /**
+   * Internal load implementation - actually performs the file loading
+   */
+  async doLoad() {
+    const memories = /* @__PURE__ */ new Map();
+    const embeddings = /* @__PURE__ */ new Map();
+    const stats = {
       totalEntries: 0,
       addEntries: 0,
       deleteEntries: 0,
@@ -18377,19 +18395,18 @@ var JsonlStore = class {
       currentFileEntries: 0
     };
     const files = await this.getExistingFiles();
-    this.stats.fileCount = files.length;
+    stats.fileCount = files.length;
     for (const filePath of files) {
       try {
         const content = await fs4.readFile(filePath, "utf-8");
-        this.stats.totalFileSizeBytes += Buffer.byteLength(content, "utf-8");
+        stats.totalFileSizeBytes += Buffer.byteLength(content, "utf-8");
         const lines = content.split("\n").filter((line) => line.trim());
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i];
           try {
             const parsed = JSON.parse(line);
             const entry = this.entrySchema.parse(parsed);
-            this.applyEntry(entry);
-            this.stats.totalEntries++;
+            this.applyEntryToMaps(entry, memories, embeddings, stats);
           } catch {
             if (i === lines.length - 1) {
               logger.memory.warn(`Truncated last line in ${filePath}, skipping`);
@@ -18405,21 +18422,49 @@ var JsonlStore = class {
         }
       }
     }
+    let currentFileNumber = 1;
+    let currentFileEntryCount = 0;
     if (files.length > 0) {
       const lastFile = files[files.length - 1];
       const match = lastFile.match(/-(\d{6})\.jsonl$/);
-      this.currentFileNumber = match ? parseInt(match[1], 10) : 1;
-      this.currentFileEntryCount = await this.countEntriesInFile(lastFile);
-    } else {
-      this.currentFileNumber = 1;
-      this.currentFileEntryCount = 0;
+      currentFileNumber = match ? parseInt(match[1], 10) : 1;
+      currentFileEntryCount = await this.countEntriesInFile(lastFile);
     }
-    this.stats.activeMemories = this.memories.size;
-    this.stats.memoriesWithEmbeddings = this.embeddings.size;
-    this.stats.currentFileEntries = this.currentFileEntryCount;
+    stats.activeMemories = memories.size;
+    stats.memoriesWithEmbeddings = embeddings.size;
+    stats.currentFileEntries = currentFileEntryCount;
+    this.memories = memories;
+    this.embeddings = embeddings;
+    this.stats = stats;
+    this.currentFileNumber = currentFileNumber;
+    this.currentFileEntryCount = currentFileEntryCount;
     logger.memory.debug(
-      `Loaded ${this.stats.fileCount} JSONL files: ${this.memories.size} memories, ${this.embeddings.size} embeddings`
+      `Loaded ${stats.fileCount} JSONL files: ${memories.size} memories, ${embeddings.size} embeddings`
     );
+  }
+  /**
+   * Apply an entry to the provided maps (used during loading)
+   */
+  applyEntryToMaps(entry, memories, embeddings, stats) {
+    const id = this.getEntryId(entry);
+    if (this.isDeleteEntry(entry)) {
+      memories.delete(id);
+      embeddings.delete(id);
+      stats.deleteEntries++;
+    } else if (this.isEmbeddingEntry(entry)) {
+      const embedding = this.getEmbedding(entry);
+      if (embedding) {
+        embeddings.set(id, embedding);
+      }
+      stats.embeddingEntries++;
+    } else {
+      const memory = this.entryToMemory(entry);
+      if (memory) {
+        memories.set(id, memory);
+      }
+      stats.addEntries++;
+    }
+    stats.totalEntries++;
   }
   /**
    * Apply an entry to the in-memory state
@@ -18656,6 +18701,7 @@ var JsonlStore = class {
     this.stats = null;
     this.currentFileNumber = 1;
     this.currentFileEntryCount = 0;
+    this.loadPromise = null;
   }
   /**
    * Get the base directory

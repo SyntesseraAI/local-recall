@@ -94,6 +94,7 @@ export class JsonlStore<TEntry extends BaseEntry, TMemory extends { id: string }
   private stats: JsonlStats | null = null;
   private currentFileNumber: number = 1;
   private currentFileEntryCount: number = 0;
+  private loadPromise: Promise<void> | null = null;
 
   constructor(options: JsonlStoreOptions<TEntry, TMemory>) {
     this.baseDir = options.baseDir;
@@ -154,15 +155,37 @@ export class JsonlStore<TEntry extends BaseEntry, TMemory extends { id: string }
 
   /**
    * Load all JSONL files and replay entries to build state
+   *
+   * Uses a promise guard to prevent race conditions when multiple
+   * concurrent calls attempt to load before completion.
    */
   async load(): Promise<void> {
+    // Already loaded - fast path
     if (this.memories !== null) {
-      return; // Already loaded
+      return;
     }
 
-    this.memories = new Map();
-    this.embeddings = new Map();
-    this.stats = {
+    // Another load is in progress - wait for it
+    if (this.loadPromise !== null) {
+      return this.loadPromise;
+    }
+
+    // Start loading and store the promise so concurrent calls wait
+    this.loadPromise = this.doLoad();
+    try {
+      await this.loadPromise;
+    } finally {
+      this.loadPromise = null;
+    }
+  }
+
+  /**
+   * Internal load implementation - actually performs the file loading
+   */
+  private async doLoad(): Promise<void> {
+    const memories = new Map<string, TMemory>();
+    const embeddings = new Map<string, number[]>();
+    const stats: JsonlStats = {
       totalEntries: 0,
       addEntries: 0,
       deleteEntries: 0,
@@ -175,12 +198,12 @@ export class JsonlStore<TEntry extends BaseEntry, TMemory extends { id: string }
     };
 
     const files = await this.getExistingFiles();
-    this.stats.fileCount = files.length;
+    stats.fileCount = files.length;
 
     for (const filePath of files) {
       try {
         const content = await fs.readFile(filePath, 'utf-8');
-        this.stats.totalFileSizeBytes += Buffer.byteLength(content, 'utf-8');
+        stats.totalFileSizeBytes += Buffer.byteLength(content, 'utf-8');
 
         const lines = content.split('\n').filter((line) => line.trim());
 
@@ -189,8 +212,7 @@ export class JsonlStore<TEntry extends BaseEntry, TMemory extends { id: string }
           try {
             const parsed = JSON.parse(line);
             const entry = this.entrySchema.parse(parsed) as TEntry;
-            this.applyEntry(entry);
-            this.stats.totalEntries++;
+            this.applyEntryToMaps(entry, memories, embeddings, stats);
           } catch {
             // Last line might be truncated from power failure
             if (i === lines.length - 1) {
@@ -209,23 +231,62 @@ export class JsonlStore<TEntry extends BaseEntry, TMemory extends { id: string }
     }
 
     // Determine current file number and entry count
+    let currentFileNumber = 1;
+    let currentFileEntryCount = 0;
     if (files.length > 0) {
       const lastFile = files[files.length - 1]!;
       const match = lastFile.match(/-(\d{6})\.jsonl$/);
-      this.currentFileNumber = match ? parseInt(match[1]!, 10) : 1;
-      this.currentFileEntryCount = await this.countEntriesInFile(lastFile);
-    } else {
-      this.currentFileNumber = 1;
-      this.currentFileEntryCount = 0;
+      currentFileNumber = match ? parseInt(match[1]!, 10) : 1;
+      currentFileEntryCount = await this.countEntriesInFile(lastFile);
     }
 
-    this.stats.activeMemories = this.memories.size;
-    this.stats.memoriesWithEmbeddings = this.embeddings.size;
-    this.stats.currentFileEntries = this.currentFileEntryCount;
+    stats.activeMemories = memories.size;
+    stats.memoriesWithEmbeddings = embeddings.size;
+    stats.currentFileEntries = currentFileEntryCount;
+
+    // Atomically set all state at once - this prevents race conditions
+    // where concurrent calls might see partially initialized state
+    this.memories = memories;
+    this.embeddings = embeddings;
+    this.stats = stats;
+    this.currentFileNumber = currentFileNumber;
+    this.currentFileEntryCount = currentFileEntryCount;
 
     logger.memory.debug(
-      `Loaded ${this.stats.fileCount} JSONL files: ${this.memories.size} memories, ${this.embeddings.size} embeddings`
+      `Loaded ${stats.fileCount} JSONL files: ${memories.size} memories, ${embeddings.size} embeddings`
     );
+  }
+
+  /**
+   * Apply an entry to the provided maps (used during loading)
+   */
+  private applyEntryToMaps(
+    entry: TEntry,
+    memories: Map<string, TMemory>,
+    embeddings: Map<string, number[]>,
+    stats: JsonlStats
+  ): void {
+    const id = this.getEntryId(entry);
+
+    if (this.isDeleteEntry(entry)) {
+      memories.delete(id);
+      embeddings.delete(id);
+      stats.deleteEntries++;
+    } else if (this.isEmbeddingEntry(entry)) {
+      const embedding = this.getEmbedding(entry);
+      if (embedding) {
+        embeddings.set(id, embedding);
+      }
+      stats.embeddingEntries++;
+    } else {
+      // Add entry
+      const memory = this.entryToMemory(entry);
+      if (memory) {
+        memories.set(id, memory);
+      }
+      stats.addEntries++;
+    }
+    stats.totalEntries++;
   }
 
   /**
@@ -524,6 +585,7 @@ export class JsonlStore<TEntry extends BaseEntry, TMemory extends { id: string }
     this.stats = null;
     this.currentFileNumber = 1;
     this.currentFileEntryCount = 0;
+    this.loadPromise = null;
   }
 
   /**

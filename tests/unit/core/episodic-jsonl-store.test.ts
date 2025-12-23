@@ -393,4 +393,106 @@ describe('EpisodicJsonlStore', () => {
       expect(embedding).toEqual(Array(768).fill(0.3));
     });
   });
+
+  describe('multi-file scenarios', () => {
+    it('should append to the last file when multiple files exist', async () => {
+      // Pre-create multiple JSONL files to simulate existing multi-file state
+      // File 1 with 2 entries
+      const file1Content = [
+        JSON.stringify({
+          action: 'add',
+          id: 'memory-1',
+          subject: 'Memory 1',
+          keywords: ['test'],
+          applies_to: 'global',
+          occurred_at: '2024-01-01T00:00:00.000Z',
+          content_hash: 'hash1',
+          content: 'Content for memory 1.',
+          timestamp: '2024-01-01T00:00:00.000Z',
+        }),
+        JSON.stringify({
+          action: 'add',
+          id: 'memory-2',
+          subject: 'Memory 2',
+          keywords: ['test'],
+          applies_to: 'global',
+          occurred_at: '2024-01-01T00:01:00.000Z',
+          content_hash: 'hash2',
+          content: 'Content for memory 2.',
+          timestamp: '2024-01-01T00:01:00.000Z',
+        }),
+      ].join('\n') + '\n';
+
+      // File 3 (skipping 2) with 1 entry - tests that we find the highest numbered file
+      const file3Content = [
+        JSON.stringify({
+          action: 'add',
+          id: 'memory-3',
+          subject: 'Memory 3',
+          keywords: ['test'],
+          applies_to: 'global',
+          occurred_at: '2024-01-01T00:02:00.000Z',
+          content_hash: 'hash3',
+          content: 'Content for memory 3.',
+          timestamp: '2024-01-01T00:02:00.000Z',
+        }),
+      ].join('\n') + '\n';
+
+      // Create the directory and files
+      await fs.mkdir(storeDir, { recursive: true });
+      await fs.writeFile(path.join(storeDir, 'episodic-000001.jsonl'), file1Content);
+      await fs.writeFile(path.join(storeDir, 'episodic-000003.jsonl'), file3Content);
+
+      // Create a new store and add a memory
+      const newStore = new EpisodicJsonlStore({ baseDir: testDir });
+      const newMemory = await newStore.createMemory({
+        subject: 'New Memory',
+        keywords: ['new'],
+        applies_to: 'global' as const,
+        content: 'This should be appended to file 3, not file 1.',
+      });
+
+      // Verify the new memory was appended to file 3
+      const file3Updated = await fs.readFile(path.join(storeDir, 'episodic-000003.jsonl'), 'utf-8');
+      const file3Lines = file3Updated.split('\n').filter((l) => l.trim());
+      expect(file3Lines).toHaveLength(2); // Original + new
+
+      const lastEntry = JSON.parse(file3Lines[1]);
+      expect(lastEntry.id).toBe(newMemory.id);
+      expect(lastEntry.subject).toBe('New Memory');
+
+      // File 1 should be unchanged
+      const file1After = await fs.readFile(path.join(storeDir, 'episodic-000001.jsonl'), 'utf-8');
+      const file1Lines = file1After.split('\n').filter((l) => l.trim());
+      expect(file1Lines).toHaveLength(2); // Unchanged
+    });
+
+    it('should handle concurrent appends without race conditions', async () => {
+      // Create a fresh store
+      const store1 = new EpisodicJsonlStore({ baseDir: testDir });
+
+      // Launch multiple concurrent creates - this tests the loadPromise synchronization
+      const promises = Array.from({ length: 10 }, (_, i) =>
+        store1.createMemory({
+          subject: `Concurrent Memory ${i}`,
+          keywords: ['concurrent'],
+          applies_to: 'global' as const,
+          content: `Content for concurrent memory ${i}.`,
+          occurred_at: `2024-01-01T00:0${i}:00.000Z`,
+        })
+      );
+
+      const results = await Promise.all(promises);
+
+      // All 10 should be created successfully
+      expect(results).toHaveLength(10);
+      expect(new Set(results.map((m) => m.id)).size).toBe(10); // All unique IDs
+
+      // All should be in the same file (file 1) since they fit
+      const filePath = path.join(storeDir, 'episodic-000001.jsonl');
+      const content = await fs.readFile(filePath, 'utf-8');
+      const lines = content.split('\n').filter((l) => l.trim());
+      expect(lines).toHaveLength(10);
+    });
+  });
 });
